@@ -22,7 +22,7 @@ import {
   PUB_VERSION,
   blankSeismicState,
   datosPublicacion,
-  defaultSeismicState,
+  ejemploSeismicState,
   evaluarSismo,
   nombreDuctilidad,
   publicarResultado,
@@ -36,7 +36,7 @@ beforeEach(() => {
 
 /** Granada, diez plantas: el caso del arranque, que sí calcula. */
 const datosDe = (s: SeismicState) => datosPublicacion(s, evaluarSismo(s));
-const granada = () => datosDe(defaultSeismicState());
+const granada = () => datosDe(ejemploSeismicState());
 
 describe('hechos, no prosa', () => {
   it('no viajan bloques de documento, ni avisos, ni el estado interno del módulo', () => {
@@ -52,7 +52,7 @@ describe('hechos, no prosa', () => {
   });
 
   it('viaja ya derivado: ac con ρ y S dentro, β = ν/μ y el peso sísmico sumado', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const ev = evaluarSismo(s);
     const d = datosPublicacion(s, ev);
     expect(d.ab).toBe(0.23);
@@ -80,7 +80,7 @@ describe('hechos, no prosa', () => {
     // el proyectista, que no cuenta.
     expect(d.calculo!.categoriasMasa).toEqual(['permanente', 'tabiqueria', 'uso-residencial']);
     expect(d.calculo!.categoriasMasa).not.toContain('uso-publico');
-    const exento = datosDe({ ...defaultSeismicState(), ab: 0.02 });
+    const exento = datosDe({ ...ejemploSeismicState(), ab: 0.02 });
     expect(exento.calculo).toBeNull();
   });
 
@@ -93,7 +93,7 @@ describe('hechos, no prosa', () => {
   });
 
   it('cada fuerza va con SU planta, aunque el motor las haya reordenado por altura', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     // Se desordenan las alturas: el motor ordena, la publicación no puede
     // emparejar por posición sin cruzar nombres con fuerzas.
     const alturas = s.plantas.map((p) => p.h);
@@ -114,7 +114,7 @@ describe('hechos, no prosa', () => {
 describe('un caso exento también se publica', () => {
   /** ab = 0,02 g: por debajo del umbral del art. 1.2.3. */
   function exento(): SeismicState {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     return { ...s, municipioIne: null, municipioNombre: '', ab: 0.02, K: 1.0 };
   }
 
@@ -147,7 +147,7 @@ describe('un caso exento también se publica', () => {
 
 describe('el sobre', () => {
   it('se escribe en concreta-pub-sismo con la versión del esquema y la obra del módulo', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     publicarResultado(s, evaluarSismo(s));
     expect(localStorage.getItem(clavePublicacion(MODULO_PUB))).not.toBeNull();
     const sobre = leerPublicacion<PubSismo>(MODULO_PUB, PUB_VERSION)!;
@@ -160,7 +160,7 @@ describe('el sobre', () => {
 
   it('en entrada manual de ab y K, el emplazamiento cae a `concreta-obra`', () => {
     guardarObra({ municipio: 'Espartinas', provincia: '41' });
-    const s = { ...defaultSeismicState(), municipioIne: null, municipioNombre: '' };
+    const s = { ...ejemploSeismicState(), municipioIne: null, municipioNombre: '' };
     publicarResultado(s, evaluarSismo(s));
     const sobre = leerPublicacion<PubSismo>(MODULO_PUB, PUB_VERSION)!;
     expect(sobre.obra.municipio).toBe('Espartinas');
@@ -169,7 +169,7 @@ describe('el sobre', () => {
   });
 
   it('pedir otra versión del esquema devuelve null, no un objeto a medias', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     publicarResultado(s, evaluarSismo(s));
     expect(leerPublicacion<PubSismo>(MODULO_PUB, PUB_VERSION + 1)).toBeNull();
   });

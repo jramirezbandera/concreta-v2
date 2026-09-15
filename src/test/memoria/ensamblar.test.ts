@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defaultSeismicState, datosPublicacion as pubSismo, evaluarSismo } from '../../features/seismic-ncse02/state';
+import { ejemploSeismicState, datosPublicacion as pubSismo, evaluarSismo } from '../../features/seismic-ncse02/state';
 import { provinciaPorIne } from '../../lib/acciones/provincias';
 import { ZONAS_EOLICAS } from '../../lib/acciones/tablasAE';
 import { lookupFk, lookupGammaM } from '../../lib/calculations/masonryWalls';
@@ -228,7 +228,7 @@ describe('con los cuatro sobres de Granada, recién publicados', () => {
 
 describe('sismo exento y sismo sin resolver', () => {
   it('exento (ab = 0,02 g): la tabla se colapsa y lleva el motivo del módulo', () => {
-    const s = { ...defaultSeismicState(), ab: 0.02 };
+    const s = { ...ejemploSeismicState(), ab: 0.02 };
     const sobres: Sobres = { ...SIN_SOBRES, sismo: sobre('sismo', pubSismo(s, evaluarSismo(s)), { ine: '18087' }) };
     const d = ensamblar(tomarTodo(fichaGranada(), sobres), sobres);
     expect(d.ncse.estado).toBe('derivado');
@@ -238,7 +238,7 @@ describe('sismo exento y sismo sin resolver', () => {
   });
 
   it('obligatorio pero sin cálculo (una declaración sin hacer): falta, y el hueco lleva al módulo', () => {
-    const s = { ...defaultSeismicState(), regularidadGeometrica: null };
+    const s = { ...ejemploSeismicState(), regularidadGeometrica: null };
     const pub = pubSismo(s, evaluarSismo(s));
     expect(pub.obligatoria).toBe(true);
     expect(pub.calculo).toBeNull();

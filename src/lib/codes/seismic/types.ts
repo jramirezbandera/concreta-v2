@@ -92,8 +92,13 @@ export interface ObligatoriedadResult {
   estado: ObligatoriedadEstado;
   /** Sólo cuando estado === "exenta". */
   motivo: MotivoExencion | null;
-  /** Sólo cuando estado === "indeterminada": qué dato falta para decidir. */
-  falta: "ac" | null;
+  /**
+   * Sólo cuando estado === "indeterminada": qué dato falta para decidir.
+   * `ac` lo emite el motor (contraexcepción de las siete plantas); `ab` lo
+   * emite la capa de arriba cuando el emplazamiento está sin resolver —sin
+   * municipio y sin ab tecleado— y no llega ni a preguntar al motor.
+   */
+  falta: "ab" | "ac" | null;
   avisos: AvisoNorma[];
 }
 

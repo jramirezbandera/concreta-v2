@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { defaultSeismicState } from '../../features/seismic-ncse02/state';
+import { ejemploSeismicState } from '../../features/seismic-ncse02/state';
 import { SIN_SOBRES, ensamblar } from '../../lib/memoria/ensamblar';
 import { apartados, bloquesFicha } from '../../lib/memoria/ficha';
 import type { Block } from '../../lib/memoria/model';
@@ -97,7 +97,7 @@ describe('la tabla sísmica', () => {
   });
 
   it('exenta: cuatro filas, con el motivo del módulo en «Observaciones»', () => {
-    const sobres = sobresGranada({ sismo: { ...defaultSeismicState(), ab: 0.02 } });
+    const sobres = sobresGranada({ sismo: { ...ejemploSeismicState(), ab: 0.02 } });
     const datos = ensamblar(tomarTodo(fichaGranada(), sobres), sobres);
     const ap = apartados(datos).find((a) => a.id === 'ncse')!;
     const filas = kvs(ap.bloques)[0].rows;

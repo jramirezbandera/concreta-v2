@@ -54,7 +54,7 @@ import {
   type TableCol,
 } from './utils';
 import { FRACCION_MASA, NCSE02_ENGINE_VERSION } from '../codes/seismic/ncse02';
-import { MOTIVO_EXENCION } from '../codes/seismic/applicability';
+import { MOTIVO_EXENCION, textoFalta } from '../codes/seismic/applicability';
 import type {
   AvisoNorma,
   CasoDireccional,
@@ -210,7 +210,7 @@ export function seismicPdfBlocker(evaluacion: SeismicEvaluation): string | null 
   if (obl.estado === 'indeterminada') {
     return (
       'Todavía no se puede decidir si la NCSE-02 es de aplicación: falta ' +
-      `${obl.falta ?? 'un dato del emplazamiento'}. Un PDF con la puerta sin resolver ` +
+      `${textoFalta(obl.falta)}. Un PDF con la puerta sin resolver ` +
       'parecería una justificación sin serlo.'
     );
   }

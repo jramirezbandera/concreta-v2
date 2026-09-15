@@ -44,7 +44,7 @@ describe('leerSobres', () => {
   });
 
   it('lee el sobre real de sismo y rechaza uno de otro módulo en su clave', () => {
-    const s = sismo.defaultSeismicState();
+    const s = sismo.ejemploSeismicState();
     sismo.publicarResultado(s, sismo.evaluarSismo(s));
     expect(leerSobres().sismo?.datos.ab).toBe(0.23);
     localStorage.setItem(clavePublicacion('sismo'), JSON.stringify({ v: 1, ts: 'x', modulo: 'viento-nieve', obra: {}, datos: {} }));

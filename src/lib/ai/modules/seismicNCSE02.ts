@@ -77,6 +77,7 @@ import {
   resolverEmplazamiento,
   staticForceAlpha,
 } from '../../codes/seismic/ncse02';
+import { textoFalta } from '../../codes/seismic/applicability';
 import type {
   CategoriaMasa,
   Importancia,
@@ -908,8 +909,10 @@ export function summarizeSeismicResults(ev: SeismicEvaluation): AiResultsSummary
       valid: false,
       error:
         'Todavía no se puede decidir si la NCSE-02 es de aplicación: falta '
-        + `${obl.falta ?? 'un dato del emplazamiento'}. Es la contraexcepción del art. 1.2.3 `
-        + '(más de siete plantas con ac >= 0,08 g), que necesita el emplazamiento resuelto.',
+        + `${textoFalta(obl.falta)}.`
+        + (obl.falta === 'ac'
+          ? ' Es la contraexcepción del art. 1.2.3 (más de siete plantas con ac >= 0,08 g), que necesita el emplazamiento resuelto.'
+          : ''),
       checks: [],
     });
   }

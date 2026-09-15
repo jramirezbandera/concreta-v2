@@ -8,7 +8,7 @@
 import { defaultCargasState, datosPublicacion as pubCargas, evaluar as evaluarCargas } from '../../features/cargas-planta/state';
 import { defaultMaterialesState, datosPublicacion as pubMateriales, evaluar as evaluarMateriales, filaMaderaDesdePreset } from '../../features/materiales/state';
 import { datosPublicacion as pubIncendio, defaultIncendioState, evaluar as evaluarIncendio, type FilaExigencia } from '../../features/incendio/state';
-import { defaultSeismicState, datosPublicacion as pubSismo, evaluarSismo, type SeismicState } from '../../features/seismic-ncse02/state';
+import { ejemploSeismicState, datosPublicacion as pubSismo, evaluarSismo, type SeismicState } from '../../features/seismic-ncse02/state';
 import { ejemploVientoNieveState, datosPublicacion as pubViento, evaluar as evaluarViento } from '../../features/viento-nieve/state';
 import { evaluar, tipologiasDe, type Sobres } from '../../lib/memoria/ensamblar';
 import { aceptar, asegurarForjados, confirmar, estadoPorDefecto, MODULOS_PUB, teclear, type MemoriaState, type ModuloPub } from '../../lib/memoria/estado';
@@ -55,7 +55,7 @@ export function sobresGranada(o: OpcionesSobres = {}): Sobres {
   const c = defaultCargasState();
   c.emplazamiento = { provincia: '18', municipio: 'Granada', altitud: 680 };
   const cargas = pubCargas(c, evaluarCargas(c, null))!;
-  const s = o.sismo ?? defaultSeismicState();
+  const s = o.sismo ?? ejemploSeismicState();
   const sismo = pubSismo(s, evaluarSismo(s));
   // El fuego viaja en su propio sobre desde que salió del cuadro de materiales.
   const i = { ...defaultIncendioState(), exigencias: o.fuego ?? [] };

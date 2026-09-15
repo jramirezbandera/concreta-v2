@@ -21,7 +21,7 @@ import {
 } from '../../lib/codes/seismic/ncse02';
 import { leerObra } from '../../lib/obra';
 import { publicar } from '../../lib/pub';
-import type { Procedencia } from './hazard';
+import type { Municipio, Procedencia } from './hazard';
 import type {
   ApplicabilityResult,
   CategoriaMasa,
@@ -168,11 +168,15 @@ function plantaTipo(nombre: string, h: number, area: number): PlantaUI {
 }
 
 /**
- * El caso del mockup: Granada, 10 plantas de pórticos de hormigón sin
- * pantallas, terreno II. Sirve de punto de partida reconocible y es el mismo
- * caso que fija `CASO_GRANADA` en los fixtures del motor.
+ * El caso de ejemplo: Granada, 10 plantas de pórticos de hormigón sin
+ * pantallas, terreno II. Es el mismo caso que fija `CASO_GRANADA` en los
+ * fixtures del motor, y lo que usan los tests que necesitan un caso completo.
+ *
+ * Hasta el 2026-09-15 era también el ARRANQUE del módulo, y con eso cualquier
+ * obra abría con Granada puesta: un municipio que el usuario no ha elegido no
+ * es un dato, es un dato fantasma (ver `defaultSeismicState`).
  */
-export function defaultSeismicState(): SeismicState {
+export function ejemploSeismicState(): SeismicState {
   const plantas: PlantaUI[] = [];
   for (let k = 1; k <= 10; k++) {
     plantas.push(
@@ -231,6 +235,44 @@ export function defaultSeismicState(): SeismicState {
 }
 
 /**
+ * Estado de arranque: el edificio del ejemplo, SIN emplazamiento. Ni
+ * municipio ni ab: `ab = 0` con `municipioIne = null` es «sin resolver», no
+ * «cero» (ver `emplazamientoPendiente`). El municipio llega de dos sitios: lo
+ * elige el usuario en el buscador, o lo trae la obra —el módulo intenta
+ * enlazar el municipio de `concreta-obra` en cuanto abre—.
+ */
+export function defaultSeismicState(): SeismicState {
+  return sinEmplazamiento(ejemploSeismicState());
+}
+
+/** El mismo edificio, con el emplazamiento por resolver. */
+function sinEmplazamiento(s: SeismicState): SeismicState {
+  return { ...s, municipioIne: null, municipioNombre: '', municipioProcedencia: null, ab: 0, K: 1.0 };
+}
+
+/**
+ * ¿Falta el emplazamiento? Sin municipio del Anejo 1 y sin ab tecleado. No es
+ * un caso exento —ab = 0 no existe en ningún sitio—, es un caso sin resolver,
+ * y así lo cuenta `evaluarSismo`: la puerta del art. 1.2.3 queda
+ * «indeterminada» en vez de exenta.
+ */
+export function emplazamientoPendiente(s: SeismicState): boolean {
+  return s.municipioIne === null && s.ab === 0;
+}
+
+/** El municipio elegido —a mano o desde la obra— con sus ab y K. Único sitio que los escribe juntos. */
+export function conMunicipio(s: SeismicState, m: Municipio): SeismicState {
+  return {
+    ...s,
+    municipioIne: m.ine,
+    municipioNombre: m.nombre,
+    municipioProcedencia: m.procedencia,
+    ab: m.ab,
+    K: m.k,
+  };
+}
+
+/**
  * @param L      dimensión EN EL SENTIDO DE LA OSCILACIÓN. Es la que entra en las
  *               expresiones de T_F del art. 3.7.2.2.
  * @param B      pantallas o planos triangulados, para las expresiones (3) y (5).
@@ -269,21 +311,28 @@ const huellaSismo = (s: SeismicState) =>
     y: { ...s.y, elementos: s.y.elementos.map(sinId) },
   });
 
+/** El edificio sin su emplazamiento: lo que el usuario tiene que haber tocado para que haya un cálculo suyo. */
+const huellaEdificio = (s: SeismicState) => huellaSismo(sinEmplazamiento(s));
+
 /**
- * ¿El sismo sigue siendo el de arranque? A diferencia de Viento y nieve y de
- * Cargas por planta, aquí el EMPLAZAMIENTO cuenta: `ab` y `K` son el
- * resultado, no el contexto, y elegir otro municipio ya es configurar el
- * módulo.
+ * ¿El EDIFICIO sigue siendo el de arranque? Se mira sin el emplazamiento, como
+ * en Viento y nieve y en Cargas por planta.
  *
- * Esta función carga sola con todo el peso. `defaultSeismicState()` es Granada
- * con ab = 0,23 g y diez plantas de 300 m², y `publicarResultado` es el único
- * de los cuatro publicadores SIN guarda: abrir el módulo una vez deja ese sobre
- * escrito. Hasta 2026-09-12 nada distinguía «hay un sobre» de «hay un cálculo
- * de esta obra», y esa sismicidad podía acabar firmada en una memoria de
- * Sevilla.
+ * Hasta el 2026-09-15 el emplazamiento contaba: elegir otro municipio ya era
+ * configurar. Dejó de valer el día en que el municipio puede llegar de la obra
+ * sin que nadie lo elija: abrir el módulo con la obra en Sevilla enlazaría
+ * Sevilla, y las diez plantas de 300 m² del ejemplo pasarían por un cálculo de
+ * esa obra. `publicarResultado` es el único de los cuatro publicadores SIN
+ * guarda —abrir el módulo una vez deja el sobre escrito—, y lo que distingue
+ * «hay un sobre» de «hay un cálculo de esta obra» es esta marca.
  */
 export function esEstadoInicial(s: SeismicState): boolean {
-  return huellaSismo(s) === huellaSismo(defaultSeismicState());
+  return huellaEdificio(s) === huellaEdificio(defaultSeismicState());
+}
+
+/** ¿Es el caso de ejemplo tal cual, Granada incluida? Lo usa la carga para retirar el arranque antiguo. */
+export function esEjemplo(s: SeismicState): boolean {
+  return huellaSismo(s) === huellaSismo(ejemploSeismicState());
 }
 
 /**
@@ -296,8 +345,13 @@ export function esEnBlanco(s: SeismicState): boolean {
   return huellaSismo(s) === huellaSismo(blankSeismicState());
 }
 
-/** ¿Hay aquí algo que decir de ESTA obra? Ver `lib/pub/index.ts`. Ni el arranque (Granada) ni el blanco cuentan. */
-export const estaConfigurado = (s: SeismicState): boolean => !esEstadoInicial(s) && !esEnBlanco(s);
+/**
+ * ¿Hay aquí algo que decir de ESTA obra? Ver `lib/pub/index.ts`. Ni el edificio
+ * de arranque ni el blanco cuentan, y un emplazamiento sin resolver tampoco: la
+ * puerta del art. 1.2.3 está sin decidir y no hay veredicto que publicar.
+ */
+export const estaConfigurado = (s: SeismicState): boolean =>
+  !esEstadoInicial(s) && !esEnBlanco(s) && !emplazamientoPendiente(s);
 
 /** Estado mínimo: una planta, sin municipio. Para empezar de cero. */
 export function blankSeismicState(): SeismicState {
@@ -468,6 +522,32 @@ export interface SeismicEvaluation {
 export function evaluarSismo(s: SeismicState): SeismicEvaluation {
   const input = toSeismicInput(s);
   const emplazamiento = resolverEmplazamiento(input.emplazamiento);
+
+  // Sin emplazamiento no hay puerta que resolver: `ab = 0` entraría en
+  // `checkApplicability` como «inferior a 0,04 g» y el módulo declararía
+  // EXENTO un edificio del que todavía no sabe dónde está. Es la misma salida
+  // «indeterminada» que el motor da cuando le falta ac, con otro dato que falta.
+  if (emplazamientoPendiente(s)) {
+    const impedimento: Impedimento = {
+      motivo: 'obligatoriedad-indeterminada',
+      articulo: '1.2.3',
+      texto:
+        'Todavía no se puede decidir si la NCSE-02 es de aplicación: falta el emplazamiento. ' +
+        'Elige el municipio, o introduce ab y K a mano.',
+    };
+    return {
+      emplazamiento,
+      aplicabilidad: {
+        obligatoriedad: { estado: 'indeterminada', motivo: null, falta: 'ab', avisos: [] },
+        metodoSimplificado: null,
+        puedeCalcular: false,
+        impedimento,
+        avisos: [],
+      },
+      resultado: null,
+      impedimento,
+    };
+  }
 
   // Cruzadas a propósito: los planos de X se reparten sobre el eje Y, así que
   // su excentricidad se mide contra la dimensión en planta de Y. Ver

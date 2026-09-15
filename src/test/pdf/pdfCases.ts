@@ -58,7 +58,7 @@ import { cloneDesignPreset } from '../../features/fem-analysis/presets';
 import { solveDesignModel } from '../../features/fem-analysis/solveDesignModel';
 import { exportFem2DPDF } from '../../lib/pdf/fem2d';
 import { exportSeismicNCSE02PDF } from '../../lib/pdf/seismicNCSE02';
-import { defaultSeismicState, evaluarSismo, newId, type SeismicState } from '../../features/seismic-ncse02/state';
+import { ejemploSeismicState, evaluarSismo, newId, type SeismicState } from '../../features/seismic-ncse02/state';
 import { fem2dUiDefaults, buildModelFromState } from '../../features/fem2d/uiState';
 import { analyzeFem2D } from '../../features/fem2d/pipeline';
 import { setMemberMaterial } from '../../features/fem2d/modelOps';
@@ -348,10 +348,10 @@ export const PDF_CASES: PdfCase[] = [
   // `stressable: false`: el módulo no expone `result.checks` (su «estado» son
   // las dos puertas normativas), así que allWarn/allFail no tienen dónde morder.
   { m: 20, name: 'seismic-ncse02 (Granada, completo)', stressable: false,
-    run: () => seismicPdf(defaultSeismicState()) },
+    run: () => seismicPdf(ejemploSeismicState()) },
 
   { m: 20, name: 'seismic-ncse02 (exento por importancia moderada)', stressable: false,
-    run: () => seismicPdf({ ...defaultSeismicState(), importancia: 'moderada' }) },
+    run: () => seismicPdf({ ...ejemploSeismicState(), importancia: 'moderada' }) },
 
   // 25 plantas incumplen el requisito (1) del art. 3.5.1 («inferior a veinte») y
   // su altura el (2) → la Norma rige, el método simplificado no, y el documento
@@ -359,7 +359,7 @@ export const PDF_CASES: PdfCase[] = [
   // contar la tabla, no es un campo que se pueda declarar aparte.
   { m: 20, name: 'seismic-ncse02 (metodo simplificado no aplicable)', stressable: false,
     run: () => {
-      const base = defaultSeismicState();
+      const base = ejemploSeismicState();
       return seismicPdf({
         ...base,
         H: 75,
@@ -374,7 +374,7 @@ export const PDF_CASES: PdfCase[] = [
   // cae a la forma larga. Es otra tabla, y sin este caso nunca se mediría.
   { m: 20, name: 'seismic-ncse02 (reparto en forma larga, 10 planos)', stressable: false,
     run: () => {
-      const base = defaultSeismicState();
+      const base = ejemploSeismicState();
       const elementos = Array.from({ length: 10 }, (_, j) => ({
         id: newId(), x: -10 + j * (20 / 9), k: 1 + j * 0.1,
       }));

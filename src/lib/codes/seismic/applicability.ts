@@ -37,6 +37,13 @@ import type {
 
 /** Art. 1.2.3: exención general para importancia normal o especial. */
 export const AB_EXENCION_GENERAL = 0.04;
+
+/** Cómo se le nombra al usuario el dato que falta para decidir la puerta. */
+export function textoFalta(falta: ObligatoriedadResult["falta"]): string {
+  if (falta === "ab") return "el emplazamiento (elige el municipio, o introduce ab y K a mano)";
+  if (falta === "ac") return "ac";
+  return "un dato del emplazamiento";
+}
 /** Art. 1.2.3: exención para importancia normal con pórticos arriostrados. */
 export const AB_EXENCION_ARRIOSTRADOS = 0.08;
 /** Art. 1.2.3: contraexcepción, "igual o mayor de 0,08 g". */

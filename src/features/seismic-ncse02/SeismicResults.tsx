@@ -29,7 +29,8 @@ import type {
 import type { CheckStatus } from '../../lib/calculations/types';
 import { ambientStyle } from '../../components/checks';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import type { SeismicEvaluation, SeismicState } from './state';
+import { textoFalta } from '../../lib/codes/seismic/applicability';
+import { emplazamientoPendiente, type SeismicEvaluation, type SeismicState } from './state';
 import { dec, fuerza, magnitud, pct, unidadFuerza } from './formato';
 
 // Una sola convención decimal en todo el módulo: ver `formato.ts`. Las fuerzas
@@ -394,7 +395,7 @@ export function SeismicResults({
             : imp.motivo === 'norma-no-obligatoria'
               ? `La Norma no es de aplicación obligatoria — ${MOTIVOS[obl.motivo ?? ''] ?? 'exenta'}`
               : imp.motivo === 'obligatoriedad-indeterminada'
-                ? `No se puede decidir todavía: falta ${obl.falta}`
+                ? `No se puede decidir todavía: falta ${textoFalta(obl.falta)}`
                 : imp.motivo === 'prohibicion-art-1.2.3'
                   ? 'La Norma rige y PROHÍBE esta construcción'
                   : imp.motivo === 'faltan-datos-de-calculo'
@@ -448,8 +449,13 @@ export function SeismicResults({
             ya coinciden exactamente (mapa DECIMALES en formato.ts); lo que
             faltaba era decir por qué están dos veces. */}
         <Cabecera titulo="Emplazamiento" sub="lo que se publica" refNorma="art. 2.2 · 2.3" />
-          <Fila k="Municipio" v={state.municipioNombre || 'entrada manual'} />
-          <Fila k="ab" sub="Anejo 1" v={`${magnitud(e.ab, 'ab')} g`} />
+          <Fila k="Municipio" v={state.municipioNombre || (emplazamientoPendiente(state) ? 'sin elegir' : 'entrada manual')} />
+          {/* Sólo es del Anejo 1 si hay municipio: a mano no lo es, y sin resolver menos. */}
+          <Fila
+            k="ab"
+            sub={state.municipioIne ? 'Anejo 1' : emplazamientoPendiente(state) ? 'sin resolver' : 'a mano'}
+            v={`${magnitud(e.ab, 'ab')} g`}
+          />
           <Fila k="K" sub="contribución" v={magnitud(e.K, 'K')} />
           <Fila k="ρ" sub="riesgo" v={magnitud(e.rho, 'rho')} />
           <Fila k="C" sub="terreno" v={magnitud(e.C, 'C')} />

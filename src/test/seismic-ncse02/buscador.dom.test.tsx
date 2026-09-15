@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { SeismicInputs } from '../../features/seismic-ncse02/SeismicInputs';
 import {
-  defaultSeismicState,
+  ejemploSeismicState,
   evaluarSismo,
   type SeismicState,
 } from '../../features/seismic-ncse02/state';
@@ -43,7 +43,7 @@ const M = (ine: string, nombre: string, provincia: string, ab: number): Municipi
 const TORRENTS = [M('17199', 'Torrent', 'Girona', 0.05), M('46244', 'Torrent', 'Valencia', 0.07)];
 
 function Anfitrion() {
-  const [state, setState] = useState<SeismicState>(defaultSeismicState);
+  const [state, setState] = useState<SeismicState>(ejemploSeismicState);
   // El panel lee el sistema de unidades del contexto (Σ P y los campos con
   // `quantity`): en la app lo provee el shell, aquí hay que dárselo.
   return (

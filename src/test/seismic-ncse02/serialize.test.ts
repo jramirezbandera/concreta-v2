@@ -16,7 +16,7 @@ import {
 } from '../../features/seismic-ncse02/serialize';
 import {
   blankSeismicState,
-  defaultSeismicState,
+  ejemploSeismicState,
   evaluarSismo,
   type SeismicState,
 } from '../../features/seismic-ncse02/state';
@@ -25,7 +25,7 @@ const ida = (s: SeismicState) => decodeShareString(encodeShareString(s));
 
 describe('round-trip', () => {
   it('el estado por defecto vuelve idéntico', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     expect(ida(s)).toEqual(s);
   });
 
@@ -35,14 +35,14 @@ describe('round-trip', () => {
   });
 
   it('y el caso que vuelve calcula lo mismo que el original', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const v = ida(s)!;
     expect(evaluarSismo(v).resultado?.x.Vk).toEqual(evaluarSismo(s).resultado?.x.Vk);
     expect(evaluarSismo(v).resultado?.pesoSismico).toBe(evaluarSismo(s).resultado?.pesoSismico);
   });
 
   it('conserva el SIGNO de cada plano resistente', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     s.x.elementos = [
       { id: 'a', x: -10, k: 1 },
       { id: 'b', x: -5, k: 2 },
@@ -53,14 +53,14 @@ describe('round-trip', () => {
   });
 
   it('conserva una sobrecarga excluida, que es una declaración del proyectista', () => {
-    const v = ida(defaultSeismicState())!;
+    const v = ida(ejemploSeismicState())!;
     const cubierta = v.plantas[v.plantas.length - 1];
     expect(cubierta.componentes?.some((c) => c.excluida === true)).toBe(true);
   });
 
   it('conserva los conmutadores auto/manual', () => {
     const s: SeismicState = {
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       nModosModo: 'manual',
       nModosManual: 3,
       terrenoModo: 'perfil',
@@ -75,7 +75,7 @@ describe('round-trip', () => {
   });
 
   it('una declaración sin contestar sigue sin contestar al otro lado', () => {
-    const s: SeismicState = { ...defaultSeismicState(), regularidadMecanica: null };
+    const s: SeismicState = { ...ejemploSeismicState(), regularidadMecanica: null };
     expect(ida(s)!.regularidadMecanica).toBeNull();
   });
 });
@@ -94,23 +94,23 @@ describe('entradas que no son un caso de sismo', () => {
   });
 
   it('rechaza un caso sin plantas o sin direcciones', () => {
-    const sinPlantas = { ...defaultSeismicState(), plantas: [] };
+    const sinPlantas = { ...ejemploSeismicState(), plantas: [] };
     expect(decodeShareString(encodeShareString(sinPlantas))).toBeNull();
-    const sinY = { ...defaultSeismicState(), y: undefined };
+    const sinY = { ...ejemploSeismicState(), y: undefined };
     expect(decodeShareString(encodeShareString(sinY as unknown as SeismicState))).toBeNull();
   });
 });
 
 describe('buildShareUrl', () => {
   it('produce una URL con el caso en ?model=', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const url = buildShareUrl(s, 'https://ejemplo.test/ciment/sismo');
     expect(url.startsWith('https://ejemplo.test/ciment/sismo?model=')).toBe(true);
     expect(decodeShareString(url.slice(url.indexOf('=') + 1))).toEqual(s);
   });
 
   it('descarta los query params que ya trajera la URL', () => {
-    const url = buildShareUrl(defaultSeismicState(), 'https://ejemplo.test/x?model=viejo&otro=1');
+    const url = buildShareUrl(ejemploSeismicState(), 'https://ejemplo.test/x?model=viejo&otro=1');
     expect(url.match(/\?/g)).toHaveLength(1);
     expect(url).not.toContain('otro=1');
   });
@@ -118,16 +118,16 @@ describe('buildShareUrl', () => {
   it('el enlace de un edificio real cabe donde cortan los correos corporativos', () => {
     // Diez plantas con desglose de cargas y ocho planos resistentes. Sin
     // comprimir se va por encima del limite; comprimido tiene que entrar.
-    const url = buildShareUrl(defaultSeismicState(), 'https://ejemplo.test/ciment/sismo');
+    const url = buildShareUrl(ejemploSeismicState(), 'https://ejemplo.test/ciment/sismo');
     expect(url.length).toBeLessThan(4000);
-    expect(url.length).toBeLessThan(JSON.stringify(defaultSeismicState()).length);
+    expect(url.length).toBeLessThan(JSON.stringify(ejemploSeismicState()).length);
   });
 
   it('sobrevive a que el navegador convierta el "+" en espacio', () => {
     // El alfabeto de lz-string incluye "+", y URLSearchParams lo lee como
     // espacio. Es el camino REAL de un enlace pegado en la barra, asi que se
     // prueba ese, no una comparacion con encodeURIComponent.
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const url = buildShareUrl(s, 'https://ejemplo.test/ciment/sismo');
     const leido = new URLSearchParams(new URL(url).search).get('model');
     expect(leido).not.toBeNull();

@@ -25,7 +25,7 @@ import { guardarEstado } from '../../features/memoria-dbse/state';
 import { leerSobres } from '../../features/memoria-dbse/sobres';
 import { defaultCargasState, evaluar as evaluarCargas, publicarResultado as publicarCargas } from '../../features/cargas-planta/state';
 import { defaultMaterialesState, evaluar as evaluarMateriales, publicarResultado as publicarMateriales } from '../../features/materiales/state';
-import { defaultSeismicState, evaluarSismo, publicarResultado as publicarSismo } from '../../features/seismic-ncse02/state';
+import { ejemploSeismicState, evaluarSismo, publicarResultado as publicarSismo } from '../../features/seismic-ncse02/state';
 import type { Block } from '../../lib/memoria/model';
 import { guardarObra, leerObra } from '../../lib/obra';
 import { completar, fichaGranada } from './fixtures';
@@ -78,7 +78,7 @@ function publicarLosOtros(acero = false) {
   const c0 = defaultCargasState();
   const c = { ...c0, emplazamiento: { provincia: '18', municipio: 'Granada', altitud: 680 }, plantas: c0.plantas.slice(0, 2) };
   publicarCargas(c, evaluarCargas(c, null));
-  const s = { ...defaultSeismicState(), sotanos: 1 };
+  const s = { ...ejemploSeismicState(), sotanos: 1 };
   publicarSismo(s, evaluarSismo(s));
 }
 
@@ -148,7 +148,7 @@ describe('Cumplimiento del DB SE — el módulo', () => {
     publicarMateriales(m, evaluarMateriales(m));
     const c = { ...defaultCargasState(), emplazamiento: { provincia: '18', municipio: 'Granada', altitud: 680 } };
     publicarCargas(c, evaluarCargas(c, null));
-    const sis = defaultSeismicState();
+    const sis = ejemploSeismicState();
     publicarSismo(sis, evaluarSismo(sis));
     montar();
 

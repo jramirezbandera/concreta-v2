@@ -260,3 +260,43 @@ export async function municipioPorIne(ine: string): Promise<Municipio | null> {
   }
   return null;
 }
+
+// ── El municipio de la obra ──────────────────────────────────────────────────
+
+/**
+ * Qué pasó al buscar el municipio de la obra en el Anejo 1.
+ *
+ * `varios` es la salida honrada de los homónimos sin provincia: los dos
+ * «Torrent» son municipios distintos con un 40 % de diferencia en ab, y
+ * elegir uno por el usuario sería adjudicarle una peligrosidad al azar.
+ */
+export type EnlaceObra =
+  | { tipo: 'uno'; municipio: Municipio }
+  | { tipo: 'varios'; candidatos: Municipio[] }
+  | { tipo: 'ninguno' };
+
+/**
+ * Busca el municipio tecleado en la obra para ENLAZARLO sin que nadie elija.
+ *
+ * A diferencia de `buscarMunicipios`, aquí sólo valen las coincidencias
+ * exactas de clave: un prefijo o un «contiene» servirían para ofrecer, nunca
+ * para decidir por el usuario («Torre» no es «Torrent»). Con provincia en la
+ * obra se filtra por sus dos cifras del INE, que es lo que separa a los
+ * homónimos; sin ella, sólo desempata el nombre oficial completo, que es lo
+ * que distingue «Granada» de «Granada (La)».
+ */
+export async function municipioDeObra(nombre: string, provincia = ''): Promise<EnlaceObra> {
+  const q = plegarConsulta(nombre);
+  if (!q) return { tipo: 'ninguno' };
+  const d = await cargarHazard();
+  const exactas: number[] = [];
+  for (let i = 0; i < d.ine.length; i++) {
+    if (provincia && !d.ine[i].startsWith(provincia)) continue;
+    if (d.clave[i].split('|').some((c) => c === q)) exactas.push(i);
+  }
+  if (exactas.length === 0) return { tipo: 'ninguno' };
+  if (exactas.length === 1) return { tipo: 'uno', municipio: filaA(d, exactas[0]) };
+  const porNombre = exactas.filter((i) => plegarConsulta(d.nombre[i]) === q);
+  if (porNombre.length === 1) return { tipo: 'uno', municipio: filaA(d, porNombre[0]) };
+  return { tipo: 'varios', candidatos: exactas.map((i) => filaA(d, i)) };
+}

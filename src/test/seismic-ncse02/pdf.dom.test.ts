@@ -43,7 +43,7 @@ import {
   seismicPdfBlocker,
 } from '../../lib/pdf/seismicNCSE02';
 import {
-  defaultSeismicState,
+  ejemploSeismicState,
   evaluarSismo,
   newId,
   type SeismicState,
@@ -54,7 +54,7 @@ import {
  * tabla, contada. Un edificio de veinticinco plantas hay que construirlo.
  */
 function conPlantas(nPlantas: number, extra: Partial<SeismicState> = {}): SeismicState {
-  const s = defaultSeismicState();
+  const s = ejemploSeismicState();
   const plantas = Array.from({ length: nPlantas }, (_, k) => ({
     ...s.plantas[Math.min(k, s.plantas.length - 1)],
     id: newId(),
@@ -83,7 +83,7 @@ beforeEach(resetProbe);
 
 describe('el veredicto manda', () => {
   it('sale antes que ningún número', async () => {
-    const { texto } = await exportar(defaultSeismicState());
+    const { texto } = await exportar(ejemploSeismicState());
     const iVeredicto = texto.indexOf('VEREDICTO');
     const iCortante = texto.indexOf('CORTANTE BASAL');
     expect(iVeredicto).toBeGreaterThanOrEqual(0);
@@ -91,7 +91,7 @@ describe('el veredicto manda', () => {
   });
 
   it('el caso por defecto dice que la Norma rige y el metodo vale', async () => {
-    const { texto } = await exportar(defaultSeismicState());
+    const { texto } = await exportar(ejemploSeismicState());
     expect(texto).toContain('La NCSE-02 es de aplicación');
     expect(texto).toContain('es aplicable');
   });
@@ -100,7 +100,7 @@ describe('el veredicto manda', () => {
 describe('el documento de exencion es un documento completo', () => {
   it('dice el motivo con su articulo y NO trae cadena de fuerzas', async () => {
     const { texto, pageCount } = await exportar({
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       importancia: 'moderada',
     });
     expect(texto).toContain('NO es de aplicación obligatoria');
@@ -117,7 +117,7 @@ describe('el documento de exencion es un documento completo', () => {
 
   it('exento por ab < 0,04 g lo dice con el umbral, no con una vaguedad', async () => {
     const { texto } = await exportar({
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       municipioIne: null,
       municipioNombre: '',
       ab: 0.03,
@@ -132,7 +132,7 @@ describe('un material prohibido por el art. 1.2.3 no es un fallo del art. 3.5.1'
   // PDF anunciaba "el metodo simplificado del art. 3.5.1 NO es aplicable",
   // para imprimir a continuacion esos seis requisitos en CUMPLE. La causa real,
   // que el art. 1.2.3 prohibe construir asi, quedaba como una fila de avisos.
-  const conAdobe = { ...defaultSeismicState(), sistema: 'adobe' as const };
+  const conAdobe = { ...ejemploSeismicState(), sistema: 'adobe' as const };
 
   it('el titular dice que la Norma PROHIBE, no que el metodo falle', async () => {
     const { texto } = await exportar(conAdobe);
@@ -178,7 +178,7 @@ describe('las plantas se emparejan por ID, no por posicion', () => {
 
   /** Tres plantas con las alturas AL REVES del orden de la tabla. */
   function desordenado(): SeismicState {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const base = s.plantas[0];
     return {
       ...s,
@@ -216,7 +216,7 @@ describe('sin periodo fundamental no se imprime cadena de fuerzas', () => {
   // "bloqueo" y calculaba igual con T_F = 0: alpha = 2,5 y una cadena entera de
   // numeros verosimiles. El PDF los imprimia atribuyendo el periodo al art.
   // 3.7.2.2, que para ese sistema no tiene expresion ninguna.
-  const sinTF = { ...defaultSeismicState(), sistema: 'otro' as const };
+  const sinTF = { ...ejemploSeismicState(), sistema: 'otro' as const };
 
   it('lo dice en el veredicto en vez de publicar numeros vacios', async () => {
     const { texto } = await exportar(sinTF);
@@ -231,7 +231,7 @@ describe('sin periodo fundamental no se imprime cadena de fuerzas', () => {
   });
 
   it('con T_F impuesto a mano el documento vuelve a estar completo', async () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const { texto } = await exportar({
       ...s,
       sistema: 'otro',
@@ -256,7 +256,7 @@ describe('la Norma rige pero el metodo simplificado no', () => {
 
 describe('declarado no es comprobado', () => {
   it('rotula la via de cada requisito, y el rotulo cabe entero', async () => {
-    const { texto } = await exportar(defaultSeismicState());
+    const { texto } = await exportar(ejemploSeismicState());
     // Truncar aquí sería el fallo silencioso: «declar...» sigue leyéndose como
     // una comprobación. Se busca la palabra COMPLETA en la traza emitida.
     expect(texto).toContain('declarado');
@@ -274,14 +274,14 @@ describe('declarado no es comprobado', () => {
 describe('lo excluido de la masa sismica se lee', () => {
   it('lista la sobrecarga excluida y la recoge como declaracion', async () => {
     // El caso por defecto excluye la sobrecarga de mantenimiento de cubierta.
-    const { texto } = await exportar(defaultSeismicState());
+    const { texto } = await exportar(ejemploSeismicState());
     expect(texto).toContain('EXCLUIDA');
     expect(texto).toContain('DECLARACION DEL PROYECTISTA');
     expect(texto).toContain('efecto desfavorable');
   });
 
   it('sin exclusiones no aparece la declaracion', async () => {
-    const base = defaultSeismicState();
+    const base = ejemploSeismicState();
     const state: SeismicState = {
       ...base,
       plantas: base.plantas.map((p) => ({
@@ -294,7 +294,7 @@ describe('lo excluido de la masa sismica se lee', () => {
   });
 
   it('avisa de que la fraccion del art. 3.2 no es el psi2 del CTE', async () => {
-    const { texto } = await exportar(defaultSeismicState());
+    const { texto } = await exportar(ejemploSeismicState());
     // Desde la fuente embebida, la psi griega llega al papel como psi.
     expect(texto).toContain('ψ2 del CTE');
   });
@@ -302,7 +302,7 @@ describe('lo excluido de la masa sismica se lee', () => {
 
 describe('procedencia del dato normativo', () => {
   it('ab y K citan la capa del IGN, su licencia y el hash del dataset', async () => {
-    const { texto } = await exportar(defaultSeismicState());
+    const { texto } = await exportar(ejemploSeismicState());
     expect(texto).toContain('HazardArea2002.NCSE-02');
     expect(texto).toContain('Instituto Geográfico Nacional');
     expect(texto).toContain('CC BY 4.0');
@@ -311,7 +311,7 @@ describe('procedencia del dato normativo', () => {
 
   it('en entrada manual dice que el valor lo puso el proyectista', async () => {
     const { texto } = await exportar({
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       municipioIne: null,
       municipioNombre: '',
     });
@@ -322,7 +322,7 @@ describe('procedencia del dato normativo', () => {
 
 describe('trazabilidad legal', () => {
   it('la version del motor va en TODOS los pies, no solo en la portada', async () => {
-    const { texto, pageCount } = await exportar(defaultSeismicState());
+    const { texto, pageCount } = await exportar(ejemploSeismicState());
     const veces = texto.split('Motor v1.0.0').length - 1;
     // Una vez por pie + una en la cabecera + una en la línea de trazabilidad.
     expect(veces).toBeGreaterThanOrEqual(pageCount);
@@ -331,7 +331,7 @@ describe('trazabilidad legal', () => {
   it('el titulo del documento NO entra en el hash de los datos', async () => {
     // Si entrara, teclear el nombre del elemento cambiaría la huella del caso y
     // dos exportaciones del MISMO edificio dejarían de ser comparables.
-    const state = defaultSeismicState();
+    const state = ejemploSeismicState();
     const a = await exportar(state, 'Bloque A');
     const b = await exportar(state, 'Bloque B');
     const huella = (t: string) => /Inputs ([0-9a-f]{8})/.exec(t)?.[1];
@@ -340,8 +340,8 @@ describe('trazabilidad legal', () => {
   });
 
   it('un cambio real en los datos SI mueve la huella', async () => {
-    const a = await exportar(defaultSeismicState());
-    const b = await exportar({ ...defaultSeismicState(), H: 33 });
+    const a = await exportar(ejemploSeismicState());
+    const b = await exportar({ ...ejemploSeismicState(), H: 33 });
     const huella = (t: string) => /Inputs ([0-9a-f]{8})/.exec(t)?.[1];
     expect(huella(a.texto)).not.toBe(huella(b.texto));
   });
@@ -349,14 +349,14 @@ describe('trazabilidad legal', () => {
 
 describe('reparto por plano resistente', () => {
   it('con pocos planos sale la matriz f_kj', async () => {
-    const { texto } = await exportar(defaultSeismicState());
+    const { texto } = await exportar(ejemploSeismicState());
     expect(texto).toContain('PLANOS RESISTENTES · DIRECCION X');
     expect(texto).toContain('gamma_a');
     expect(texto).toContain('torsión incluida');
   });
 
   it('con mas de ocho planos cae a la forma larga', async () => {
-    const base = defaultSeismicState();
+    const base = ejemploSeismicState();
     const diez = () =>
       Array.from({ length: 10 }, (_, j) => ({ id: newId(), x: -10 + j * (20 / 9), k: 1 }));
     // Las DOS direcciones: el fallback es por dirección, así que con sólo X
@@ -372,7 +372,7 @@ describe('reparto por plano resistente', () => {
   });
 
   it('con pocos planos en una direccion y muchos en otra, cada una elige la suya', async () => {
-    const base = defaultSeismicState();
+    const base = ejemploSeismicState();
     const { texto } = await exportar({
       ...base,
       x: {
@@ -396,8 +396,8 @@ describe('ningun glifo se pierde por el camino', () => {
     // incógnita, y no lo detecta ni la auditoría de maquetación ni la de
     // latin-1. Aquí se barre el documento entero.
     for (const state of [
-      defaultSeismicState(),
-      { ...defaultSeismicState(), importancia: 'moderada' as const },
+      ejemploSeismicState(),
+      { ...ejemploSeismicState(), importancia: 'moderada' as const },
       conPlantas(25),
     ]) {
       const { texto } = await exportar(state);
@@ -411,16 +411,16 @@ describe('ningun glifo se pierde por el camino', () => {
   // «? = 5,0 %» (sin mapeo), luego «Omega = 5,0 %» (con él) y hoy, con la
   // fuente embebida, sale como lo escribe la Norma.
   it('el amortiguamiento sale con su letra griega', async () => {
-    const { texto } = await exportar(defaultSeismicState());
+    const { texto } = await exportar(ejemploSeismicState());
     expect(texto).toContain('Ω = 5,0 %');
   });
 });
 
 describe('la puerta de exportacion', () => {
   it('no bloquea el caso por defecto ni el exento', () => {
-    expect(seismicPdfBlocker(evaluarSismo(defaultSeismicState()))).toBeNull();
+    expect(seismicPdfBlocker(evaluarSismo(ejemploSeismicState()))).toBeNull();
     expect(
-      seismicPdfBlocker(evaluarSismo({ ...defaultSeismicState(), importancia: 'moderada' })),
+      seismicPdfBlocker(evaluarSismo({ ...ejemploSeismicState(), importancia: 'moderada' })),
     ).toBeNull();
   });
 
@@ -433,7 +433,7 @@ describe('la puerta de exportacion', () => {
   it('bloquea con requisitos sin declarar, y nombra cuales', () => {
     const motivo = seismicPdfBlocker(
       evaluarSismo({
-        ...defaultSeismicState(),
+        ...ejemploSeismicState(),
         regularidadGeometrica: null,
         soportesContinuos: null,
       }),
@@ -480,7 +480,7 @@ describe('la puerta de exportacion', () => {
     // contraexcepción del art. 1.2.3 depende de ac. Con emplazamiento resuelto
     // NUNCA queda indeterminada, así que se prueba la rama con la puerta sola.
     const ev = evaluarSismo({
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       ab: 0.07,
       porticosBienArriostrados: true,
     });
@@ -492,19 +492,19 @@ describe('la puerta de exportacion', () => {
 
 describe('nombre del archivo', () => {
   it('el fallback lleva el municipio, que es lo que identifica el caso', () => {
-    expect(seismicNCSE02FallbackFilename(defaultSeismicState())).toMatch(
+    expect(seismicNCSE02FallbackFilename(ejemploSeismicState())).toMatch(
       /^sismo-ncse02-granada-\d{4}-\d{2}-\d{2}\.pdf$/,
     );
   });
 
   it('sin municipio sigue siendo un .pdf con fecha', () => {
     expect(
-      seismicNCSE02FallbackFilename({ ...defaultSeismicState(), municipioNombre: '' }),
+      seismicNCSE02FallbackFilename({ ...ejemploSeismicState(), municipioNombre: '' }),
     ).toMatch(/^sismo-ncse02-\d{4}-\d{2}-\d{2}\.pdf$/);
   });
 
   it('un titulo con texto siempre gana al fallback', async () => {
-    const { filename } = await exportar(defaultSeismicState(), 'Torre Norte');
+    const { filename } = await exportar(ejemploSeismicState(), 'Torre Norte');
     expect(filename).toBe('torre-norte.pdf');
   });
 });
@@ -517,7 +517,7 @@ describe('el documento se puede rehacer con sus propios numeros', () => {
 
   it('un ab manual de 0,045 g no se imprime como 0,05', async () => {
     const { texto } = await exportar({
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       municipioIne: null,
       municipioNombre: '',
       municipioProcedencia: null,
@@ -530,7 +530,7 @@ describe('el documento se puede rehacer con sus propios numeros', () => {
   it('los municipios del Anejo 1 siguen saliendo con sus dos decimales', async () => {
     // El dataset trae dos decimales, asi que no cambia nada: la precision se
     // añade solo cuando redondear perderia informacion.
-    const { texto } = await exportar(defaultSeismicState());
+    const { texto } = await exportar(ejemploSeismicState());
     expect(texto).toContain('0,23 g');
   });
 
@@ -538,7 +538,7 @@ describe('el documento se puede rehacer con sus propios numeros', () => {
     // Media en 30 m de 1,3 (10 m) y 1,6 (20 m) = 1,5 exacto; con 12 m y 18 m
     // sale 1,48 exacto. Se usa un reparto que NO cae en dos decimales.
     const { texto } = await exportar({
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       terrenoModo: 'perfil',
       estratos: [
         { C: 1.3, espesor: 7 },
@@ -550,7 +550,7 @@ describe('el documento se puede rehacer con sus propios numeros', () => {
   });
 
   it('una superficie con decimales no se redondea al entero', async () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const plantas = s.plantas.map((p, i) => (i === 0 ? { ...p, area: 312.5 } : p));
     const { texto } = await exportar({ ...s, plantas });
     expect(texto).toContain('312,5 m²');
@@ -563,14 +563,14 @@ describe('la puerta vive en el exportador, no solo en el boton', () => {
     // regla vivia en el llamador. Cualquier otra via —un atajo, una prueba, un
     // modulo que reutilice el exportador— producia un documento con la puerta
     // sin resolver, que es justo lo que la funcion existe para impedir.
-    const s = { ...defaultSeismicState(), regularidadGeometrica: null };
+    const s = { ...ejemploSeismicState(), regularidadGeometrica: null };
     await expect(
       exportSeismicNCSE02PDF({ state: s, evaluacion: evaluarSismo(s), title: 'X' }),
     ).rejects.toThrow(/sin declarar/i);
   });
 
   it('y el mensaje del error es EL MISMO que el del aviso', async () => {
-    const s = { ...defaultSeismicState(), regularidadGeometrica: null };
+    const s = { ...ejemploSeismicState(), regularidadGeometrica: null };
     const ev = evaluarSismo(s);
     await expect(
       exportSeismicNCSE02PDF({ state: s, evaluacion: ev, title: 'X' }),
@@ -584,7 +584,7 @@ describe('la huella identifica el caso, no la sesion', () => {
     // entraban en el hash: el mismo edificio reconstruido —o el mismo enlace
     // abierto dos veces— daba huellas distintas, con lo que la pregunta que la
     // huella responde («¿es este el mismo caso que exporte?») era siempre no.
-    const a = defaultSeismicState();
+    const a = ejemploSeismicState();
     const b: SeismicState = {
       ...a,
       plantas: a.plantas.map((p) => ({ ...p, id: newId() })),
@@ -601,8 +601,8 @@ describe('la huella identifica el caso, no la sesion', () => {
 
   it('pero un dato distinto SI cambia la huella', async () => {
     const huella = (t: string) => /Inputs ([0-9a-f]{8})/.exec(t)?.[1];
-    const ha = huella((await exportar(defaultSeismicState())).texto);
-    const hb = huella((await exportar({ ...defaultSeismicState(), H: 31 })).texto);
+    const ha = huella((await exportar(ejemploSeismicState())).texto);
+    const hb = huella((await exportar({ ...ejemploSeismicState(), H: 31 })).texto);
     expect(hb).not.toBe(ha);
   });
 });

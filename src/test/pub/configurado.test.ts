@@ -88,21 +88,30 @@ describe('cuadro de materiales', () => {
 });
 
 describe('acción sísmica', () => {
-  it('Granada con ab = 0,23 g es el arranque, y publica IGUAL: por eso hace falta la marca', () => {
+  it('el arranque —sin municipio— publica IGUAL, sin marca: por eso hace falta la marca', () => {
     // Este módulo es el único cuyo `publicarResultado` no tiene guarda: abrirlo
     // una vez deja el sobre escrito. La marca es lo único que distingue «hay un
     // sobre» de «hay un cálculo de esta obra».
     const s = defaultSeismicState();
-    expect(s.municipioNombre).toBe('Granada');
-    expect(s.ab).toBeCloseTo(0.23);
+    expect(s.municipioIne).toBeNull();
+    expect(s.ab).toBe(0);
 
     publicarSismo(s, evaluarSismo(s));
     expect(leerPublicacion('sismo')).not.toBeNull();
     expect(marcaDe('sismo')).toBe(false);
   });
 
-  it('aquí el emplazamiento SÍ configura: ab y K son el resultado, no el contexto', () => {
+  it('el municipio solo NO configura: puede llegar de la obra sin que nadie lo elija', () => {
+    // Con la obra en Sevilla el módulo enlaza Sevilla al abrir. Si eso contara
+    // como configurado, las diez plantas de 300 m² del ejemplo se publicarían
+    // como un cálculo de esa obra.
     const s = { ...defaultSeismicState(), municipioIne: '41091', municipioNombre: 'Sevilla', ab: 0.07 };
+    publicarSismo(s, evaluarSismo(s));
+    expect(marcaDe('sismo')).toBe(false);
+  });
+
+  it('tocar el edificio con el emplazamiento resuelto sí configura', () => {
+    const s = { ...defaultSeismicState(), municipioIne: '41091', municipioNombre: 'Sevilla', ab: 0.07, H: 24 };
     publicarSismo(s, evaluarSismo(s));
     expect(marcaDe('sismo')).toBe(true);
   });

@@ -19,7 +19,7 @@ import { resumenSismoPublicado } from '../../features/cargas-planta/sismoPub';
 import { cuadroAccionesPlanoCargas } from '../../lib/acciones/cuadrosCargas';
 import { defaultCargasState, evaluar } from '../../features/cargas-planta/state';
 import {
-  defaultSeismicState,
+  ejemploSeismicState,
   evaluarSismo,
   publicarResultado as publicarSismo,
   type SeismicState,
@@ -38,7 +38,7 @@ beforeEach(() => {
 const publicar = (s: SeismicState) => publicarSismo(s, evaluarSismo(s));
 
 /** Un sismo CALCULADO: el de arranque (Granada, μ = 3) con un sótano declarado, que no cambia ac, K ni μ. */
-const calculado = (cambio: Partial<SeismicState> = {}): SeismicState => ({ ...defaultSeismicState(), sotanos: 1, ...cambio });
+const calculado = (cambio: Partial<SeismicState> = {}): SeismicState => ({ ...ejemploSeismicState(), sotanos: 1, ...cambio });
 
 /** Un cuadro de materiales CALCULADO: el de arranque en la costa, que no cambia la vida útil. */
 const materialesCalculados = () => ({ ...defaultMaterialesState(), costa: true });
@@ -61,7 +61,7 @@ describe('sin publicación de sismo', () => {
 
 describe('el sobre sin configurar no entra en el plano', () => {
   it('el sismo de arranque —abrir el módulo y no tocarlo— se trata como si no hubiera publicación', () => {
-    publicar(defaultSeismicState());
+    publicar(ejemploSeismicState());
     expect(resumenSismoPublicado()).toBeNull();
     // Tampoco en Granada: el emplazamiento coincide, pero nadie lo ha calculado.
     expect(resumenSismoPublicado('18')).toBeNull();

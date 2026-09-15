@@ -25,10 +25,10 @@ import {
   PERFIL_INERT_REASON,
   SEISMIC_PAYLOAD_SCHEMA,
 } from '../../lib/ai/modules/seismicNCSE02';
-import { defaultSeismicState, evaluarSismo, type SeismicState } from '../../features/seismic-ncse02/state';
+import { ejemploSeismicState, evaluarSismo, type SeismicState } from '../../features/seismic-ncse02/state';
 
 const SI = 'si' as const;
-const D = () => defaultSeismicState();
+const D = () => ejemploSeismicState();
 
 /** Payload completo: sólo las claves que interesan, el resto null (el contrato). */
 function p(o: Record<string, unknown> = {}) {

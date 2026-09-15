@@ -8,7 +8,7 @@ import { render, cleanup } from '@testing-library/react';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { PlantaSVG } from '../../features/seismic-ncse02/SeismicSVG';
 import {
-  defaultSeismicState,
+  ejemploSeismicState,
   evaluarSismo,
   normalizeSeismicState,
   type SeismicState,
@@ -35,7 +35,7 @@ function textos(s: SeismicState, eje: 'x' | 'y' | 'ambas', width: number) {
 
 /** Cinco planos de X: los cuatro por defecto y uno añadido en el centro. */
 function conPlanoEnMedio(): SeismicState {
-  const d = defaultSeismicState();
+  const d = ejemploSeismicState();
   return normalizeSeismicState({
     ...d,
     x: { ...d.x, elementos: [...d.x.elementos, { id: 'medio', x: 0, k: 1 }] },
@@ -59,13 +59,13 @@ describe('PlantaSVG', () => {
   });
 
   it('en modo «ambas» las dos familias llevan burbuja y ninguna lleva fuerza', () => {
-    const ts = textos(defaultSeismicState(), 'ambas', 600).map((x) => x.t);
+    const ts = textos(ejemploSeismicState(), 'ambas', 600).map((x) => x.t);
     expect(ts.filter((t) => /^[0-9]+$/.test(t)).sort()).toEqual(['1', '1', '2', '2', '3', '3', '4', '4']);
     expect(ts.some((t) => /kN$/.test(t))).toBe(false);
   });
 
   it('el plano imposible lleva su burbuja en rojo y, dentro, la coordenada a corregir', () => {
-    const d = defaultSeismicState();
+    const d = ejemploSeismicState();
     const s = normalizeSeismicState({
       ...d,
       x: { ...d.x, elementos: [...d.x.elementos, { id: 'fuera', x: 9, k: 1 }] },

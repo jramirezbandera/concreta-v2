@@ -10,7 +10,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   blankSeismicState,
+  conMunicipio,
   defaultSeismicState,
+  ejemploSeismicState,
+  emplazamientoPendiente,
   evaluarSismo,
   excentricidadDe,
   newId,
@@ -34,7 +37,7 @@ const cerca = (a: number, b: number, tol = 1e-9) => expect(Math.abs(a - b)).toBe
  * era lo que producía estados imposibles.
  */
 export function conPlantas(nPlantas: number, extra: Partial<SeismicState> = {}): SeismicState {
-  const s = defaultSeismicState();
+  const s = ejemploSeismicState();
   const plantas = Array.from({ length: nPlantas }, (_, k) => ({
     ...s.plantas[Math.min(k, s.plantas.length - 1)],
     id: newId(),
@@ -44,8 +47,8 @@ export function conPlantas(nPlantas: number, extra: Partial<SeismicState> = {}):
   return { ...s, plantas, H: 3 * nPlantas, ...extra };
 }
 
-describe('el estado por defecto ES el caso congelado en los fixtures', () => {
-  const ev = evaluarSismo(defaultSeismicState());
+describe('el caso de ejemplo ES el caso congelado en los fixtures', () => {
+  const ev = evaluarSismo(ejemploSeismicState());
 
   it('la Norma es de aplicacion y el metodo simplificado vale', () => {
     expect(ev.aplicabilidad.obligatoriedad.estado).toBe('obligatoria');
@@ -87,7 +90,7 @@ describe('el estado por defecto ES el caso congelado en los fixtures', () => {
 
 describe('toSeismicInput', () => {
   it('el override de T_F solo viaja si esta activo Y tiene valor', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     expect(toSeismicInput(s).x.TFManual).toBeUndefined();
 
     // Conmutador en manual pero campo a cero: NO puede viajar. Un T_F de 0
@@ -104,7 +107,7 @@ describe('toSeismicInput', () => {
   });
 
   it('el override del numero de modos sigue la misma regla', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     expect(toSeismicInput(s).estructura.nModos).toBeUndefined();
     expect(toSeismicInput({ ...s, nModosModo: 'manual', nModosManual: 3 }).estructura.nModos).toBe(3);
     expect(
@@ -113,7 +116,7 @@ describe('toSeismicInput', () => {
   });
 
   it('el peso manual desplaza al asistente de superficie, y solo esa planta', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const plantas = s.plantas.map((p, i) => (i === 0 ? { ...p, pesoManual: true, P: 1234 } : p));
     const input = toSeismicInput({ ...s, plantas });
     expect(input.plantas[0].P).toBe(1234);
@@ -123,7 +126,7 @@ describe('toSeismicInput', () => {
   });
 
   it('el perfil de estratos solo se usa cuando el modo lo pide', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     expect(toSeismicInput(s).emplazamiento.terreno).toBe('II');
     expect(toSeismicInput({ ...s, terrenoModo: 'perfil' }).emplazamiento.terreno).toEqual(s.estratos);
   });
@@ -131,7 +134,7 @@ describe('toSeismicInput', () => {
   it('conserva el SIGNO de la coordenada de cada plano resistente', () => {
     // Guardar |x| destruiria la geometria: sin signo no hay centro de rigidez
     // ni requisito (6). El abs() vive dentro de gamma_a, no antes.
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const xs = toSeismicInput(s).x.elementos.map((e) => e.x);
     expect(xs.some((v) => v < 0)).toBe(true);
     expect(xs.some((v) => v > 0)).toBe(true);
@@ -205,7 +208,7 @@ describe('excentricidadDe', () => {
     // La geometría de arranque repartía los cuatro planos de X sobre 20 m
     // —la dimensión de X— a lo largo de un eje que mide 15: dos de ellos
     // quedaban FUERA del edificio.
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const semiancho = (d: { elementos: { x: number }[] }) =>
       Math.max(...d.elementos.map((e) => Math.abs(e.x)));
     expect(semiancho(s.x)).toBeLessThanOrEqual(s.y.L / 2);
@@ -215,7 +218,7 @@ describe('excentricidadDe', () => {
 
 describe('las puertas cortan antes de calcular', () => {
   it('un municipio con ab < 0,04 g deja el resultado en null', () => {
-    const ev = evaluarSismo({ ...defaultSeismicState(), ab: 0.03 });
+    const ev = evaluarSismo({ ...ejemploSeismicState(), ab: 0.03 });
     expect(ev.aplicabilidad.obligatoriedad.estado).toBe('exenta');
     expect(ev.aplicabilidad.obligatoriedad.motivo).toBe('ab-inferior-0.04g');
     expect(ev.resultado).toBeNull();
@@ -224,7 +227,7 @@ describe('las puertas cortan antes de calcular', () => {
   });
 
   it('importancia moderada exime, aunque la aceleracion sea alta', () => {
-    const ev = evaluarSismo({ ...defaultSeismicState(), importancia: 'moderada' });
+    const ev = evaluarSismo({ ...ejemploSeismicState(), importancia: 'moderada' });
     expect(ev.aplicabilidad.obligatoriedad.motivo).toBe('importancia-moderada');
     expect(ev.resultado).toBeNull();
   });
@@ -237,21 +240,21 @@ describe('las puertas cortan antes de calcular', () => {
   });
 
   it('una declaracion sin contestar impide calcular, no la da por buena', () => {
-    const ev = evaluarSismo({ ...defaultSeismicState(), regularidadGeometrica: null });
+    const ev = evaluarSismo({ ...ejemploSeismicState(), regularidadGeometrica: null });
     expect(ev.aplicabilidad.puedeCalcular).toBe(false);
   });
 
   it('cada corte dice POR QUE, y solo hay impedimento cuando no hay resultado', () => {
-    const ok = evaluarSismo(defaultSeismicState());
+    const ok = evaluarSismo(ejemploSeismicState());
     expect(ok.resultado).not.toBeNull();
     expect(ok.impedimento).toBeNull();
 
     const casos: Array<[SeismicState, string]> = [
-      [{ ...defaultSeismicState(), ab: 0.03 }, 'norma-no-obligatoria'],
-      [{ ...defaultSeismicState(), importancia: 'moderada' }, 'norma-no-obligatoria'],
+      [{ ...ejemploSeismicState(), ab: 0.03 }, 'norma-no-obligatoria'],
+      [{ ...ejemploSeismicState(), importancia: 'moderada' }, 'norma-no-obligatoria'],
       [conPlantas(25), 'metodo-simplificado-no-aplicable'],
-      [{ ...defaultSeismicState(), sistema: 'adobe' }, 'prohibicion-art-1.2.3'],
-      [{ ...defaultSeismicState(), sistema: 'otro' }, 'faltan-datos-de-calculo'],
+      [{ ...ejemploSeismicState(), sistema: 'adobe' }, 'prohibicion-art-1.2.3'],
+      [{ ...ejemploSeismicState(), sistema: 'otro' }, 'faltan-datos-de-calculo'],
     ];
     for (const [estado, motivo] of casos) {
       const ev = evaluarSismo(estado);
@@ -271,7 +274,7 @@ describe('sin periodo fundamental NO se calcula', () => {
   // tiene expresion ninguna.
 
   it('un sistema sin expresion de T_F no produce resultado', () => {
-    const ev = evaluarSismo({ ...defaultSeismicState(), sistema: 'otro' });
+    const ev = evaluarSismo({ ...ejemploSeismicState(), sistema: 'otro' });
     // La Norma rige y el metodo simplificado vale: el problema es otro.
     expect(ev.aplicabilidad.puedeCalcular).toBe(true);
     expect(ev.aplicabilidad.metodoSimplificado?.aplicable).toBe(true);
@@ -282,7 +285,7 @@ describe('sin periodo fundamental NO se calcula', () => {
   });
 
   it('con T_F impuesto a mano SI calcula: es la salida del art. 3.6.2.3.2', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const ev = evaluarSismo({
       ...s,
       sistema: 'otro',
@@ -296,7 +299,7 @@ describe('sin periodo fundamental NO se calcula', () => {
   });
 
   it('un T_F manual de cero no vale como T_F', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     const ev = evaluarSismo({
       ...s,
       sistema: 'otro',
@@ -324,7 +327,7 @@ describe('sin periodo fundamental NO se calcula', () => {
   });
 
   it('nombra las dos direcciones cuando fallan las dos', () => {
-    const ev = evaluarSismo({ ...defaultSeismicState(), sistema: 'otro' });
+    const ev = evaluarSismo({ ...ejemploSeismicState(), sistema: 'otro' });
     expect(ev.impedimento?.texto).toMatch(/ninguna de las dos direcciones/i);
   });
 });
@@ -421,7 +424,7 @@ describe('normalizeSeismicState', () => {
     // tecleando... pero sí abriendo un enlace, porque cada dirección se
     // normalizaba por su cuenta. Y una vez dentro no había salida: la pantalla
     // enseña el modo de X y el botón alterna los dos.
-    const d = defaultSeismicState();
+    const d = ejemploSeismicState();
     const s = normalizeSeismicState({
       ...d,
       x: { ...d.x, TFModo: 'manual', TFManual: 1.4 },
@@ -432,7 +435,7 @@ describe('normalizeSeismicState', () => {
   });
 
   it('y un T_F manual sin valor cae a auto en las dos', () => {
-    const d = defaultSeismicState();
+    const d = ejemploSeismicState();
     const s = normalizeSeismicState({
       ...d,
       x: { ...d.x, TFModo: 'manual', TFManual: 0 },
@@ -446,7 +449,7 @@ describe('normalizeSeismicState', () => {
     // Los casos archivados llevan `n` y `nTotal` sueltos. La conversion honesta
     // es sotanos = nTotal - plantas.length.
     const s = normalizeSeismicState({
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       n: 10,
       nTotal: 12,
       sotanos: undefined,
@@ -458,7 +461,7 @@ describe('normalizeSeismicState', () => {
   it('un estado antiguo INCOHERENTE no revive con sotanos negativos', () => {
     // `nTotal < n` era justamente el fallo. Al migrarlo se acota a cero: el
     // edificio pasa a no tener sotanos, que es lo unico que puede afirmarse.
-    const s = normalizeSeismicState({ ...defaultSeismicState(), n: 10, nTotal: 3, sotanos: undefined });
+    const s = normalizeSeismicState({ ...ejemploSeismicState(), n: 10, nTotal: 3, sotanos: undefined });
     expect(s.sotanos).toBe(0);
     expect(plantasTotales(s)).toBe(plantasSobreRasante(s));
   });
@@ -473,13 +476,13 @@ describe('normalizeSeismicState', () => {
   });
 
   it('el round-trip por JSON no cambia el estado por defecto', () => {
-    const s = defaultSeismicState();
+    const s = ejemploSeismicState();
     expect(normalizeSeismicState(JSON.parse(JSON.stringify(s)))).toEqual(s);
   });
 
   it('repara campos numericos corruptos con el valor por defecto', () => {
     const s = normalizeSeismicState({
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       ab: 'mucho',
       H: null,
       sotanos: NaN,
@@ -530,9 +533,9 @@ describe('blankSeismicState', () => {
     expect(s.regularidadGeometrica).toBeNull();
   });
 
-  it('no revienta al evaluarlo con ab = 0', () => {
+  it('no revienta al evaluarlo con ab = 0: el emplazamiento queda pendiente, no exento', () => {
     const ev = evaluarSismo(blankSeismicState());
-    expect(ev.aplicabilidad.obligatoriedad.estado).toBe('exenta');
+    expect(ev.aplicabilidad.obligatoriedad.estado).toBe('indeterminada');
     expect(ev.resultado).toBeNull();
   });
 });
@@ -552,12 +555,60 @@ describe('los planos van en el orden de la planta', () => {
   it('un caso guardado con los planos desordenados se carga ordenado', () => {
     // El numero de un plano es su fila, y la fila tiene que ser su orden en
     // planta: «1, 2, 5, 3, 4» de abajo arriba no lo entendia nadie.
-    const d = defaultSeismicState();
+    const d = ejemploSeismicState();
     const s = normalizeSeismicState({
       ...d,
       x: { ...d.x, elementos: [...d.x.elementos, { id: 'medio', x: 0, k: 1 }] },
     });
     expect(s.x.elementos.map((e) => e.x)).toEqual([-7.5, -3.75, 0, 3.75, 7.5]);
     expect(s.x.elementos[2].id).toBe('medio');
+  });
+});
+
+describe('el arranque no trae municipio', () => {
+  it('el estado por defecto es el edificio del ejemplo sin emplazamiento', () => {
+    const d = defaultSeismicState();
+    expect(d.municipioIne).toBeNull();
+    expect(d.municipioNombre).toBe('');
+    expect(d.ab).toBe(0);
+    expect(emplazamientoPendiente(d)).toBe(true);
+    // Mismo edificio que el ejemplo: sólo cambia el emplazamiento.
+    expect({ ...ejemploSeismicState(), municipioIne: null, municipioNombre: '', municipioProcedencia: null, ab: 0, K: 1 }).toEqual(
+      expect.objectContaining({ H: d.H, sistema: d.sistema, sotanos: d.sotanos }),
+    );
+  });
+
+  it('sin emplazamiento la puerta queda INDETERMINADA, no exenta', () => {
+    // ab = 0 entraría en el motor como «inferior a 0,04 g» y el módulo
+    // declararía exento un edificio del que no sabe dónde está.
+    const ev = evaluarSismo(defaultSeismicState());
+    expect(ev.aplicabilidad.obligatoriedad.estado).toBe('indeterminada');
+    expect(ev.aplicabilidad.obligatoriedad.falta).toBe('ab');
+    expect(ev.aplicabilidad.puedeCalcular).toBe(false);
+    expect(ev.resultado).toBeNull();
+    expect(ev.impedimento?.motivo).toBe('obligatoriedad-indeterminada');
+    expect(ev.impedimento?.texto).toMatch(/falta el emplazamiento/i);
+  });
+
+  it('ab tecleado a mano, aunque sea bajo, ya resuelve el emplazamiento', () => {
+    const s = { ...defaultSeismicState(), ab: 0.03 };
+    expect(emplazamientoPendiente(s)).toBe(false);
+    expect(evaluarSismo(s).aplicabilidad.obligatoriedad.estado).toBe('exenta');
+  });
+
+  it('conMunicipio escribe municipio, ab y K juntos', () => {
+    const s = conMunicipio(defaultSeismicState(), {
+      ine: '18087',
+      nombre: 'Granada',
+      provincia: 'Granada',
+      ab: 0.23,
+      k: 1,
+      procedencia: null,
+    });
+    expect(emplazamientoPendiente(s)).toBe(false);
+    expect(s.municipioIne).toBe('18087');
+    expect(s.ab).toBe(0.23);
+    // Y el resultado es el del ejemplo congelado.
+    expect(evaluarSismo(s).resultado?.x.Vk[0]).toBeCloseTo(evaluarSismo(ejemploSeismicState()).resultado!.x.Vk[0], 6);
   });
 });

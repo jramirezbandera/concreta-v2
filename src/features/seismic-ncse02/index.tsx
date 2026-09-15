@@ -30,20 +30,24 @@ import {
   seismicNCSE02FallbackFilename,
   seismicPdfBlocker,
 } from '../../lib/pdf/seismicNCSE02';
-import { municipioPorIne } from './hazard';
+import { municipioDeObra, municipioPorIne } from './hazard';
 import { GeometriaModal } from './GeometriaModal';
 import { PlantasModal } from './PlantasModal';
 import { buildShareUrl, decodeShareString } from './serialize';
-import { SeismicInputs } from './SeismicInputs';
+import { SeismicInputs, type AvisoObra } from './SeismicInputs';
 import { ID_APLICABILIDAD, SeismicResults } from './SeismicResults';
 import { ALTO_FIGURA, AlzadoSVG, EspectroSVG, PlantaSVG } from './SeismicSVG';
 import {
+  conMunicipio,
   defaultSeismicState,
+  emplazamientoPendiente,
+  esEjemplo,
   evaluarSismo,
   publicarResultado,
   normalizeSeismicState,
   type SeismicState,
 } from './state';
+import { useObra } from '../../lib/obra/useObra';
 import { versionViva } from '../../data/proyectoKeys';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
 
@@ -101,7 +105,12 @@ function guardado(): SeismicState {
     if (leerClave(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultSeismicState();
     const bruto = leerClave(STORAGE_KEY);
     if (!bruto) return defaultSeismicState();
-    return normalizeSeismicState(JSON.parse(bruto));
+    const s = normalizeSeismicState(JSON.parse(bruto));
+    // Hasta el 2026-09-15 el módulo arrancaba con Granada puesta y el
+    // autoguardado la dejaba escrita. Un caso guardado que sigue siendo ese
+    // ejemplo intacto no es de nadie: se retira, y el módulo abre como abre
+    // hoy, sin municipio y con el de la obra si lo hay.
+    return esEjemplo(s) ? defaultSeismicState() : s;
   } catch {
     return defaultSeismicState();
   }
@@ -206,6 +215,52 @@ export function SeismicNCSE02Module() {
       );
     });
   }, [inicial]);
+
+  // ── El municipio de la obra, enlazado sin que nadie lo elija ────────────────
+  // Con el emplazamiento por resolver y un municipio tecleado en la obra, se
+  // busca en el Anejo 1 y, si es uno solo, se enlaza. Escucha la obra
+  // (`useObra`): quien abre el módulo sin municipio, rellena la obra desde el
+  // menú y vuelve, se lo encuentra puesto. Nunca pisa un municipio ya elegido
+  // ni unos ab y K tecleados a mano: sólo actúa mientras el emplazamiento
+  // está pendiente, y por eso «Restablecer valores» vuelve a enlazarlo. Los
+  // homónimos sin provincia («Torrent») y los nombres que no figuran se
+  // quedan como aviso bajo el campo, con la búsqueda a un clic.
+  const obra = useObra();
+  const municipioObra = obra?.municipio.trim() ?? '';
+  const provinciaObra = obra?.provincia ?? '';
+  const pendiente = emplazamientoPendiente(state);
+  const [avisoObra, setAvisoObra] = useState<AvisoObra | null>(null);
+  useEffect(() => {
+    if (!pendiente || !municipioObra) return;
+    let vivo = true;
+    municipioDeObra(municipioObra, provinciaObra).then(
+      (r) => {
+        if (!vivo) return;
+        if (r.tipo === 'uno') {
+          const m = r.municipio;
+          setState((s) => (emplazamientoPendiente(s) ? conMunicipio(s, m) : s));
+          setAvisoObra(null);
+          showToast(
+            `Municipio de la obra enlazado: ${m.nombre} (ab ${m.ab.toFixed(2)} g · K ${m.k.toFixed(1)}).`,
+            { autoDismiss: 5000 },
+          );
+          return;
+        }
+        setAvisoObra(
+          r.tipo === 'varios'
+            ? { tipo: 'varios', nombre: municipioObra, n: r.candidatos.length }
+            : { tipo: 'ninguno', nombre: municipioObra },
+        );
+      },
+      // La tabla no cargó: el buscador lo contará en cuanto se teclee.
+      () => {},
+    );
+    return () => {
+      vivo = false;
+    };
+  }, [pendiente, municipioObra, provinciaObra]);
+  // El aviso sólo tiene sentido mientras siga pendiente y hable de ESTA obra.
+  const avisoObraVisible = pendiente && avisoObra?.nombre === municipioObra ? avisoObra : null;
 
   useEffect(() => {
     escribirClave(STORAGE_KEY, JSON.stringify(state));
@@ -312,6 +367,7 @@ export function SeismicNCSE02Module() {
               evaluacion={evaluacion}
               onEditPlantas={() => setPlantasOpen(true)}
               onEditGeometria={() => setGeometriaOpen(true)}
+              avisoObra={avisoObraVisible}
             />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">

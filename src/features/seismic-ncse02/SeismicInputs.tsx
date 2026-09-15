@@ -39,6 +39,8 @@ import {
   type Municipio,
 } from './hazard';
 import {
+  conMunicipio,
+  emplazamientoPendiente,
   pesoSismicoTotal,
   plantasSobreRasante,
   plantasTotales,
@@ -57,7 +59,18 @@ export interface SeismicInputsProps {
   onEditPlantas: () => void;
   /** Ídem para la geometría en planta: ver GeometriaModal.tsx. */
   onEditGeometria: () => void;
+  /**
+   * Por qué el municipio de la obra NO se pudo enlazar solo. Lo resuelve el
+   * módulo (`index.tsx`), que es quien lee la obra; aquí sólo se cuenta bajo
+   * el campo y se ofrece la búsqueda a un clic.
+   */
+  avisoObra?: AvisoObra | null;
 }
+
+/** Lo que pasó al buscar el municipio de la obra en el Anejo 1, cuando no se enlazó. */
+export type AvisoObra =
+  | { tipo: 'ninguno'; nombre: string }
+  | { tipo: 'varios'; nombre: string; n: number };
 
 // ── Textos de ayuda ──────────────────────────────────────────────────────────
 //
@@ -241,9 +254,11 @@ function Declaracion({
 function BuscadorMunicipio({
   state,
   setState,
+  avisoObra,
 }: {
   state: SeismicState;
   setState: SeismicInputsProps['setState'];
+  avisoObra: AvisoObra | null;
 }) {
   const [q, setQ] = useState('');
   const [abierto, setAbierto] = useState(false);
@@ -306,14 +321,7 @@ function BuscadorMunicipio({
   }, []);
 
   const elegir = (m: Municipio) => {
-    setState((s) => ({
-      ...s,
-      municipioIne: m.ine,
-      municipioNombre: m.nombre,
-      municipioProcedencia: m.procedencia,
-      ab: m.ab,
-      K: m.k,
-    }));
+    setState((s) => conMunicipio(s, m));
     setQ('');
     setAbierto(false);
     setActivo(-1);
@@ -447,9 +455,41 @@ function BuscadorMunicipio({
         </>
       ) : null}
       {!state.municipioIne && !q ? (
-        <div className="text-[10px] text-state-warn font-mono mt-1">
-          ab y K introducidos a mano · sin municipio del Anejo 1
-        </div>
+        emplazamientoPendiente(state) ? (
+          <>
+            {/*
+              Sin municipio y sin ab tecleado no hay entrada manual que rotular:
+              hay un emplazamiento por resolver, y así se dice. Si la obra trae
+              un municipio y no se pudo enlazar, se cuenta aquí por qué —no
+              figura, o hay varios— y se ofrece la búsqueda con ese nombre ya
+              puesto, para que el usuario no lo teclee dos veces.
+            */}
+            <div className="text-[10px] text-state-warn font-mono mt-1">
+              sin municipio · elige uno, o introduce ab y K a mano
+            </div>
+            {avisoObra ? (
+              <p className="mt-1 text-[10px] leading-snug text-text-secondary" role="note">
+                {avisoObra.tipo === 'varios'
+                  ? `Hay ${avisoObra.n} municipios llamados «${avisoObra.nombre}» (el de la obra): elige el de tu provincia.`
+                  : `«${avisoObra.nombre}» (el municipio de la obra) no figura tal cual en el Anejo 1.`}{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQ(avisoObra.nombre);
+                    setAbierto(true);
+                  }}
+                  className="text-accent hover:underline cursor-pointer"
+                >
+                  buscar «{avisoObra.nombre}»
+                </button>
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <div className="text-[10px] text-state-warn font-mono mt-1">
+            ab y K introducidos a mano · sin municipio del Anejo 1
+          </div>
+        )
       ) : null}
 
       {/*
@@ -576,6 +616,7 @@ export function SeismicInputs({
   evaluacion,
   onEditPlantas,
   onEditGeometria,
+  avisoObra = null,
 }: SeismicInputsProps) {
   const e = evaluacion.emplazamiento;
   const r = evaluacion.resultado;
@@ -590,7 +631,7 @@ export function SeismicInputs({
   return (
     <div className="space-y-1">
       <CollapsibleSection label="Emplazamiento" refNorma="art. 2.2 · 2.4">
-        <BuscadorMunicipio state={state} setState={setState} />
+        <BuscadorMunicipio state={state} setState={setState} avisoObra={avisoObra} />
         {/*
           Sin municipio del Anejo 1, `ab` y `K` dejan de ser derivados y pasan a
           ser DECISIONES del proyectista: por eso salen aquí arriba, entre lo que

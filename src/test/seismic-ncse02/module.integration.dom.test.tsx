@@ -22,7 +22,8 @@ import { AiSettingsProvider } from '../../lib/ai/AiSettingsProvider';
 
 import { SeismicNCSE02Module } from '../../features/seismic-ncse02';
 import { encodeShareString } from '../../features/seismic-ncse02/serialize';
-import { defaultSeismicState, type SeismicState } from '../../features/seismic-ncse02/state';
+import { ejemploSeismicState, type SeismicState } from '../../features/seismic-ncse02/state';
+import { guardarObra } from '../../lib/obra';
 import { moduleRegistry } from '../../data/moduleRegistry';
 import { MODULE_LIBRARY } from '../../pages/landing/modules';
 
@@ -32,7 +33,14 @@ vi.mock('../../components/layout/AppShell', () => ({
   useDrawer: () => ({ openDrawer: vi.fn(), closeDrawer: vi.fn(), drawerOpen: false }),
 }));
 
-function montar() {
+/**
+ * Monta el módulo con un caso ya puesto. El arranque real está SIN municipio
+ * (ver «arranque»), así que los tests que necesitan un caso completo parten
+ * del ejemplo de Granada, que llega por la misma puerta que un enlace
+ * compartido: `?model=`. Con `caso: null` se monta el arranque tal cual.
+ */
+function montar({ caso = ejemploSeismicState() }: { caso?: SeismicState | null } = {}) {
+  if (caso) window.history.replaceState({}, '', `/analisis/sismo?model=${encodeShareString(caso)}`);
   return render(
     <MemoryRouter initialEntries={['/analisis/sismo']}>
       <ThemeProvider>
@@ -62,11 +70,88 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('arranque', () => {
-  it('monta y enseña el caso Granada por defecto', () => {
-    montar();
+  it('arranca SIN municipio, y la puerta queda sin decidir en vez de exenta', () => {
+    const { container } = montar({ caso: null });
     expect(screen.getByText('Acción sísmica')).toBeTruthy();
-    // El municipio del caso por defecto aparece en el panel de resultados.
-    expect(screen.getAllByText(/Granada/).length).toBeGreaterThan(0);
+    expect(container.textContent).not.toMatch(/Granada/);
+    expect(container.textContent).toMatch(/sin municipio · elige uno/i);
+    expect(container.textContent).toMatch(/No se puede decidir todavía: falta el emplazamiento/i);
+    expect(container.textContent).not.toMatch(/no es de aplicación obligatoria/i);
+    expect(container.textContent).not.toContain('Cortante basal');
+  });
+
+  it('con la obra en Granada, enlaza el municipio solo y calcula', async () => {
+    guardarObra({ municipio: 'Granada', provincia: '18' });
+    const { container } = montar({ caso: null });
+    expect(await screen.findByText(/Municipio de la obra enlazado: Granada/i, {}, { timeout: 3000 })).toBeTruthy();
+    await waitFor(() => expect(container.textContent).toContain('La Norma rige'));
+    expect(container.textContent).toContain('INE 18087');
+    expect(container.textContent).toContain('2277');
+  });
+
+  it('la obra rellenada DESPUÉS de abrir el módulo también se enlaza', async () => {
+    const { container } = montar({ caso: null });
+    expect(container.textContent).toMatch(/sin municipio/i);
+    guardarObra({ municipio: 'Lorca', provincia: '30' });
+    expect(await screen.findByText(/Municipio de la obra enlazado: Lorca/i, {}, { timeout: 3000 })).toBeTruthy();
+    await waitFor(() => expect(container.textContent).toContain('INE 30024'));
+  });
+
+  it('un municipio ya elegido no se pisa aunque cambie la obra', async () => {
+    montar(); // Granada, elegida
+    guardarObra({ municipio: 'Sevilla', provincia: '41' });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(screen.queryByText(/Municipio de la obra enlazado/i)).toBeNull();
+    expect(screen.getByText(/Granada · INE 18087/)).toBeTruthy();
+  });
+
+  it('un homónimo sin provincia no se enlaza: avisa y ofrece la búsqueda con el nombre puesto', async () => {
+    // Los dos «Torrent»: Girona 0,05 g y Valencia 0,07 g. Elegir uno por el
+    // usuario sería adjudicarle una peligrosidad al azar.
+    guardarObra({ municipio: 'Torrent', provincia: '' });
+    const { container } = montar({ caso: null });
+    const aviso = await screen.findByRole('note', {}, { timeout: 3000 });
+    expect(aviso.textContent).toMatch(/Hay 2 municipios llamados «Torrent»/);
+    expect(container.textContent).toMatch(/sin municipio/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /buscar «Torrent»/ }));
+    await waitFor(() => expect(screen.getAllByText('Torrent').length).toBeGreaterThanOrEqual(2), { timeout: 3000 });
+    expect(container.textContent).toMatch(/Girona/);
+    expect(container.textContent).toMatch(/Valencia/);
+  });
+
+  it('con la provincia en la obra, el homónimo se resuelve', async () => {
+    guardarObra({ municipio: 'Torrent', provincia: '46' });
+    const { container } = montar({ caso: null });
+    expect(await screen.findByText(/Municipio de la obra enlazado: Torrent/i, {}, { timeout: 3000 })).toBeTruthy();
+    await waitFor(() => expect(container.textContent).toContain('INE 46244'));
+  });
+
+  it('un municipio de la obra que no figura se avisa, sin afirmar la exención', async () => {
+    guardarObra({ municipio: 'Villa Inventada', provincia: '18' });
+    const { container } = montar({ caso: null });
+    const aviso = await screen.findByRole('note', {}, { timeout: 3000 });
+    expect(aviso.textContent).toMatch(/«Villa Inventada» .* no figura tal cual en el Anejo 1/);
+    expect(container.textContent).toMatch(/No se puede decidir todavía/i);
+    expect(container.textContent).not.toMatch(/no es de aplicación obligatoria/i);
+  });
+
+  it('el arranque antiguo guardado —Granada intacta— se retira al cargar', () => {
+    // Hasta el 2026-09-15 el módulo arrancaba con Granada y el autoguardado la
+    // dejaba escrita en cualquier obra.
+    localStorage.setItem('concreta-seismic-ncse02-model', JSON.stringify(ejemploSeismicState()));
+    localStorage.setItem('concreta-seismic-ncse02-model-version', '1');
+    const { container } = montar({ caso: null });
+    expect(container.textContent).not.toMatch(/Granada/);
+    expect(container.textContent).toMatch(/sin municipio/i);
+  });
+
+  it('un caso guardado que alguien tocó se conserva, Granada incluida', () => {
+    localStorage.setItem('concreta-seismic-ncse02-model', JSON.stringify({ ...ejemploSeismicState(), H: 27 }));
+    localStorage.setItem('concreta-seismic-ncse02-model-version', '1');
+    montar({ caso: null });
+    expect(screen.getByText(/Granada · INE 18087/)).toBeTruthy();
+    expect((screen.getByLabelText('H (m)') as HTMLInputElement).value).toBe('27');
   });
 
   it('el VEREDICTO sale antes que ningún número', () => {
@@ -586,8 +671,8 @@ describe('el enlace compartido se consume una sola vez', () => {
     window.history.replaceState({}, '', `/analisis/sismo?model=${encodeShareString(s)}`);
 
   it('retira ?model= de la barra de direcciones al abrirlo', async () => {
-    conEnlace({ ...defaultSeismicState(), H: 41 });
-    montar();
+    conEnlace({ ...ejemploSeismicState(), H: 41 });
+    montar({ caso: null });
     await waitFor(() => expect(window.location.search).toBe(''));
     expect((screen.getByLabelText('H (m)') as HTMLInputElement).value).toBe('41');
   });
@@ -596,8 +681,8 @@ describe('el enlace compartido se consume una sola vez', () => {
     // A2 de extremo a extremo. La carga da prioridad a la URL sobre lo guardado
     // y el módulo no la limpiaba nunca, así que F5 volvía a hidratar del enlace
     // y el autoguardado escribía encima: las ediciones desaparecían sin aviso.
-    conEnlace({ ...defaultSeismicState(), H: 41 });
-    const { unmount } = montar();
+    conEnlace({ ...ejemploSeismicState(), H: 41 });
+    const { unmount } = montar({ caso: null });
     await waitFor(() => expect(window.location.search).toBe(''));
 
     fireEvent.change(screen.getByLabelText('H (m)'), { target: { value: '52' } });
@@ -606,7 +691,7 @@ describe('el enlace compartido se consume una sola vez', () => {
     );
     unmount();
 
-    montar(); // la recarga
+    montar({ caso: null }); // la recarga
     expect((screen.getByLabelText('H (m)') as HTMLInputElement).value).toBe('52');
   });
 
@@ -616,8 +701,8 @@ describe('el enlace compartido se consume una sola vez', () => {
     // no estaba escrito. Un enlace con la copia vieja o manipulada se pintaba y
     // se imprimía rotulado «Anejo 1» con valores que el Anejo 1 no dice; aquí,
     // con 0,01 g, declarando exento el mismo Granada que la Norma obliga.
-    conEnlace({ ...defaultSeismicState(), ab: 0.01 });
-    const { container } = montar();
+    conEnlace({ ...ejemploSeismicState(), ab: 0.01 });
+    const { container } = montar({ caso: null });
     expect(container.textContent).toMatch(/no es de aplicación obligatoria/i);
 
     await waitFor(() => expect(container.textContent).toContain('La Norma rige'), {
@@ -633,7 +718,7 @@ describe('el enlace compartido se consume una sola vez', () => {
     // initializer escriba. El usuario veía un caso que no era el del enlace y
     // nada se lo decía. No tenía ninguna prueba.
     window.history.replaceState({}, '', '/analisis/sismo?model=esto-no-es-un-caso');
-    montar();
+    montar({ caso: null });
     expect(await screen.findByText(/no traía un caso de sismo válido/i)).toBeTruthy();
   });
 
@@ -642,11 +727,11 @@ describe('el enlace compartido se consume una sola vez', () => {
     // suplemento. Los números se conservan; lo que no se sostiene es seguir
     // llamando Anejo 1 a lo que la tabla instalada no dice.
     conEnlace({
-      ...defaultSeismicState(),
+      ...ejemploSeismicState(),
       municipioIne: '99999',
       municipioNombre: 'Término Nuevo',
     });
-    const { container } = montar();
+    const { container } = montar({ caso: null });
     await waitFor(() => expect(container.textContent).toMatch(/sin municipio del Anejo 1/i), {
       timeout: 3000,
     });
