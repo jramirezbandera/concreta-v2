@@ -21,7 +21,7 @@ import { MODULE_LIBRARY } from '../../pages/landing/modules';
 import { CLAVE_TITULO, MODULO_PUB, STORAGE_KEY } from '../../features/incendio/state';
 
 describe('registro de incendio', () => {
-  it('está en el registro, en Acciones y detrás de cargas por planta', () => {
+  it('está en el registro, en Acciones y el último, detrás de sismo', () => {
     const entrada = getModuleByRoute('/acciones/incendio');
     expect(entrada).toBeDefined();
     expect(entrada?.key).toBe('concreta-incendio');
@@ -29,7 +29,7 @@ describe('registro de incendio', () => {
     expect(entrada?.group).toBe('Acciones');
     expect(entrada?.shipped).toBe(true);
     const claves = moduleRegistry.map((m) => m.key);
-    expect(claves.indexOf('concreta-incendio')).toBe(claves.indexOf('concreta-cargas-planta') + 1);
+    expect(claves.indexOf('concreta-incendio')).toBe(claves.indexOf('concreta-seismic') + 1);
   });
 
   it('tiene loader perezoso, metadatos SEO y tarjeta en la landing', () => {

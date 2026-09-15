@@ -42,14 +42,14 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
 
   // ── ACCIONES
   {
-    id: 'seismic-ncse02',
+    id: 'cargas-planta',
     group: 'ACCIONES',
-    name: 'Acción sísmica',
-    ref: 'NCSE-02 art. 3.7',
+    name: 'Cargas por planta',
+    ref: 'DB SE-AE art. 2.1 · 3.1 · Anejo C',
     short:
-      'Espectro, modos, cortantes por planta y reparto con torsión. Anejo 1 del IGN.',
-    route: '/analisis/sismo',
-    icon: <ModuleIcon moduleKey="concreta-seismic" size={ICON_SIZE} />,
+      'Peso propio del forjado, cargas permanentes y sobrecarga de uso de cada planta, con la nieve de las cubiertas tomada de Viento y nieve. Tabla de cargas para la memoria, cuadro de acciones para el plano y predimensionado con Gd, Qd y qd.',
+    route: '/acciones/cargas-planta',
+    icon: <ModuleIcon moduleKey="concreta-cargas-planta" size={ICON_SIZE} />,
   },
   {
     id: 'viento-nieve',
@@ -62,14 +62,14 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     icon: <ModuleIcon moduleKey="concreta-viento-nieve" size={ICON_SIZE} />,
   },
   {
-    id: 'cargas-planta',
+    id: 'seismic-ncse02',
     group: 'ACCIONES',
-    name: 'Cargas por planta',
-    ref: 'DB SE-AE art. 2.1 · 3.1 · Anejo C',
+    name: 'Acción sísmica',
+    ref: 'NCSE-02 art. 3.7',
     short:
-      'Peso propio del forjado, cargas permanentes y sobrecarga de uso de cada planta, con la nieve de las cubiertas tomada de Viento y nieve. Tabla de cargas para la memoria, cuadro de acciones para el plano y predimensionado con Gd, Qd y qd.',
-    route: '/acciones/cargas-planta',
-    icon: <ModuleIcon moduleKey="concreta-cargas-planta" size={ICON_SIZE} />,
+      'Espectro, modos, cortantes por planta y reparto con torsión. Anejo 1 del IGN.',
+    route: '/analisis/sismo',
+    icon: <ModuleIcon moduleKey="concreta-seismic" size={ICON_SIZE} />,
   },
   {
     id: 'incendio',

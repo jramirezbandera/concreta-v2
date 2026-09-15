@@ -13,15 +13,19 @@ import { routeMeta } from '../../data/routeMeta';
 import { MODULE_LIBRARY } from '../../pages/landing/modules';
 
 describe('registro de cargas por planta', () => {
-  it('está en el registro, en el grupo Acciones, detrás de viento y nieve y shipped', () => {
+  it('está en el registro, el primero del grupo Acciones, y shipped', () => {
     const entrada = getModuleByRoute('/acciones/cargas-planta');
     expect(entrada).toBeDefined();
     expect(entrada?.key).toBe('concreta-cargas-planta');
     expect(entrada?.label).toBe('Cargas por planta');
     expect(entrada?.group).toBe('Acciones');
     expect(entrada?.shipped).toBe(true);
-    const claves = moduleRegistry.map((m) => m.key);
-    expect(claves.indexOf('concreta-cargas-planta')).toBe(claves.indexOf('concreta-viento-nieve') + 1);
+    // Es por donde se empieza una obra: aquí se declaran las plantas del
+    // edificio y el resto de Acciones las irá leyendo de aquí. Este es el
+    // ÚNICO sitio que fija el orden del grupo entero; los otros registros
+    // sólo miran a su vecino.
+    const acciones = moduleRegistry.filter((m) => m.group === 'Acciones').map((m) => m.key);
+    expect(acciones).toEqual(['concreta-cargas-planta', 'concreta-viento-nieve', 'concreta-seismic', 'concreta-incendio']);
   });
 
   it('tiene loader perezoso, metadatos SEO y tarjeta en la landing', () => {

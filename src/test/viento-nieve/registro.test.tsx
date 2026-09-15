@@ -13,7 +13,7 @@ import { routeMeta } from '../../data/routeMeta';
 import { MODULE_LIBRARY } from '../../pages/landing/modules';
 
 describe('registro de viento y nieve', () => {
-  it('está en el registro, en el grupo Acciones, detrás de sismo y shipped', () => {
+  it('está en el registro, en el grupo Acciones, detrás de cargas por planta y shipped', () => {
     const entrada = getModuleByRoute('/acciones/viento-nieve');
     expect(entrada).toBeDefined();
     expect(entrada?.key).toBe('concreta-viento-nieve');
@@ -21,7 +21,7 @@ describe('registro de viento y nieve', () => {
     expect(entrada?.group).toBe('Acciones');
     expect(entrada?.shipped).toBe(true);
     const claves = moduleRegistry.map((m) => m.key);
-    expect(claves.indexOf('concreta-viento-nieve')).toBe(claves.indexOf('concreta-seismic') + 1);
+    expect(claves.indexOf('concreta-viento-nieve')).toBe(claves.indexOf('concreta-cargas-planta') + 1);
   });
 
   it('tiene loader perezoso, metadatos SEO y tarjeta en la landing', () => {

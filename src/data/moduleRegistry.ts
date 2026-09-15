@@ -81,16 +81,16 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
-    key: 'concreta-seismic',
-    route: '/analisis/sismo',
-    label: 'Acción sísmica',
-    // Movido de «Análisis» a «Acciones» (decisión D7): es un generador de
-    // acciones, no un análisis. La URL NO cambia — hay enlaces compartidos
-    // vivos apuntando a /analisis/sismo.
+    key: 'concreta-cargas-planta',
+    route: '/acciones/cargas-planta',
+    label: 'Cargas por planta',
+    // El PRIMERO del grupo a propósito: es por donde se empieza una obra. Aquí
+    // se declaran las plantas del edificio (cubierta, planta o sótano) y el
+    // resto de Acciones —viento, sismo, incendio— irá leyéndolas de aquí.
     group: 'Acciones',
-    // El modelo es anidado (plantas → componentes de carga, direcciones →
-    // planos resistentes) y vive en el localStorage del propio módulo, como
-    // FEM 2D y taludes. El registro sólo necesita las banderas ligeras.
+    // Estado anidado (plantas → zonas → permanentes) con clave propia en
+    // localStorage. Primer módulo que CONSUME una publicación (la nieve de
+    // `concreta-pub-viento-nieve`) y publica la suya (`concreta-pub-cargas-planta`).
     defaults: {} as unknown as ModuleInputs,
     shipped: true,
   },
@@ -106,13 +106,16 @@ export const moduleRegistry: ModuleEntry[] = [
     shipped: true,
   },
   {
-    key: 'concreta-cargas-planta',
-    route: '/acciones/cargas-planta',
-    label: 'Cargas por planta',
+    key: 'concreta-seismic',
+    route: '/analisis/sismo',
+    label: 'Acción sísmica',
+    // Movido de «Análisis» a «Acciones» (decisión D7): es un generador de
+    // acciones, no un análisis. La URL NO cambia — hay enlaces compartidos
+    // vivos apuntando a /analisis/sismo.
     group: 'Acciones',
-    // Estado anidado (plantas → zonas → permanentes) con clave propia en
-    // localStorage. Primer módulo que CONSUME una publicación (la nieve de
-    // `concreta-pub-viento-nieve`) y publica la suya (`concreta-pub-cargas-planta`).
+    // El modelo es anidado (plantas → componentes de carga, direcciones →
+    // planos resistentes) y vive en el localStorage del propio módulo, como
+    // FEM 2D y taludes. El registro sólo necesita las banderas ligeras.
     defaults: {} as unknown as ModuleInputs,
     shipped: true,
   },
@@ -121,8 +124,9 @@ export const moduleRegistry: ModuleEntry[] = [
     route: '/acciones/incendio',
     label: 'Incendio',
     group: 'Acciones',
-    // Va DETRÁS de cargas-planta a propósito: su test de registro fija que
-    // cargas-planta sea viento-nieve + 1, y meterse en medio lo rompe.
+    // El ÚLTIMO del grupo: consume las plantas de cargas-planta y los
+    // materiales. El orden entero de Acciones lo fija el test de registro de
+    // cargas-planta.
     // Nació sacando del cuadro de materiales las exigencias del DB SI 6, que
     // vivían allí de prestado; publica en `concreta-pub-incendio` y aquel
     // cuadro pasó a leerlas de ahí.
