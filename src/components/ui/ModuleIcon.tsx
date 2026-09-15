@@ -247,14 +247,15 @@ export function ModuleIcon({ moduleKey, size = 14 }: { moduleKey: string; size?:
           <path d="M5.5 12.2l1.3 1.3 2.7-2.7" strokeWidth="1.1" />
         </svg>
       );
+    // Incendio: la llama de siempre, en una sola silueta. Toda silueta simétrica
+    // se lee como gota de agua; lo que la hace llama es el gancho de la
+    // izquierda, y ese detalle necesita la retícula de 24 — el único icono de
+    // la familia que no va sobre 16. El trazo 1,7 sobre 24 pesa lo mismo que
+    // el 1,15 sobre 16 de los demás.
     case 'concreta-incendio':
       return (
-        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
-          {/* El forjado que hay que sostener durante el incendio */}
-          <path d="M2 13.5h12"/>
-          {/* La llama */}
-          <path d="M8 2.2c1.6 2 2.5 3.3 2.5 4.6 0 .9-.4 1.6-1 2.1.2-.9-.2-1.7-.9-2.3-.1 1.5-1 2-1.8 2.8-.7.7-1.1 1.4-1.1 2.2 0 1.1.9 1.9 2.3 1.9s2.8-1 2.8-2.7"/>
-          <path d="M8 2.2C6.6 3.9 5.5 5.4 5.5 6.9c0 1 .3 1.8.9 2.4" strokeOpacity="0.75" strokeWidth="0.9"/>
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+          <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
         </svg>
       );
     case 'concreta-cargas-planta':
