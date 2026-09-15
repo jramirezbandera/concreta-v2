@@ -683,6 +683,9 @@ export interface PileCapInputs {
   dims_auto: boolean;
   L_x:      number;  // mm — cap plan dimension x (solo modo manual)
   L_y:      number;  // mm — cap plan dimension y (solo modo manual)
+  /** n=3: distancia de eje de pilote a borde e (cota «C» del plano; solo modo manual).
+   *  La planta triangular achaflanada queda definida por s, e y h. */
+  e_man:    number;  // mm
   b_col:    number;  // mm — column width (x)
   h_col:    number;  // mm — column depth (y)
   fck:      number;  // MPa
@@ -714,6 +717,7 @@ export const pileCapDefaults: PileCapInputs = {
   dims_auto: true,
   L_x:     1950,
   L_y:     1150,
+  e_man:   400,      // e auto para d_p=220 con n=3 (semilla al pasar a manual)
   b_col:   400,
   h_col:   400,
   fck:     25,

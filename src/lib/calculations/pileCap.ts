@@ -16,6 +16,13 @@
 //   - fyd de tirantes = fyk/γs SIN tope de 400 N/mm² — el tope era de
 //     EHE 58.4.1.1 y el CE Anejo 19 §6.5.3 no lo recoge (#85)
 //   - reacciones con peso propio del encepado (25 kN/m³, mayorado γG=1.35) (#77)
+//   - n=3 (encepado rígido de tres pilotes, Calavera fig. 14-9 / ex-EHE
+//     58.4.1.2.2): planta TRIANGULAR — triángulo de lado s ampliado la
+//     distancia a borde e por cada lado y esquinas achaflanadas a e del eje
+//     de cada pilote (hexágono), no un rectángulo Lx × Ly. Cotas de obra: s,
+//     e y h. Tirantes en banda sobre los tres lados: el radial del pilote más
+//     cargado Hd = R·a_eff/z se reparte en los dos lados concurrentes,
+//     T = Hd/(2·cos30°) = 0,68·R/d·(0,58·s − 0,25·a). Rigidez: s ≤ 2,6·h.
 //   - anclaje con fctd = 0.7·fctm/γc y demanda = lbd de la patilla (α1=0.7),
 //     desarrollable en rama horizontal + rama vertical (CE Anejo 19 §8.4.4) (#75)
 //   - armadura secundaria (superior ≥ 10% de la inferior, retícula h+v ≥ 4‰):
@@ -65,9 +72,13 @@ export interface PileCapResult {
   R_max: number;
   R_min: number;
 
-  // Cap dimensions [mm]
+  // Cap dimensions [mm] — para n=3 son la ENVOLVENTE del hexágono
   L_x: number;
   L_y: number;
+  /** Contorno en planta (mm desde el centroide del grupo), antihorario:
+   *  rectángulo para n=2/4, hexágono (triángulo achaflanado) para n=3. */
+  outline: PilePos[];
+  A_cap: number;    // área en planta real [mm²] (la del contorno)
   e_borde: number;  // actual MIN axis-to-edge distance (≥ e_min en modo auto)
   e_min: number;
   s_min: number;
@@ -134,7 +145,7 @@ export interface PileCapResult {
 const EMPTY: PileCapResult = {
   valid: false,
   pilePos: [], reactions: [], R_max: 0, R_min: 0,
-  L_x: 0, L_y: 0, e_borde: 0, e_min: 0, s_min: 0, h_min: 0,
+  L_x: 0, L_y: 0, outline: [], A_cap: 0, e_borde: 0, e_min: 0, s_min: 0, h_min: 0,
   W_cap: 0,
   d_eff: 0, z_eff: 0, a_crit: 0, a_eff: 0, theta_deg: 0,
   Fs_max: 0, A_node: 0, sigma_strut: 0, sigma_Rd_max: 0,
@@ -203,15 +214,123 @@ function pileExtents(n: number, s: number): { ext_x: number; ext_y: number } {
 /** Redondeo hacia ARRIBA a múltiplo de 50 mm (cota ejecutable en obra). */
 const roundUp50 = (v: number) => Math.ceil(v / 50) * 50;
 
+const SQRT3 = Math.sqrt(3);
+
+/** Rectángulo L_x × L_y centrado en el origen, antihorario. */
+function rectOutline(L_x: number, L_y: number): PilePos[] {
+  const a = L_x / 2;
+  const b = L_y / 2;
+  return [{ x: -a, y: -b }, { x: a, y: -b }, { x: a, y: b }, { x: -a, y: b }];
+}
+
+/**
+ * Contorno del encepado de 3 pilotes (Calavera fig. 14-9, práctica ex-EHE):
+ * el triángulo equilátero de los ejes, ampliado e hacia fuera por cada lado,
+ * con cada esquina achaflanada por una recta perpendicular al radio del
+ * pilote a distancia e de su eje. Cada pilote queda a e de sus tres bordes.
+ * Hexágono antihorario: chaflán superior (A), inferior izquierdo (B) e
+ * inferior derecho (C). Medio chaflán = e·tan30° = e/√3; la envolvente mide
+ * s + 2·e·(2/√3) de ancho (vértices a la altura de los pilotes inferiores) y
+ * s·√3/2 + 2·e de alto.
+ */
+export function triCapOutline(s: number, e: number): PilePos[] {
+  const t = e / SQRT3;
+  const pts: PilePos[] = [];
+  for (const p of getPilePositions(3, s)) {
+    const r = Math.hypot(p.x, p.y);
+    const ux = p.x / r;
+    const uy = p.y / r;          // radial unitario centroide → pilote
+    const vx = -uy;
+    const vy = ux;               // giro +90°
+    pts.push({ x: p.x + e * ux - t * vx, y: p.y + e * uy - t * vy });
+    pts.push({ x: p.x + e * ux + t * vx, y: p.y + e * uy + t * vy });
+  }
+  return pts;
+}
+
+/** Área de un polígono simple (shoelace), positiva si es antihorario. */
+export function polygonArea(pts: PilePos[]): number {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    a += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(a) / 2;
+}
+
+function polygonBBox(pts: PilePos[]): { L_x: number; L_y: number } {
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  return {
+    L_x: Math.max(...xs) - Math.min(...xs),
+    L_y: Math.max(...ys) - Math.min(...ys),
+  };
+}
+
+/** ¿Cabe el rectángulo b × h centrado en el origen dentro del polígono convexo
+ *  antihorario? (las 4 esquinas a la izquierda de cada arista, con tolerancia). */
+function rectFitsConvex(pts: PilePos[], b: number, h: number): boolean {
+  const corners = [
+    { x: -b / 2, y: -h / 2 }, { x: b / 2, y: -h / 2 },
+    { x: b / 2, y: h / 2 }, { x: -b / 2, y: h / 2 },
+  ];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    for (const c of corners) {
+      const cross = (q.x - p.x) * (c.y - p.y) - (q.y - p.y) * (c.x - p.x);
+      if (cross < -1e-6) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Distancia a borde e que necesita el pilar b_col × h_col para caber en la
+ * planta triangular de separación s: la mayor proyección de una esquina del
+ * pilar sobre las normales de los tres lados (distancia centroide–lado
+ * s/(2√3) + e) y sobre los tres radios de los chaflanes (s/√3 + e).
+ */
+function edgeNeededByColumn3(s: number, b_col: number, h_col: number): number {
+  const corners = [
+    { x: -b_col / 2, y: -h_col / 2 }, { x: b_col / 2, y: -h_col / 2 },
+    { x: b_col / 2, y: h_col / 2 }, { x: -b_col / 2, y: h_col / 2 },
+  ];
+  const sideN = [{ x: 0, y: -1 }, { x: -SQRT3 / 2, y: 0.5 }, { x: SQRT3 / 2, y: 0.5 }];
+  const chamferU = [{ x: 0, y: 1 }, { x: -SQRT3 / 2, y: -0.5 }, { x: SQRT3 / 2, y: -0.5 }];
+  let need = 0;
+  for (const c of corners) {
+    for (const nrm of sideN) need = Math.max(need, c.x * nrm.x + c.y * nrm.y - s / (2 * SQRT3));
+    for (const u of chamferU) need = Math.max(need, c.x * u.x + c.y * u.y - s / SQRT3);
+  }
+  return need;
+}
+
+/**
+ * Distancia eje de pilote a borde AUTOMÁTICA del encepado de 3 pilotes: la
+ * mínima de buena práctica (o la que exija el pilar para caber), redondeada
+ * hacia arriba a 5 cm. Es la cota «C» de los planos de encepados de tres
+ * micropilotes (Ø180 → e_min = 340 → 350 mm).
+ */
+export function autoEdge3(d_p: number, s: number, b_col: number, h_col: number): number {
+  return roundUp50(Math.max(minEdgeDistance(d_p), edgeNeededByColumn3(s, b_col, h_col)));
+}
+
 /**
  * Dimensiones en planta AUTOMÁTICAS: extensión del grupo + 2·e_min por
  * dirección, redondeadas hacia arriba a 5 cm. Para n=2 la dirección y no tiene
- * pilotes: manda el mayor de pilar y pilote. Exportada para que el panel de
+ * pilotes: manda el mayor de pilar y pilote. Para n=3 la planta es triangular
+ * y lo que se fija es e (autoEdge3); Lx × Ly devuelven su ENVOLVENTE, sin
+ * redondear (las cotas de obra son s y e). Exportada para que el panel de
  * entradas muestre el valor auto y lo siembre al pasar a modo manual.
  */
 export function autoCapDims(
   n: number, s: number, d_p: number, b_col: number, h_col: number,
 ): { L_x: number; L_y: number } {
+  if (n === 3) {
+    return polygonBBox(triCapOutline(s, autoEdge3(d_p, s, b_col, h_col)));
+  }
   const e = minEdgeDistance(d_p);
   const { ext_x, ext_y } = pileExtents(n, s);
   const L_x = roundUp50(ext_x + 2 * e);
@@ -296,35 +415,61 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   // Dimensiones en planta: automáticas (e_min a borde, redondeo a 5 cm) o
   // definidas por el usuario. En manual NO se impone e_min: se comprueba como
   // check ('edge-distance') para que el usuario decida cotas de obra exactas.
+  //
+  // n=3: planta TRIANGULAR (triángulo achaflanado, ver triCapOutline). La cota
+  // es e, la distancia de eje de pilote a borde; Lx × Ly es solo su envolvente.
+  // n=2/4: rectángulo Lx × Ly centrado en la caja de ejes de pilotes.
   let L_x: number;
   let L_y: number;
-  if (dims_auto) {
-    ({ L_x, L_y } = autoCapDims(n, s, d_p, b_col, h_col));
-  } else {
-    L_x = inp.L_x as number;
-    L_y = inp.L_y as number;
-    if (!(L_x > 0) || !(L_y > 0)) return invalid('Dimensiones en planta Lx y Ly deben ser > 0');
-    if (b_col > L_x || h_col > L_y) {
-      return invalid('El pilar no cabe en planta: se requiere Lx ≥ b_col y Ly ≥ h_col');
+  let e_borde: number;
+  let outline: PilePos[];
+  if (n === 3) {
+    const e = dims_auto ? autoEdge3(d_p, s, b_col, h_col) : (inp.e_man as number);
+    if (!(e > 0)) return invalid('La distancia de eje de pilote a borde e debe ser > 0');
+    if (e < d_p / 2) {
+      return invalid('Los pilotes no caben en planta: aumenta e (eje a borde < d_p/2)');
     }
-  }
+    if (plate_on && e < d_plate / 2) {
+      return invalid('La placa de reparto no cabe en planta: aumenta e o reduce la placa');
+    }
+    outline = triCapOutline(s, e);
+    ({ L_x, L_y } = polygonBBox(outline));
+    e_borde = e;
+    if (!rectFitsConvex(outline, b_col, h_col)) {
+      return invalid('El pilar no cabe en la planta triangular: aumenta e o la separación s');
+    }
+  } else {
+    if (dims_auto) {
+      ({ L_x, L_y } = autoCapDims(n, s, d_p, b_col, h_col));
+    } else {
+      L_x = inp.L_x as number;
+      L_y = inp.L_y as number;
+      if (!(L_x > 0) || !(L_y > 0)) return invalid('Dimensiones en planta Lx y Ly deben ser > 0');
+      if (b_col > L_x || h_col > L_y) {
+        return invalid('El pilar no cabe en planta: se requiere Lx ≥ b_col y Ly ≥ h_col');
+      }
+    }
 
-  // Distancia REAL de eje de pilote a borde por dirección (encepado centrado
-  // en la caja de ejes de pilotes; para n=2, e_y = L_y/2).
-  const e_x = (L_x - ext_x) / 2;
-  const e_y = (L_y - ext_y) / 2;
-  const e_borde = Math.min(e_x, e_y);
-  if (e_x < d_p / 2 || e_y < d_p / 2) {
-    return invalid('Los pilotes no caben en planta: aumenta Lx/Ly (eje a borde < d_p/2)');
+    // Distancia REAL de eje de pilote a borde por dirección (encepado centrado
+    // en la caja de ejes de pilotes; para n=2, e_y = L_y/2).
+    const e_x = (L_x - ext_x) / 2;
+    const e_y = (L_y - ext_y) / 2;
+    e_borde = Math.min(e_x, e_y);
+    if (e_x < d_p / 2 || e_y < d_p / 2) {
+      return invalid('Los pilotes no caben en planta: aumenta Lx/Ly (eje a borde < d_p/2)');
+    }
+    if (plate_on && (e_x < d_plate / 2 || e_y < d_plate / 2)) {
+      return invalid('La placa de reparto no cabe en planta: aumenta Lx/Ly o reduce la placa');
+    }
+    outline = rectOutline(L_x, L_y);
   }
-  if (plate_on && (e_x < d_plate / 2 || e_y < d_plate / 2)) {
-    return invalid('La placa de reparto no cabe en planta: aumenta Lx/Ly o reduce la placa');
-  }
+  const A_cap = polygonArea(outline);  // mm² — la del contorno real, no la envolvente
 
   // ── Navier reactions ──────────────────────────────────────────────────────
   // Incluyen el peso propio del encepado (25 kN/m³, mayorado γG=1.35) —
   // omitirlo dejaba R_max un ~14% corto con defaults (fix auditoría #77).
-  const W_cap = 25e-9 * L_x * L_y * h_enc;  // kN (característico)
+  // Con el área real: para n=3 la envolvente Lx·Ly sobrestimaba el hexágono.
+  const W_cap = 25e-9 * A_cap * h_enc;  // kN (característico)
   const sumXi2 = pilePos.reduce((acc, p) => acc + p.x * p.x, 0);  // mm²
   const sumYi2 = pilePos.reduce((acc, p) => acc + p.y * p.y, 0);
 
@@ -396,13 +541,16 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     // 58.4.1.2.1.1: Td = R·(v + 0.25a)/z, brazo = s/2 − 0.25·b_col
     Ft_x = R_max * Math.max(s / 2 - 0.25 * b_col, 50) / z_eff;
   } else if (n === 3) {
-    // Tirantes EN LOS LADOS del triángulo (coherente con el SVG y con un
-    // armado físicamente válido — fix auditoría #80; antes se despiezaba
-    // todo en X y el tirante del pilote superior quedaba sin barras).
-    // Descomposición exacta del radial en los dos lados concurrentes:
-    // T_lado = T_radial/(2·cos30°) = T_radial/√3, con margen 1.18 alineado
-    // con el 0.68 de la práctica EHE/Calavera (1.18/√3 = 0.681).
-    Ft_x = 0.681 * R_max * a_eff / z_eff;   // per side (3 lados iguales)
+    // Tirantes EN LOS LADOS del triángulo (Calavera fig. 14-9, ex-EHE
+    // 58.4.1.2.2; fix auditoría #80: antes se despiezaba todo en X y el
+    // tirante del pilote superior quedaba sin barras). El radial del pilote
+    // más cargado, Hd = R·a_eff/z, se descompone en los dos lados
+    // concurrentes: T = Hd/(2·cos30°) = Hd/√3. Con z = 0,85·d y
+    // a_eff = 0,58·s − 0,25·a queda T = 0,68·R/d·(0,58·s − 0,25·a), la
+    // expresión de la práctica. (Hasta ahora se aplicaba 0,681·Hd: ese 0,68
+    // ya lleva dentro el 1/0,85 del brazo, y al dividir además por z salía
+    // un 18 % por encima de la referencia.)
+    Ft_x = R_max * a_eff / z_eff / SQRT3;   // per side (3 lados iguales)
   } else {
     // n === 4 (58.4.1.2.1.2): bandas sobre cada fila de pilotes, por
     // dirección; cada banda se arma para su pilote más cargado.
@@ -507,6 +655,32 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     `${h_enc.toFixed(0)} mm`,
     'CTE DB-SE-C §5.1',
   ));
+
+  // 3b. Rigidez del encepado — condición de aplicabilidad del modelo de
+  //     bielas y tirantes. n=3: l ≤ 2,6·h (Calavera fig. 14-9). n=2/4: vuelo
+  //     de la cara del pilar al eje del pilote v ≤ 2·h (ex-EHE 58.2.1).
+  if (n === 3) {
+    checks.push(makeCheck(
+      'rigidity',
+      'Encepado rígido: separación s ≤ 2,6·h',
+      s, 2.6 * h_enc,
+      `${s.toFixed(0)} mm`,
+      `${(2.6 * h_enc).toFixed(0)} mm`,
+      'Calavera fig. 14-9 (encepado rígido de 3 pilotes)',
+    ));
+  } else {
+    const v_max = n === 2
+      ? s / 2 - b_col / 2
+      : Math.max(s / 2 - b_col / 2, s / 2 - h_col / 2);
+    checks.push(makeCheck(
+      'rigidity',
+      'Encepado rígido: vuelo cara pilar–eje pilote v ≤ 2·h',
+      v_max, 2 * h_enc,
+      `${v_max.toFixed(0)} mm`,
+      `${(2 * h_enc).toFixed(0)} mm`,
+      'Práctica ex-EHE 58.2.1',
+    ));
+  }
 
   // 4. Pile reaction vs R_adm
   checks.push(makeCheckQty(
@@ -689,7 +863,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     pilePos,
     reactions,
     R_max, R_min,
-    L_x, L_y, e_borde, e_min, s_min, h_min,
+    L_x, L_y, outline, A_cap, e_borde, e_min, s_min, h_min,
     W_cap,
     d_eff, z_eff, a_crit, a_eff, theta_deg,
     Fs_max, A_node, sigma_strut, sigma_Rd_max,

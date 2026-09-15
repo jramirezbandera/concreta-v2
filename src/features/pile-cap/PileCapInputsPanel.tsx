@@ -1,6 +1,6 @@
 
 import { type PileCapInputs } from '../../data/defaults';
-import { autoCapDims, minEdgeDistance } from '../../lib/calculations/pileCap';
+import { autoCapDims, autoEdge3, minEdgeDistance } from '../../lib/calculations/pileCap';
 import { availableFck } from '../../data/materials';
 import { availableBarDiams } from '../../data/rebar';
 import { LABELS, type LabelKey } from '../../lib/text/labels';
@@ -110,6 +110,13 @@ export function PileCapInputsPanel({ state, setField }: Props) {
     state.b_col as number, state.h_col as number,
   );
   const eMin = minEdgeDistance(state.d_p as number);
+  // n=3: la planta es triangular y la cota de obra es e (eje de pilote a
+  // borde), no Lx × Ly — que solo es la envolvente del hexágono.
+  const isTri = n === 3;
+  const eAuto3 = autoEdge3(
+    state.d_p as number, state.s as number,
+    state.b_col as number, state.h_col as number,
+  );
 
   const fckOptions = availableFck.map((v) => ({ value: v, label: `${v} MPa` }));
   const fykOptions = [{ value: 500, label: '500 MPa' }, { value: 400, label: '400 MPa' }];
@@ -232,9 +239,11 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 mt-1">
           <InputLabel
             htmlFor="pc-dims-mode"
-            label="Lx × Ly"
-            sub="Dims. en planta"
-            help={`Automático: dimensiones mínimas con la distancia de eje de pilote a borde de buena práctica (e ≥ ${eMin.toFixed(0)} mm), redondeadas hacia arriba a 5 cm. Manual: defines Lx y Ly; la distancia a borde se comprueba como verificación en resultados.`}
+            label={isTri ? 'e a borde' : 'Lx × Ly'}
+            sub={isTri ? 'Planta triangular' : 'Dims. en planta'}
+            help={isTri
+              ? `Con 3 micropilotes la planta es un triángulo con las esquinas achaflanadas: cada pilote queda a la distancia e de sus tres bordes (la cota C de los planos de encepados). Automático: e mínima de buena práctica (≥ ${eMin.toFixed(0)} mm) o la que necesite el pilar para caber, redondeada hacia arriba a 5 cm. Manual: defines e; se comprueba como verificación en resultados.`
+              : `Automático: dimensiones mínimas con la distancia de eje de pilote a borde de buena práctica (e ≥ ${eMin.toFixed(0)} mm), redondeadas hacia arriba a 5 cm. Manual: defines Lx y Ly; la distancia a borde se comprueba como verificación en resultados.`}
           />
           <div
             id="pc-dims-mode"
@@ -260,6 +269,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
                       // Al pasar a manual, partir de las dims auto vigentes
                       setField('L_x', auto.L_x);
                       setField('L_y', auto.L_y);
+                      setField('e_man', eAuto3);
                     }
                   }}
                   className={[
@@ -278,8 +288,13 @@ export function PileCapInputsPanel({ state, setField }: Props) {
 
         {dimsAuto ? (
           <p className="text-[10px] text-text-secondary leading-relaxed py-0.75">
-            Auto: {auto.L_x} × {auto.L_y} mm (e ≥ {eMin.toFixed(0)} mm a borde, redondeo a 5 cm)
+            {isTri
+              ? `Auto: e = ${eAuto3} mm a borde (≥ ${eMin.toFixed(0)} mm, redondeo a 5 cm) → envolvente ${auto.L_x.toFixed(0)} × ${auto.L_y.toFixed(0)} mm`
+              : `Auto: ${auto.L_x} × ${auto.L_y} mm (e ≥ ${eMin.toFixed(0)} mm a borde, redondeo a 5 cm)`}
           </p>
+        ) : isTri ? (
+          <NumField label="e" sub="Eje pilote a borde" field="e_man" value={state.e_man as number} unit="mm" setField={setField}
+            help="Distancia del eje de cada micropilote a los bordes del encepado triangular (lados y chaflanes). Es la cota C del plano: con s y h define toda la planta. Se comprueba frente a la mínima de buena práctica en resultados." />
         ) : (
           <>
             <NumField label="L_x" sub="Ancho planta (x)" field="L_x" value={state.L_x as number} unit="mm" setField={setField}

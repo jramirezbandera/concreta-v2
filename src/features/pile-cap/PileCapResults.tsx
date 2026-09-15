@@ -53,8 +53,16 @@ export function PileCapResults({ inp, result }: Props) {
 
       {/* Geometría del encepado */}
       <GroupHeader label="Geometría del encepado" />
-      <ValueRow label="Lx × Ly"  value={`${result.L_x.toFixed(0)} × ${result.L_y.toFixed(0)} mm`} />
+      {n === 3 ? (
+        <>
+          <ValueRow label="Planta"     value="triangular, chaflanes a e" />
+          <ValueRow label="Envolvente" value={`${result.L_x.toFixed(0)} × ${result.L_y.toFixed(0)} mm`} />
+        </>
+      ) : (
+        <ValueRow label="Lx × Ly"  value={`${result.L_x.toFixed(0)} × ${result.L_y.toFixed(0)} mm`} />
+      )}
       <ValueRow label="e_borde"  value={`${result.e_borde.toFixed(0)} mm`} />
+      <ValueRow label="A_planta" value={`${(result.A_cap / 1e6).toFixed(2)} m²`} />
       <ValueRow label="h_min"    value={`${result.h_min.toFixed(0)} mm`} />
 
       {/* Bielas y tirantes */}
@@ -120,8 +128,9 @@ export function PileCapResults({ inp, result }: Props) {
 
       {n === 3 && (
         <p className="text-[10px] text-text-secondary mt-2 leading-relaxed">
-          Nota n=3: Ft calculado conservadoramente como R_max·a_crit/z_eff (~15% sobre el valor exacto).
-          CE Anejo 19 §6.5 / EHE-08 art. 58.
+          Nota n=3: encepado rígido de tres pilotes (Calavera fig. 14-9). Planta triangular con
+          las esquinas achaflanadas a e del eje de cada pilote; tirantes en banda sobre los tres
+          lados, T = 0,68·R_max/d·(0,58·s − 0,25·a) por lado. CE Anejo 19 §6.5.
         </p>
       )}
     </div>

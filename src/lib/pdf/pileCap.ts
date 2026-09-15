@@ -104,8 +104,14 @@ export async function exportPileCapPDF(
   // GEOMETRIA ENCEPADO — indica si las dims en planta son auto o del usuario
   const dimsAuto = (inp.dims_auto as boolean | undefined) ?? true;
   secHeader(dimsAuto ? 'GEOMETRIA ENCEPADO (DIMS. AUTO)' : 'GEOMETRIA ENCEPADO (DIMS. USUARIO)');
-  twoCol(`Lx = ${result.L_x.toFixed(0)} mm`, `Ly = ${result.L_y.toFixed(0)} mm`);
+  if (n === 3) {
+    // Planta triangular achaflanada: la cota es e; Lx x Ly solo es la envolvente
+    twoCol('Planta triangular (chaflanes a e)', `envolv. ${result.L_x.toFixed(0)} x ${result.L_y.toFixed(0)} mm`);
+  } else {
+    twoCol(`Lx = ${result.L_x.toFixed(0)} mm`, `Ly = ${result.L_y.toFixed(0)} mm`);
+  }
   twoCol(`e_borde = ${result.e_borde.toFixed(0)} mm`, `h_min = ${result.h_min.toFixed(0)} mm`);
+  twoCol(`A_planta = ${(result.A_cap / 1e6).toFixed(2)} m2`, '');
   gap();
 
   // BIELAS Y TIRANTES

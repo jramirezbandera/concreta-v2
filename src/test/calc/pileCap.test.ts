@@ -20,7 +20,7 @@
 //   lb,disp = (375−60) + (800−60−40) = 1015 mm
 
 import { describe, expect, it } from 'vitest';
-import { calcPileCap } from '../../lib/calculations/pileCap';
+import { calcPileCap, autoEdge3, polygonArea, triCapOutline } from '../../lib/calculations/pileCap';
 import { pileCapDefaults } from '../../data/defaults';
 
 const base = { ...pileCapDefaults };
@@ -184,9 +184,11 @@ describe('Geometría generada', () => {
     expect(calcPileCap({ ...base, d_p: 300, s: 1200 }).s_min).toBe(900);
   });
 
-  it('n=3: L_y = s·√3/2 + 2e redondeado ↑ a 50 mm (1759.2 → 1800)', () => {
+  it('n=3: planta triangular con e = 400 (360 ↑ 5 cm); envolvente s+2e·2/√3 × s·√3/2+2e', () => {
     const r = calcPileCap({ ...base, n: 3 });
-    expect(r.L_y).toBe(1800);
+    expect(r.e_borde).toBe(400);
+    expect(r.L_x).toBeCloseTo(1200 + 2 * 400 * 2 / Math.sqrt(3), 2);  // 2123.8
+    expect(r.L_y).toBeCloseTo(1200 * Math.sqrt(3) / 2 + 800, 2);      // 1839.2
   });
 
   it('n=4: L_x = L_y = s + 2e redondeado ↑ a 50 mm (1920 → 1950)', () => {
@@ -347,11 +349,18 @@ describe('Tirantes por banda (EHE 58.4.1.2)', () => {
     expect(r.Ft_y!).toBeLessThan(r.Ft_x);
   });
 
-  it('n=3: tirante POR LADO = 0.681·R_max·a_eff/z (fix #80)', () => {
+  it('n=3: tirante POR LADO = Hd/√3 = 0,68·R/d·(0,58·s − 0,25·a) (Calavera fig. 14-9)', () => {
     const r = calcPileCap({ ...base, n: 3 });
     const a_r = 1200 / Math.sqrt(3);
     expect(r.a_eff).toBeCloseTo(a_r - 100, 1);
-    expect(r.Ft_x).toBeCloseTo(0.681 * r.R_max * r.a_eff / r.z_eff, 2);
+    // Descomposición exacta del radial en los dos lados concurrentes
+    expect(r.Ft_x).toBeCloseTo(r.R_max * r.a_eff / r.z_eff / Math.sqrt(3), 6);
+    // Expresión de la práctica (0,58 ≈ 1/√3 redondeado): Td = 0,68·N/d·(0,58·l − 0,25·a)
+    const ehe = 0.68 * r.R_max / r.d_eff * (0.58 * 1200 - 0.25 * 400);
+    expect(r.Ft_x / ehe).toBeGreaterThan(0.985);
+    expect(r.Ft_x / ehe).toBeLessThan(1.015);
+    // Antes: 0,681·Hd (el 0,68 ya llevaba el 1/0,85 y se dividía otra vez por z) → +18 %
+    expect(r.Ft_x).toBeLessThan(0.681 * r.R_max * r.a_eff / r.z_eff);
   });
 
   it('fyk=400 → fyd = 347.8 (fyd = fyk/γs para cualquier grado)', () => {
@@ -362,6 +371,106 @@ describe('Tirantes por banda (EHE 58.4.1.2)', () => {
     const r = calcPileCap({ ...base, N_Ed: 4000, R_adm: 3000 });
     expect(r.s_bar_x).toBeLessThan(20);
     expect(r.checks.find((c) => c.id === 'bar-spacing-min')!.status).toBe('fail');
+  });
+});
+
+// ── Planta triangular (n=3) ───────────────────────────────────────────────
+// Encepado rígido de tres pilotes (Calavera fig. 14-9; plano tipo del
+// usuario: Ø180, A=70, B=60, C=35, H=95): triángulo de lado s ampliado e por
+// cada lado con las esquinas achaflanadas a e del eje de cada pilote. Cotas
+// de obra s, e y h; Lx × Ly es solo la envolvente del hexágono.
+describe('Planta triangular (n=3)', () => {
+  const r = calcPileCap({ ...base, n: 3 });
+  const SQ3 = Math.sqrt(3);
+
+  it('el contorno es un hexágono antihorario y cada pilote queda a e de sus TRES bordes', () => {
+    expect(r.outline).toHaveLength(6);
+    expect(polygonArea(r.outline)).toBeGreaterThan(0);
+    // Distancia de cada pilote a la recta de cada arista adyacente = e
+    const distToEdge = (p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) => {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      return Math.abs(dx * (p.y - a.y) - dy * (p.x - a.x)) / Math.hypot(dx, dy);
+    };
+    // Vértices: 0-1 chaflán A (superior), 1-2 lado izquierdo, 2-3 chaflán B,
+    // 3-4 lado inferior, 4-5 chaflán C, 5-0 lado derecho.
+    // Pilote B (inferior izquierdo) = pilePos[1]
+    const pB = r.pilePos[1];
+    const o = r.outline;
+    expect(distToEdge(pB, o[2], o[3])).toBeCloseTo(400, 6);  // chaflán B
+    expect(distToEdge(pB, o[3], o[4])).toBeCloseTo(400, 6);  // lado inferior
+    expect(distToEdge(pB, o[1], o[2])).toBeCloseTo(400, 6);  // lado izquierdo
+    // y NO a e del lado opuesto ni del chaflán de A
+    expect(distToEdge(pB, o[0], o[1])).toBeGreaterThan(1000);
+    // Chaflán superior horizontal a e sobre el pilote A, de ancho 2·e/√3
+    expect(o[0].y).toBeCloseTo(r.pilePos[0].y + 400, 6);
+    expect(o[1].y).toBeCloseTo(o[0].y, 6);
+    expect(o[0].x - o[1].x).toBeCloseTo(2 * 400 / SQ3, 6);
+  });
+
+  it('área real = triángulo ampliado menos los tres picos; peso propio con esa área', () => {
+    const L = 1200 + 2 * SQ3 * 400;                 // lado del triángulo ampliado
+    const pico = (SQ3 / 4) * (2 * 400 / SQ3) ** 2;   // triángulo equilátero de altura e
+    const A = (SQ3 / 4) * L * L - 3 * pico;
+    expect(r.A_cap).toBeCloseTo(A, 3);
+    expect(r.A_cap).toBeLessThan(r.L_x * r.L_y);    // ~ 2/3 de la envolvente
+    expect(r.W_cap).toBeCloseTo(25e-9 * A * 800, 6);
+  });
+
+  it('plano tipo Ø180, s=700, pilar 30×30: e auto = 350 (la cota C = 35 cm del plano)', () => {
+    expect(autoEdge3(180, 700, 300, 300)).toBe(350);
+    const t = calcPileCap({ ...base, n: 3, d_p: 180, s: 700, h_enc: 950, b_col: 300, h_col: 300 });
+    expect(t.valid).toBe(true);
+    expect(t.e_borde).toBe(350);
+    expect(t.L_y).toBeCloseTo(700 * SQ3 / 2 + 700, 2);   // B + 2C = 60,6 + 70 cm
+  });
+
+  it('pilar grande: e auto crece hasta que el pilar cabe en el hexágono', () => {
+    // Esquinas (±750, ±750) contra el lado izquierdo: 0,866·750 + 0,5·750 − s/(2√3) = 678 → 700
+    const t = calcPileCap({ ...base, n: 3, b_col: 1500, h_col: 1500 });
+    expect(t.valid).toBe(true);
+    expect(t.e_borde).toBe(700);
+    // Manual con e insuficiente: el pilar no cabe → invalid
+    const m = calcPileCap({ ...base, n: 3, b_col: 1500, h_col: 1500, dims_auto: false, e_man: 400 });
+    expect(m.valid).toBe(false);
+    expect(m.error).toMatch(/pilar no cabe/);
+  });
+
+  it('manual: e_man es la cota; por debajo de e_min → edge-distance INCUMPLE; < d_p/2 → invalid', () => {
+    const m = calcPileCap({ ...base, n: 3, dims_auto: false, e_man: 350 });
+    expect(m.valid).toBe(true);
+    expect(m.e_borde).toBe(350);
+    expect(m.checks.find((c) => c.id === 'edge-distance')!.status).toBe('fail');
+    expect(m.outline).toEqual(triCapOutline(1200, 350));
+    expect(calcPileCap({ ...base, n: 3, dims_auto: false, e_man: 100 }).valid).toBe(false);
+    expect(calcPileCap({ ...base, n: 3, dims_auto: false, e_man: 0 }).valid).toBe(false);
+  });
+
+  it('Lx/Ly manuales NO afectan a n=3 (la planta la definen s y e)', () => {
+    const m = calcPileCap({ ...base, n: 3, dims_auto: false, e_man: 400, L_x: 5000, L_y: 5000 });
+    expect(m.L_x).toBeCloseTo(r.L_x, 6);
+    expect(m.A_cap).toBeCloseTo(r.A_cap, 6);
+  });
+
+  it('rigidez: s ≤ 2,6·h (1200 ≤ 2080 cumple; con h=400 incumple)', () => {
+    const ok = r.checks.find((c) => c.id === 'rigidity')!;
+    expect(ok.status).toBe('ok');
+    expect(ok.limit).toBe('2080 mm');
+    const bad = calcPileCap({ ...base, n: 3, h_enc: 400, cover: 40 });
+    expect(bad.checks.find((c) => c.id === 'rigidity')!.status).toBe('fail');
+  });
+
+  it('n=2/4: rigidez por vuelo cara pilar–eje pilote v ≤ 2·h (defaults: 400 ≤ 1600)', () => {
+    for (const n of [2, 4]) {
+      const t = calcPileCap({ ...base, n });
+      const row = t.checks.find((c) => c.id === 'rigidity')!;
+      expect(row.status).toBe('ok');
+      expect(row.value).toBe('400 mm');
+    }
+    // n=2/4 siguen siendo rectángulos: 4 vértices y área Lx·Ly
+    const t2 = calcPileCap(base);
+    expect(t2.outline).toHaveLength(4);
+    expect(t2.A_cap).toBeCloseTo(t2.L_x * t2.L_y, 6);
   });
 });
 
