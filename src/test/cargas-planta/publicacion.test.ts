@@ -71,11 +71,11 @@ describe('el sobre', () => {
     s.emplazamiento = { provincia: '28', municipio: 'Madrid', altitud: 660 };
     s.plantas.push(nuevaPlanta('Sótano -1', false, true));
     const d = datosPublicacion(s, evaluar(s, null))!;
-    expect(d.plantas.map((p) => [p.nombre, p.bajoRasante])).toEqual([
-      ['Cubierta', false],
-      ['Planta Primera', false],
-      ['Planta Baja', false],
-      ['Sótano -1', true],
+    expect(d.plantas.map((p) => [p.nombre, p.bajoRasante, p.altura, p.cota])).toEqual([
+      ['Cubierta', false, null, 6],
+      ['Planta Primera', false, 3, 3],
+      ['Planta Baja', false, 3, 0],
+      ['Sótano -1', true, 3, -3],
     ]);
     expect(PUB_VERSION).toBe(1);
   });

@@ -86,6 +86,13 @@ describe('la sección', () => {
     expect(container.querySelectorAll('line[data-muro-sotano]')).toHaveLength(2);
   });
 
+  it('rotula la cota de cada forjado junto a su nombre: ±0,00 en la baja, +6,00 en la cubierta', () => {
+    pintar();
+    expect(screen.getByText('±0,00')).toBeInTheDocument();
+    expect(screen.getByText('+3,00')).toBeInTheDocument();
+    expect(screen.getByText('+6,00')).toBeInTheDocument();
+  });
+
   it('sin sótanos la rasante queda bajo la última planta y no hay muros a trazos', () => {
     const { container } = pintar();
     const yBaja = [...screen.getByRole('button', { name: 'Seleccionar Planta Baja (Vivienda)' }).querySelectorAll('rect')]

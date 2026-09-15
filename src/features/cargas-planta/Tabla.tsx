@@ -27,7 +27,8 @@ import { columnasEncima } from './columnas';
 import { FilaZona } from './FilaZona';
 import { BOTON_MENOR, INPUT, SEP, TD, TH, TH_DER, TH_GRUPO, TH_NUM, TH_QD_STICKY } from './estilos';
 import type { NievePublicada } from './nievePub';
-import { rotuloDeZona, type PlantaUI, type ZonaUI } from './state';
+import { cotasEdificio } from '../../lib/edificio';
+import { edificioDePlantas, rotuloDeZona, type PlantaUI, type ZonaUI } from './state';
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
 
@@ -101,7 +102,9 @@ export function Tabla({
    * número es el `colSpan` de la ficha y del pie: si se queda corto, las dos
    * últimas columnas se quedan fuera de la banda.
    */
-  const anchoTotal = 11 + Math.max(1, columnas.length);
+  const anchoTotal = 12 + Math.max(1, columnas.length);
+  /** La cota de cada planta sale de las alturas de las de debajo: una vez para toda la mesa. */
+  const cotas = cotasEdificio(edificioDePlantas(plantas).plantas);
   /**
    * El edificio tecleado del revés: la cubierta la última. La sección dibuja en
    * el orden de la tabla, así que saldría bajo tierra. Se avisa y se ofrece
@@ -121,9 +124,9 @@ export function Tabla({
    * qd van holgadas a propósito: en el sistema técnico sus valores tienen cuatro
    * cifras (1.185 kg/m² son 11,63 kN/m²) y su cabecera de grupo lleva la unidad.
    */
-  const ANCHO = { planta: 176, zona: 78, forjado: 90, canto: 40, pp: 56, encima: 80, uso: 128, quso: 46, nieve: 54, G: 50, Q: 48, qd: 56 };
+  const ANCHO = { planta: 176, altura: 64, zona: 78, forjado: 90, canto: 40, pp: 56, encima: 80, uso: 128, quso: 46, nieve: 54, G: 50, Q: 48, qd: 56 };
   const anchoPx =
-    ANCHO.planta + ANCHO.zona + ANCHO.forjado + ANCHO.canto + ANCHO.pp + Math.max(1, columnas.length) * ANCHO.encima + ANCHO.uso + ANCHO.quso + ANCHO.nieve + ANCHO.G + ANCHO.Q + ANCHO.qd;
+    ANCHO.planta + ANCHO.altura + ANCHO.zona + ANCHO.forjado + ANCHO.canto + ANCHO.pp + Math.max(1, columnas.length) * ANCHO.encima + ANCHO.uso + ANCHO.quso + ANCHO.nieve + ANCHO.G + ANCHO.Q + ANCHO.qd;
 
   return (
     <div className="flex min-w-0 flex-col">
@@ -132,8 +135,9 @@ export function Tabla({
           Una fila por zona de carga. Diga qué forjado tiene, qué hay encima y para qué se usa: la norma pone en azul
           el peso propio, la sobrecarga y el valor de cálculo qd que se lleva al programa. Si una planta tiene partes
           con distinto uso o forjado —vivienda y vaso de piscina—, añádale una zona. Pulse una fila para ver lo que
-          dice la norma en ella. Diga también qué es cada planta —cubierta, planta o sótano—: la nieve sólo se pide
-          en cubiertas y los sótanos se dibujan bajo la rasante.
+          dice la norma en ella. Diga también qué es cada planta —cubierta, planta o sótano— y cuánto mide de forjado
+          a forjado: la cota sale sola, y Viento y nieve lee de aquí las plantas del edificio (incendio todavía las pide
+          aparte).
         </p>
       )}
 
@@ -169,6 +173,7 @@ export function Tabla({
           <caption className="sr-only">Cargas por planta y zona</caption>
           <colgroup>
             <col style={{ width: ANCHO.planta }} />
+            <col style={{ width: ANCHO.altura }} />
             <col style={{ width: ANCHO.zona }} />
             <col style={{ width: ANCHO.forjado }} />
             <col style={{ width: ANCHO.canto }} />
@@ -184,7 +189,7 @@ export function Tabla({
           <thead>
             {/* Cabecera de grupo: las preguntas de obra */}
             <tr>
-              <th colSpan={2} scope="colgroup" className={TH_GRUPO + ' border-l-0'}>
+              <th colSpan={3} scope="colgroup" className={TH_GRUPO + ' border-l-0'}>
                 <span className="block truncate">Plantas · arriba la cubierta</span>
               </th>
               <th colSpan={3} scope="colgroup" className={TH_GRUPO}>
@@ -205,6 +210,13 @@ export function Tabla({
             <tr>
               <th scope="col" className={TH}>
                 Planta
+              </th>
+              <th
+                scope="col"
+                className={TH_NUM}
+                title="De forjado a forjado: lo que sube desde este forjado hasta el de encima. Debajo, la cota del forjado sobre la rasante, que sale sola."
+              >
+                Altura <span className="block font-normal normal-case">m</span>
               </th>
               <th scope="col" className={TH}>
                 Zona
@@ -305,6 +317,8 @@ export function Tabla({
                       onMoverPlanta={(sentido) => onMoverPlanta(planta.id, sentido)}
                       puedeSubir={iPlanta > 0}
                       puedeBajar={iPlanta < plantas.length - 1}
+                      cota={cotas[iPlanta] ?? null}
+                      deArriba={iPlanta === 0}
                     />
                   ))}
                 </Fragment>

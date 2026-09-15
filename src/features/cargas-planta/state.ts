@@ -24,6 +24,15 @@ import {
   type TipoForjado,
 } from '../../lib/acciones';
 import { CATEGORIAS_USO } from '../../lib/acciones/tablasCargas';
+import {
+  ALTURA_PLANTA_TIPO,
+  cotasEdificio,
+  guardarEdificio,
+  leerEdificio,
+  mismoEdificio,
+  type Edificio,
+  type TipoPlanta,
+} from '../../lib/edificio';
 import { leerObra } from '../../lib/obra';
 import { publicar } from '../../lib/pub';
 import {
@@ -34,7 +43,6 @@ import {
   PERMANENTES_INICIALES,
   PLANTAS_INICIALES,
   type NieveModo,
-  TIPO_PLANTA_OPCIONES,
 } from './catalogos';
 import { avisosNieve, leerNievePublicada, type NievePublicada } from './nievePub';
 import { versionViva } from '../../data/proyectoKeys';
@@ -124,12 +132,19 @@ export interface PlantaUI {
    * la columna de sótano de la tabla 3.1. Nunca a la vez que `esCubierta`.
    */
   bajoRasante: boolean;
+  /**
+   * m, de forjado a forjado: lo que sube desde este forjado hasta el de
+   * encima («Planta Baja 3,00» = la planta baja mide 3 m). La de arriba del
+   * todo no la necesita. Aquí no mueve ninguna carga: es lo que viento, sismo
+   * e incendio leen del edificio (`lib/edificio`). `null` = sin decir.
+   */
+  altura: number | null;
   nieve: NieveUI;
   zonas: ZonaUI[];
 }
 
-/** Lo que una planta ES, para el desplegable: cubierta, planta sobre rasante o sótano. */
-export type TipoPlanta = (typeof TIPO_PLANTA_OPCIONES)[number]['id'];
+/** Lo que una planta ES, para el desplegable: cubierta, planta sobre rasante o sótano. Vive en `lib/edificio`. */
+export type { TipoPlanta };
 
 /** Proyección de los dos booleanos; la cubierta manda si alguien guardó los dos. */
 export function tipoDePlanta(p: Pick<PlantaUI, 'esCubierta' | 'bajoRasante'>): TipoPlanta {
@@ -225,8 +240,9 @@ export function nuevaZona(esCubierta: boolean, nombre = ''): ZonaUI {
   };
 }
 
-export function nuevaPlanta(nombre: string, esCubierta = false, bajoRasante = false): PlantaUI {
-  return { id: nuevoId('p'), nombre, esCubierta, bajoRasante: !esCubierta && bajoRasante, nieve: nievePorDefecto(), zonas: [nuevaZona(esCubierta)] };
+/** Una planta nueva nace con la altura tipo; una cubierta, sin ella (es la de arriba, salvo que se diga lo contrario). */
+export function nuevaPlanta(nombre: string, esCubierta = false, bajoRasante = false, altura: number | null = esCubierta ? null : ALTURA_PLANTA_TIPO): PlantaUI {
+  return { id: nuevoId('p'), nombre, esCubierta, bajoRasante: !esCubierta && bajoRasante, altura, nieve: nievePorDefecto(), zonas: [nuevaZona(esCubierta)] };
 }
 
 /** La planta que se añade detrás de la última: una copia de ella con otro nombre e ids nuevos. */
@@ -263,7 +279,7 @@ export function defaultCargasState(): CargasState {
       municipio: obra?.municipio ?? '',
       altitud: obra?.altitud ?? null,
     },
-    plantas: PLANTAS_INICIALES.map((p) => nuevaPlanta(p.nombre, p.esCubierta)),
+    plantas: PLANTAS_INICIALES.map((p) => nuevaPlanta(p.nombre, p.esCubierta, p.bajoRasante, p.altura)),
     lineales: [nuevoLineal('fachada')],
     muros: murosPorDefecto(),
     ayuda: true,
@@ -316,7 +332,7 @@ export function ejemploCargasState(): CargasState {
 export function esEstadoInicial(s: CargasState): boolean {
   return (
     s.plantas.length === PLANTAS_INICIALES.length &&
-    s.plantas.every((p, i) => p.nombre === PLANTAS_INICIALES[i].nombre && p.esCubierta === PLANTAS_INICIALES[i].esCubierta && !p.bajoRasante && p.zonas.length === 1) &&
+    s.plantas.every((p, i) => p.nombre === PLANTAS_INICIALES[i].nombre && p.esCubierta === PLANTAS_INICIALES[i].esCubierta && !p.bajoRasante && p.altura === PLANTAS_INICIALES[i].altura && p.zonas.length === 1) &&
     s.plantas.every((p) => p.zonas[0].forjado.ppManual === null && p.zonas[0].forjado.tipo === 'reticular') &&
     s.lineales.length === 1 &&
     !s.muros.hay
@@ -444,6 +460,9 @@ export function normalizar(bruto: unknown): CargasState {
           nombre: texto(p.nombre, `Planta ${i + 1}`),
           esCubierta,
           bajoRasante,
+          // Guardado antes de la altura (fase 2, 15-09-2026): sin decir. No se
+          // inventa: viento dirá qué planta falta y aquí se teclea.
+          altura: numeroONull(p.altura),
           nieve: {
             modo: uno(n.modo, ['ninguna', 'publicada', 'manual'] as const, 'ninguna'),
             valor: numero(n.valor, 0),
@@ -494,7 +513,7 @@ export function normalizar(bruto: unknown): CargasState {
   };
 }
 
-export function cargarEstado(): CargasState {
+function estadoGuardado(): CargasState {
   try {
     if (leerClave(SCHEMA_VERSION_KEY) !== SCHEMA_VERSION) return defaultCargasState();
     const bruto = leerClave(STORAGE_KEY);
@@ -505,9 +524,60 @@ export function cargarEstado(): CargasState {
   }
 }
 
+// ── El edificio compartido ──────────────────────────────────────────────────
+//
+// Las plantas son la geometría del edificio, y desde el 15-09-2026 viven en
+// `concreta-edificio` (`lib/edificio`) para que viento, sismo e incendio no
+// las pidan otra vez. Este módulo es el ÚNICO que escribe ahí; lo suyo —la
+// nieve, las zonas— sigue en su propia clave, pegado a cada planta por id.
+
+/** La proyección de las plantas que ven los demás módulos: nombre, tipo y altura. */
+export function edificioDePlantas(plantas: readonly PlantaUI[]): Edificio {
+  return { plantas: plantas.map((p) => ({ id: p.id, nombre: p.nombre, tipo: tipoDePlanta(p), altura: p.altura })) };
+}
+
+export const edificioDe = (s: CargasState): Edificio => edificioDePlantas(s.plantas);
+
+/**
+ * El edificio manda en la lista, el orden, el nombre, el tipo y la altura; lo
+ * que es de este módulo (nieve, zonas) se pega POR ID. Una planta del edificio
+ * sin datos propios nace como planta nueva; los datos de una planta que ya no
+ * está en el edificio se descartan.
+ */
+export function unirConEdificio(plantas: readonly PlantaUI[], edificio: Edificio): PlantaUI[] {
+  const propias = new Map(plantas.map((p) => [p.id, p]));
+  const unidas = edificio.plantas.map((e): PlantaUI => {
+    const tipo = cambioDeTipo(e.tipo);
+    const propia = propias.get(e.id);
+    if (!propia) return { ...nuevaPlanta(e.nombre, tipo.esCubierta, tipo.bajoRasante, e.altura), id: e.id };
+    return { ...propia, nombre: e.nombre, ...tipo, altura: e.altura };
+  });
+  asignarColumnas(unidas);
+  return unidas;
+}
+
+/**
+ * Lo guardado, unido al edificio compartido. Si nadie ha escrito el edificio
+ * todavía —una obra anterior a la fase 2, un `.concreta` viejo— se SIEMBRA
+ * aquí mismo con las plantas de este módulo: viento lo necesita aunque en
+ * este cuadro no se toque nada. Es la única escritura que hace una lectura.
+ */
+export function cargarEstado(): CargasState {
+  const state = estadoGuardado();
+  const edificio = leerEdificio();
+  if (edificio === null) {
+    guardarEdificio(edificioDe(state));
+    return state;
+  }
+  return { ...state, plantas: unirConEdificio(state.plantas, edificio) };
+}
+
 export function guardarEstado(state: CargasState): void {
   escribirClave(STORAGE_KEY, JSON.stringify(state));
   escribirClave(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
+  // El edificio sólo si ha cambiado: teclear una zona no tiene que avisar a nadie.
+  const edificio = edificioDe(state);
+  if (!mismoEdificio(edificio, leerEdificio())) guardarEdificio(edificio);
 }
 
 // ── Traducción al motor ─────────────────────────────────────────────────────
@@ -525,6 +595,7 @@ export function entradaMotor(state: CargasState): CargasInput {
       nombre: p.nombre,
       esCubierta: p.esCubierta,
       bajoRasante: p.bajoRasante,
+      altura: p.altura,
       ...(p.esCubierta && p.nieve.modo !== 'ninguna' ? { nieve: p.nieve.valor } : {}),
       zonas: p.zonas.map((z) => ({
         id: z.id,
@@ -614,6 +685,10 @@ export interface PubPlantaCargas {
    * que lo lea, `?? false`. Es lo que viento e incendio necesitan del edificio.
    */
   bajoRasante?: boolean;
+  /** m, de forjado a forjado (ver `PlantaUI.altura`). Opcional por lo mismo que `bajoRasante`; null = sin decir. */
+  altura?: number | null;
+  /** m, cota del forjado sobre la rasante, derivada de las alturas (`lib/edificio`); null si falta alguna. */
+  cota?: number | null;
   zonas: PubZonaCargas[];
 }
 
@@ -638,15 +713,19 @@ export function datosPublicacion(state: CargasState, ev: Evaluacion): PubCargasP
   const provincia = state.emplazamiento.provincia ? (provinciaPorIne(state.emplazamiento.provincia) ?? null) : null;
   const origen = state.plantas.find((p) => p.esCubierta && p.nieve.modo === 'publicada' && p.nieve.tsPub !== null);
   const r = ev.resultado;
+  // Mismo orden que `r.plantas`: el motor las devuelve tal como entran.
+  const cotas = cotasEdificio(edificioDe(state).plantas);
   return {
     provincia: provincia?.nombre ?? null,
     provinciaIne: provincia?.ine ?? null,
     municipio: state.emplazamiento.municipio.trim(),
     altitud: state.emplazamiento.altitud,
-    plantas: r.plantas.map((p) => ({
+    plantas: r.plantas.map((p, i) => ({
       nombre: p.nombre,
       esCubierta: p.esCubierta,
       bajoRasante: p.bajoRasante,
+      altura: p.altura,
+      cota: cotas[i] ?? null,
       zonas: p.zonas.map((z) => ({
         nombre: z.nombre || null,
         forjado: { tipo: z.forjado.tipo, canto: z.forjado.canto },

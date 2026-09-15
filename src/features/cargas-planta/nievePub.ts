@@ -77,7 +77,11 @@ function avisosPlanta(p: PlantaUI, pub: NievePublicada | null, provinciaObra: st
     return [`${quien}: la nieve se tomó de una publicación de Viento y nieve que ya no existe. Vuelva a publicarla allí, o teclee el valor.`];
   }
   const avisos: string[] = [];
-  if (p.nieve.tsPub !== null && pub.ts > p.nieve.tsPub) {
+  // Sólo si el VALOR cambió: desde que las plantas son del edificio compartido,
+  // viento republica cada vez que cambian, y una fecha nueva con la misma nieve
+  // no es nada que revisar.
+  const ahora = valorPublicado(pub, p.nieve.faldon);
+  if (p.nieve.tsPub !== null && pub.ts > p.nieve.tsPub && ahora !== null && Math.abs(ahora - p.nieve.valor) > 1e-9) {
     avisos.push(`${quien}: Viento y nieve ha publicado de nuevo (${fecha(pub.ts)}) desde que se tomó la nieve (${fecha(p.nieve.tsPub)}). Pulse «Usar la nieve publicada» para actualizarla.`);
   }
   const provinciaSobre = provinciaDelSobre(pub.ine);

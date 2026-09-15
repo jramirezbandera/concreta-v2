@@ -22,6 +22,7 @@ import {
   type FamiliaPsi,
   type FilaTabla31,
 } from '../../lib/acciones/tablasCargas';
+import { PLANTAS_INICIALES as PLANTAS_DEL_EDIFICIO, type TipoPlanta } from '../../lib/edificio';
 
 export interface Opcion<T extends string> {
   id: T;
@@ -177,11 +178,9 @@ export const NIEVE_MODO_OPCIONES: Opcion<NieveModo>[] = [
  * en que las dibuja la sección y en el que se lee un cuadro de acciones en el
  * plano. Las flechas de cada planta lo cambian.
  */
-export const PLANTAS_INICIALES: { nombre: string; esCubierta: boolean }[] = [
-  { nombre: 'Cubierta', esCubierta: true },
-  { nombre: 'Planta Primera', esCubierta: false },
-  { nombre: 'Planta Baja', esCubierta: false },
-];
+export const PLANTAS_INICIALES: { nombre: string; esCubierta: boolean; bajoRasante: boolean; altura: number | null }[] =
+  // La lista canónica vive en `lib/edificio`, que es lo que ven los demás módulos; aquí, la vista con los dos booleanos.
+  PLANTAS_DEL_EDIFICIO.map((p) => ({ nombre: p.nombre, esCubierta: p.tipo === 'cubierta', bajoRasante: p.tipo === 'sotano', altura: p.altura }));
 
 /**
  * «¿Qué es esta planta?»: el desplegable de la celda de la planta. Cubierta
@@ -190,7 +189,7 @@ export const PLANTAS_INICIALES: { nombre: string; esCubierta: boolean }[] = [
  * se repite). En este módulo el tipo sólo mueve el dibujo; viaja en el sobre
  * porque es lo que los demás módulos necesitan saber del edificio.
  */
-export const TIPO_PLANTA_OPCIONES: Opcion<'cubierta' | 'planta' | 'sotano'>[] = [
+export const TIPO_PLANTA_OPCIONES: Opcion<TipoPlanta>[] = [
   {
     id: 'cubierta',
     etiqueta: 'Cubierta',

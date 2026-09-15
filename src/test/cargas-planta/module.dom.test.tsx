@@ -14,7 +14,9 @@
  *   8. el edificio tecleado del revés se avisa y se endereza de una vez;
  *   9. la tabla no pierde columnas por el camino;
  *  10. cada planta dice qué es (cubierta, planta o sótano) y los sótanos se
- *      bajan de una vez.
+ *      bajan de una vez;
+ *  11. cada planta dice cuánto mide y la cota sale sola; el edificio se
+ *      escribe en `concreta-edificio` para los demás módulos.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,6 +28,7 @@ import { ToastContainer } from '../../components/ui/Toast';
 import { CargasPlantaModule } from '../../features/cargas-planta';
 import { MODULO_PUB, type PubCargasPlanta } from '../../features/cargas-planta/state';
 import { defaultVientoNieveState, evaluar as evaluarVN, publicarResultado as publicarVN } from '../../features/viento-nieve/state';
+import { leerEdificio } from '../../lib/edificio';
 import { leerPublicacion } from '../../lib/pub';
 
 vi.mock('../../components/layout/AppShell', () => ({
@@ -82,10 +85,11 @@ function montar() {
  * sólo lee sobres configurados, y elegir emplazamiento no configura nada (el
  * emplazamiento se hereda de la obra). La planta no cambia la nieve.
  */
-function publicarMadrid() {
+function publicarMadrid(nieve: Partial<ReturnType<typeof defaultVientoNieveState>['nieve']> = {}) {
   const vn = defaultVientoNieveState();
   vn.emplazamiento = { ...vn.emplazamiento, provincia: '28', municipio: 'Madrid', altitud: 660 };
   vn.viento = { ...vn.viento, dimensiones: { x: 21, y: 12 } };
+  vn.nieve = { ...vn.nieve, ...nieve };
   publicarVN(vn, evaluarVN(vn));
 }
 
@@ -240,9 +244,10 @@ describe('Cargas por planta — la ficha de la fila', () => {
     expect(screen.getByText('qn = 0,60 kN/m²')).toBeInTheDocument();
     expect(screen.getByTitle('Carga de nieve de la cubierta')).toHaveTextContent('0,60');
 
-    // Un sobre más nuevo: aviso ámbar, sin bloquear.
+    // Un sobre más nuevo CON OTRA NIEVE (expuesta, +20 %): aviso ámbar, sin bloquear.
+    // Con la misma nieve no avisaría: viento republica cada vez que cambian las plantas del edificio.
     await new Promise((r) => setTimeout(r, 5));
-    publicarMadrid();
+    publicarMadrid({ exposicion: 'expuesta' });
     fireEvent.change(screen.getByLabelText('Municipio'), { target: { value: 'Madrid' } });
     expect(screen.getByText(/«Cubierta»: Viento y nieve ha publicado de nuevo/)).toBeInTheDocument();
     expect(screen.getByText(/1 aviso/)).toBeInTheDocument();
@@ -327,6 +332,29 @@ describe('Cargas por planta — el orden de las plantas', () => {
       'Seleccionar Planta Primera',
     ]);
     // El desplegable vive dentro de la celda de la planta: la fila no gana ni pierde celdas.
+    const tabla = screen.getByRole('table', { name: 'Cargas por planta y zona' });
+    const cabecera = tabla.querySelectorAll('thead tr')[1] as HTMLTableRowElement;
+    expect(filaDe('Cubierta').cells).toHaveLength(cabecera.cells.length);
+  });
+
+  it('cada planta dice cuánto mide, la cota sale sola, y el edificio queda escrito para los demás módulos', () => {
+    montar();
+    expect(screen.getByLabelText('Altura de Planta Baja')).toHaveValue('3,00');
+    // La de arriba del todo no tiene planta encima: sin caja.
+    expect(screen.queryByLabelText('Altura de Cubierta')).toBeNull();
+    const cotas = () => screen.getAllByTitle(/Cota del forjado sobre la rasante/).map((e) => e.textContent);
+    expect(cotas()).toEqual(['+6,00', '+3,00', '±0,00']);
+
+    const altura = screen.getByLabelText('Altura de Planta Baja');
+    fireEvent.change(altura, { target: { value: '4' } });
+    fireEvent.blur(altura);
+    expect(cotas()).toEqual(['+7,00', '+4,00', '±0,00']);
+    expect(leerEdificio()!.plantas.map((p) => [p.nombre, p.tipo, p.altura])).toEqual([
+      ['Cubierta', 'cubierta', null],
+      ['Planta Primera', 'planta', 3],
+      ['Planta Baja', 'planta', 4],
+    ]);
+    // La columna nueva no descuadra la fila con la cabecera.
     const tabla = screen.getByRole('table', { name: 'Cargas por planta y zona' });
     const cabecera = tabla.querySelectorAll('thead tr')[1] as HTMLTableRowElement;
     expect(filaDe('Cubierta').cells).toHaveLength(cabecera.cells.length);

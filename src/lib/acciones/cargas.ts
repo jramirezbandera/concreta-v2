@@ -88,6 +88,8 @@ export interface PlantaCargas {
   esCubierta: boolean;
   /** Sótano. No cambia ninguna carga: se pasa de largo para la sección y el sobre. */
   bajoRasante?: boolean;
+  /** m, de forjado a forjado. Tampoco cambia ninguna carga: de largo, como `bajoRasante`. */
+  altura?: number | null;
   /** Carga de nieve en proyección horizontal, kN/m². Sólo cuenta en cubiertas. */
   nieve?: number;
   zonas: ZonaCargas[];
@@ -193,6 +195,7 @@ export interface PlantaCargasResuelta {
   nombre: string;
   esCubierta: boolean;
   bajoRasante: boolean;
+  altura: number | null;
   nieve: number | null;
   zonas: ZonaCargasResuelta[];
 }
@@ -520,6 +523,7 @@ export function calcularCargas(input: CargasInput): CargasResultado {
       nombre: nombrePlanta,
       esCubierta: planta.esCubierta,
       bajoRasante: planta.bajoRasante ?? false,
+      altura: planta.altura ?? null,
       nieve,
       zonas,
     };

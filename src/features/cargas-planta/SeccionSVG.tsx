@@ -26,6 +26,7 @@ import { Marcadores } from '../../components/canvas/Marcadores';
 import { COLOR, dec, mezcla } from '../../components/canvas/paleta';
 import { Rotulo, Suelo } from '../../components/canvas/primitivas';
 import { useMarcadores } from '../../components/canvas/useMarcadores';
+import { cotasEdificio } from '../../lib/edificio';
 import type { CargasResultado, LinealResuelto, ZonaCargasResuelta } from '../../lib/acciones/cargas';
 import { toDisplay } from '../../lib/units/convert';
 import { getPrecision, getUnitLabel } from '../../lib/units/format';
@@ -130,6 +131,15 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
   const yFondo = Math.max(yRasante, yUltimo + GRUESO_FORJADO + 12);
   /** Hasta dónde baja la fachada a trazo continuo; de ahí al último forjado, muro de sótano a trazos. */
   const yPie = haySotanos ? Math.min(yRasante, yUltimo + GRUESO_FORJADO) : yUltimo + GRUESO_FORJADO;
+
+  /**
+   * La cota de cada forjado, de las alturas del edificio (`lib/edificio`):
+   * es lo único del dibujo que sabe de metros, y va rotulada, no a escala.
+   */
+  const cotasForjado = cotasEdificio(
+    resultado.plantas.map((p, i) => ({ id: p.id ?? String(i), nombre: p.nombre, tipo: p.esCubierta ? 'cubierta' : p.bajoRasante ? 'sotano' : 'planta', altura: p.altura })),
+  );
+  const rotuloCota = (c: number) => (c === 0 ? '±0,00' : `${c > 0 ? '+' : '−'}${dec(Math.abs(c), 2)}`);
 
   /** El rótulo de la planta, recortado a lo que cabe en el margen del dibujo. */
   const corto = (nombre: string) => (nombre.length > 15 ? `${nombre.slice(0, 14)}…` : nombre);
@@ -236,9 +246,16 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
           extremo del dibujo es la cubierta y cuál la planta baja. */}
       {resultado.plantas.map((p, i) =>
         p.zonas.length === 0 ? null : (
-          <Rotulo key={`rotulo-${p.id ?? i}`} x={bx + bw + 6} y={yPlanta[i] + 9} tam={8} mono color={COLOR.atenuado}>
-            {corto(p.nombre)}
-          </Rotulo>
+          <g key={`rotulo-${p.id ?? i}`}>
+            <Rotulo x={bx + bw + 6} y={yPlanta[i] + 9} tam={8} mono color={COLOR.atenuado}>
+              {corto(p.nombre)}
+            </Rotulo>
+            {cotasForjado[i] !== null && (
+              <Rotulo x={bx + bw + 6} y={yPlanta[i] + 18} tam={7.5} mono color={COLOR.atenuado}>
+                {rotuloCota(cotasForjado[i] as number)}
+              </Rotulo>
+            )}
+          </g>
         ),
       )}
 

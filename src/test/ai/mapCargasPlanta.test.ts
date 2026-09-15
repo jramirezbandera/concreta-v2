@@ -36,6 +36,8 @@ function fila(over: Partial<FilaAi> = {}): FilaAi {
     planta: 'Planta Baja',
     es_cubierta: false,
     bajo_rasante: false,
+    // La altura tipo, salvo en una cubierta, que es la de arriba y no la tiene.
+    altura_m: over.es_cubierta ? null : 3,
     zona: '',
     forjado: 'reticular',
     canto_cm: 30,
@@ -130,6 +132,24 @@ describe('la tabla se reconstruye desde la lista plana', () => {
     ]);
     // Y el cambio de tipo se ve en la lista: la primera pasa de planta a sótano.
     expect(p.changes.some((c) => c.field === 'zonas[1].tipo' || c.label.includes('tipo de planta'))).toBe(true);
+  });
+
+  it('la altura llega como altura_m y vuelve; la de arriba va a null y una negativa no es una altura', () => {
+    const current = edificioReal();
+    const p = plan(payload({
+      zonas: [
+        fila({ planta: 'Cubierta', es_cubierta: true, uso: 'G' }),
+        fila({ planta: 'Planta Primera', altura_m: 3.2 }),
+        fila({ planta: 'Planta Baja', altura_m: -1 }),
+      ],
+    }), current);
+
+    expect(p.fields.plantas!.map((x) => [x.nombre, x.altura])).toEqual([
+      ['Cubierta', null],
+      ['Planta Primera', 3.2],
+      ['Planta Baja', null],
+    ]);
+    expect(p.changes.find((c) => c.field === 'zonas[1].altura')).toMatchObject({ before: '3,00 m', after: '3,20 m' });
   });
 
   it('conserva los ids de las plantas y zonas que ocupaban ese sitio', () => {
@@ -514,8 +534,9 @@ describe('lo que el prompt prohíbe', () => {
 describe('contrato del adapter', () => {
   it('el esquema cabe en el tope de uniones de Anthropic', () => {
     const unions = countAnthropicUnions(buildChatSchema(CARGAS_PAYLOAD_SCHEMA));
-    // 8 anulables de primer nivel + la unión de `proposal` del envelope.
-    expect(unions).toBe(9);
+    // 8 anulables de primer nivel + la unión de `proposal` del envelope + la
+    // altura de cada fila (`altura_m`, anulable: la de arriba no la tiene).
+    expect(unions).toBe(10);
     expect(unions).toBeLessThanOrEqual(16);
   });
 

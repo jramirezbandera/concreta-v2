@@ -4,7 +4,7 @@
  * nieve (primer consumidor de una publicación) y la publicación propia.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cambioDeTipo,
   cargarEstado,
@@ -27,9 +27,12 @@ import {
   STORAGE_KEY,
   tipoDePlanta,
   type CargasState,
+  edificioDe,
+  unirConEdificio,
 } from '../../features/cargas-planta/state';
 import { avisosNieve, leerNievePublicada, nieveDesdePublicacion, valorPublicado, type NievePublicada } from '../../features/cargas-planta/nievePub';
 import { defaultVientoNieveState, evaluar as evaluarVN, publicarResultado as publicarVN } from '../../features/viento-nieve/state';
+import { cotasEdificio, guardarEdificio, leerEdificio, suscribirEdificio, type Edificio } from '../../lib/edificio';
 import { guardarObra } from '../../lib/obra';
 import { leerPublicacion, publicar } from '../../lib/pub';
 
@@ -66,10 +69,10 @@ describe('estado por defecto', () => {
     const s = defaultCargasState();
     expect(s.emplazamiento).toEqual({ provincia: '', municipio: '', altitud: null });
     // De arriba abajo, que es como las dibuja la sección y como se lee un plano.
-    expect(s.plantas.map((p) => [p.nombre, p.esCubierta, p.bajoRasante])).toEqual([
-      ['Cubierta', true, false],
-      ['Planta Primera', false, false],
-      ['Planta Baja', false, false],
+    expect(s.plantas.map((p) => [p.nombre, p.esCubierta, p.bajoRasante, p.altura])).toEqual([
+      ['Cubierta', true, false, null],
+      ['Planta Primera', false, false, 3],
+      ['Planta Baja', false, false, 3],
     ]);
     const baja = planta(s.plantas, BAJA);
     const cubierta = planta(s.plantas, CUBIERTA);
@@ -203,9 +206,13 @@ describe('la nieve del sobre de Viento y nieve', () => {
     planta(s.plantas, CUBIERTA).nieve = nieveDesdePublicacion(pub, 'Cubierta');
     expect(avisosNieve(s, pub)).toEqual([]);
 
+    // Republicado con la MISMA nieve (viento republica cada vez que cambian las plantas del edificio): nada que revisar.
     const masNuevo = { ...pub, ts: '2026-09-06T10:00:00.000Z' };
-    expect(avisosNieve(s, masNuevo)).toHaveLength(1);
-    expect(avisosNieve(s, masNuevo)[0]).toMatch(/«Cubierta».*publicado de nuevo/);
+    expect(avisosNieve(s, masNuevo)).toEqual([]);
+    // Republicado con otra nieve: eso sí.
+    const otraNieve = { ...masNuevo, qnMax: 0.6, faldones: [{ nombre: 'Cubierta', inclinacion: 0, qn: 0.6 }] };
+    expect(avisosNieve(s, otraNieve)).toHaveLength(1);
+    expect(avisosNieve(s, otraNieve)[0]).toMatch(/«Cubierta».*publicado de nuevo/);
 
     const otroSitio = { ...pub, ine: '41', municipio: 'Sevilla' };
     expect(avisosNieve(s, otroSitio)[0]).toMatch(/se calculó en otro sitio \(Sevilla\)/);
@@ -391,5 +398,91 @@ describe('el tipo de planta: cubierta, planta o sótano', () => {
     const d = datosPublicacion(s, ev)!;
     expect(d.plantas.map((p) => p.bajoRasante)).toEqual([false, false, false, true]);
     expect(PUB_VERSION).toBe(1);
+  });
+});
+
+describe('el edificio compartido (lib/edificio)', () => {
+  it('la altura es la del espacio que apoya en el forjado, y la cota sale sola: ±0 en la baja', () => {
+    const s = defaultCargasState();
+    expect(cotasEdificio(edificioDe(s).plantas)).toEqual([6, 3, 0]);
+    s.plantas.push(nuevaPlanta('Sótano -1', false, true));
+    expect(cotasEdificio(edificioDe(s).plantas)).toEqual([6, 3, 0, -3]);
+    // Una planta nueva nace con 3 m; una cubierta, sin altura (es la de arriba).
+    expect(nuevaPlanta('Planta 4').altura).toBe(3);
+    expect(nuevaPlanta('Cubierta ático', true).altura).toBeNull();
+    // Viaja al motor y al sobre, con la cota, sin subir la versión.
+    expect(planta(entradaMotor(s).plantas, BAJA).altura).toBe(3);
+    const d = datosPublicacion(s, evaluar(s, null))!;
+    expect(d.plantas.map((p) => [p.nombre, p.altura, p.cota])).toEqual([
+      ['Cubierta', null, 6],
+      ['Planta Primera', 3, 3],
+      ['Planta Baja', 3, 0],
+      ['Sótano -1', 3, -3],
+    ]);
+    expect(PUB_VERSION).toBe(1);
+  });
+
+  it('un estado guardado antes de la altura carga sin ella: no se inventa', () => {
+    const s = normalizar({ plantas: [{ nombre: 'Cubierta', esCubierta: true }, { nombre: 'Planta Baja', altura: 'tres' }] });
+    expect(s.plantas.map((p) => p.altura)).toEqual([null, null]);
+    expect(cotasEdificio(edificioDe(s).plantas)).toEqual([null, 0]);
+  });
+
+  it('sin edificio escrito, cargar el estado lo SIEMBRA con sus plantas: viento lo necesita aunque aquí no se toque nada', () => {
+    expect(leerEdificio()).toBeNull();
+    const s = cargarEstado();
+    expect(leerEdificio()).toEqual(edificioDe(s));
+    expect(leerEdificio()!.plantas.map((p) => [p.nombre, p.tipo, p.altura])).toEqual([
+      ['Cubierta', 'cubierta', null],
+      ['Planta Primera', 'planta', 3],
+      ['Planta Baja', 'planta', 3],
+    ]);
+  });
+
+  it('guardar escribe el edificio sólo cuando cambia: teclear una zona no avisa a nadie', () => {
+    const s = sevilla();
+    const avisos = vi.fn();
+    const soltar = suscribirEdificio(avisos);
+    guardarEstado(s);
+    expect(avisos).toHaveBeenCalledTimes(1);
+    planta(s.plantas, BAJA).zonas[0].forjado.canto = 35;
+    guardarEstado(s);
+    expect(avisos).toHaveBeenCalledTimes(1);
+    planta(s.plantas, BAJA).altura = 3.5;
+    guardarEstado(s);
+    expect(avisos).toHaveBeenCalledTimes(2);
+    expect(leerEdificio()!.plantas[2].altura).toBe(3.5);
+    soltar();
+  });
+
+  it('al cargar, el edificio manda en lista, orden, nombre, tipo y altura; la nieve y las zonas se pegan por id', () => {
+    const s = sevilla();
+    const baja = planta(s.plantas, BAJA);
+    baja.zonas[0].forjado.canto = 35;
+    baja.zonas.push({ ...nuevaZona(false, 'Garaje'), uso: { ...baja.zonas[0].uso, categoria: 'E' } });
+    guardarEstado(s);
+    // Otro sitio reordena, renombra, cambia la altura, quita la primera y añade un sótano.
+    const edificio: Edificio = {
+      plantas: [
+        { id: planta(s.plantas, CUBIERTA).id, nombre: 'Cubierta', tipo: 'cubierta', altura: null },
+        { id: baja.id, nombre: 'Planta Baja (nueva)', tipo: 'planta', altura: 4 },
+        { id: 'nuevo', nombre: 'Sótano -1', tipo: 'sotano', altura: 2.8 },
+      ],
+    };
+    guardarEdificio(edificio);
+    const c = cargarEstado();
+    expect(c.plantas.map((p) => [p.nombre, p.esCubierta, p.bajoRasante, p.altura, p.zonas.length])).toEqual([
+      ['Cubierta', true, false, null, 1],
+      ['Planta Baja (nueva)', false, false, 4, 2],
+      ['Sótano -1', false, true, 2.8, 1],
+    ]);
+    // Lo propio de la baja sigue ahí, pegado por id; la primera se fue con sus zonas.
+    expect(c.plantas[1].id).toBe(baja.id);
+    expect(c.plantas[1].zonas[0].forjado.canto).toBe(35);
+    expect(c.plantas[1].zonas[1].nombre).toBe('Garaje');
+    expect(c.plantas[2].id).toBe('nuevo');
+    expect(c.plantas.some((p) => p.nombre === PRIMERA)).toBe(false);
+    // Y la unión es la misma función, sin pasar por el almacén.
+    expect(unirConEdificio(s.plantas, edificio).map((p) => p.id)).toEqual([planta(s.plantas, CUBIERTA).id, baja.id, 'nuevo']);
   });
 });

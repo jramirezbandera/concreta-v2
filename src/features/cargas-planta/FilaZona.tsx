@@ -59,7 +59,14 @@ interface Props {
   onMoverPlanta: (sentido: -1 | 1) => void;
   puedeSubir: boolean;
   puedeBajar: boolean;
+  /** Cota del forjado sobre la rasante, m; null si falta alguna altura por debajo. */
+  cota: number | null;
+  /** La primera de la lista: no tiene planta encima y su altura no hace falta. */
+  deArriba: boolean;
 }
+
+/** «±0,00», «+3,00», «−3,00»: la cota como se acota una sección. */
+const rotuloCota = (c: number) => (c === 0 ? '±0,00' : `${c > 0 ? '+' : '−'}${dec(Math.abs(c), 2)}`);
 
 /** Un valor que pone la norma: azul, mono, sin caja; en la primera línea de la celda, a la altura de las cajas. */
 function Derivado({ valor, titulo, sub, fuerte, fallo }: { valor: string; titulo: string; sub?: string; fuerte?: boolean; fallo?: boolean }) {
@@ -91,6 +98,8 @@ export function FilaZona({
   onMoverPlanta,
   puedeSubir,
   puedeBajar,
+  cota,
+  deArriba,
 }: Props) {
   const { system } = useUnitSystem();
   const mostrar = (v: number) => dec(toDisplay(v, 'areaLoad', system), getPrecision('areaLoad', system));
@@ -183,6 +192,38 @@ export function FilaZona({
                 </button>
               </span>
             </div>
+          </div>
+        </td>
+      )}
+
+      {/* Altura — de la planta, como la nieve; debajo, la cota que sale sola */}
+      {primera && (
+        <td rowSpan={nZonas} className={TD_NUM + ' align-top'} style={plantaTocada && !seleccionada ? SELECCION : undefined}>
+          <div className="flex flex-col items-end gap-0.5" onClick={(ev) => ev.stopPropagation()}>
+            {deArriba ? (
+              <span className={LINEA_DER + ' font-mono text-[11px] text-text-disabled'} title="La planta de arriba del todo no tiene otra encima: su altura no hace falta">
+                —
+              </span>
+            ) : (
+              <span className={CAJA_DER}>
+                <RawNumberInput
+                  value={planta.altura ?? NaN}
+                  onChange={(altura) => onPlanta({ altura: Number.isFinite(altura) ? altura : null })}
+                  ariaLabel={`Altura de ${planta.nombre || 'la planta'}`}
+                  unit="m"
+                  min={0}
+                  precision={2}
+                  widthClass="w-12"
+                  hideUnit
+                />
+              </span>
+            )}
+            <span
+              className={'font-mono text-[9.5px] ' + (cota === null ? 'text-text-disabled' : 'text-accent')}
+              title={cota === null ? 'Sin cota: falta la altura de alguna planta de debajo' : 'Cota del forjado sobre la rasante, m: sale de las alturas de las plantas de debajo'}
+            >
+              {cota === null ? 'cota —' : rotuloCota(cota)}
+            </span>
           </div>
         </td>
       )}
