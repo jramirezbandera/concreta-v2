@@ -18,12 +18,56 @@ import { showToast } from '../../components/ui/Toast';
 import { PileCapInputsPanel } from './PileCapInputsPanel';
 import { PileCapResults } from './PileCapResults';
 import { PileCapSVG } from './PileCapSVG';
+import { PileCapRebarSVG } from './PileCapRebarSVG';
+
+// Dos vistas del lienzo, como en el módulo de muros: el modelo de bielas y
+// tirantes y el armado (planta y secciones con la armadura dispuesta).
+type PileCapView = 'model' | 'rebar';
+const VIEW_TABS: { id: PileCapView; num: string; label: string; color: string }[] = [
+  { id: 'model', num: '1', label: 'Modelo',  color: '#38bdf8' },
+  { id: 'rebar', num: '2', label: 'Armado',  color: '#64748b' },
+];
+
+function ViewTabButton({
+  active, num, label, color, onClick,
+}: { active: boolean; num: string; label: string; color: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        'group flex items-center gap-2 px-3 py-2 border-r border-border-main transition-colors text-left',
+        active ? 'bg-bg-primary' : 'bg-bg-surface hover:bg-bg-elevated/70',
+      ].join(' ')}
+    >
+      <span
+        className="flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono font-semibold transition-colors"
+        style={{
+          background: active ? `${color}22` : 'var(--color-bg-elevated)',
+          color:      active ? color : 'var(--color-text-secondary)',
+          border:     `1px solid ${active ? `${color}66` : 'var(--color-border-main)'}`,
+        }}
+      >
+        {num}
+      </span>
+      <span
+        className={[
+          'text-[11.5px] font-medium tracking-tight whitespace-nowrap transition-colors',
+          active ? 'text-text-primary' : 'text-text-secondary group-hover:text-text-primary',
+        ].join(' ')}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
 
 export function PileCapModule() {
   const { state, setField, reset, copyShareLink } = useModuleState('pile-cap', pileCapDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
+  const [view, setView] = useState<PileCapView>('model');
 
   // "Rellenar con IA" (ola 1)
   const [aiOpen, setAiOpen] = useState(false);
@@ -116,12 +160,28 @@ export function PileCapModule() {
             'lg:block',
           ].join(' ')}
         >
+          {/* View tabs (desktop) */}
+          <div className="hidden lg:flex items-center bg-bg-surface border-b border-border-main">
+            {VIEW_TABS.map((t) => (
+              <ViewTabButton
+                key={t.id}
+                active={view === t.id}
+                num={t.num}
+                label={t.label}
+                color={t.color}
+                onClick={() => setView(t.id)}
+              />
+            ))}
+          </div>
+
           {/* SVG canvas — desktop */}
           <div
             ref={canvasRef}
             className="hidden lg:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4 min-h-90 items-start"
           >
-            <PileCapSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" />
+            {view === 'model'
+              ? <PileCapSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" />
+              : <PileCapRebarSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" />}
           </div>
 
           {/* Results */}
@@ -132,8 +192,24 @@ export function PileCapModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
-            <PileCapSVG inp={state} result={result} width={mobileW} mode="screen" />
+          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col py-3 gap-3">
+            <div className="flex items-stretch bg-bg-surface border-y border-border-main">
+              {VIEW_TABS.map((t) => (
+                <ViewTabButton
+                  key={t.id}
+                  active={view === t.id}
+                  num={t.num}
+                  label={t.label}
+                  color={t.color}
+                  onClick={() => setView(t.id)}
+                />
+              ))}
+            </div>
+            <div ref={mobileCanvasRef} className="flex flex-col items-center px-4 gap-4 canvas-dot-grid">
+              {view === 'model'
+                ? <PileCapSVG inp={state} result={result} width={mobileW} mode="screen" />
+                : <PileCapRebarSVG inp={state} result={result} width={mobileW} mode="screen" />}
+            </div>
           </div>
         )}
 
@@ -146,6 +222,12 @@ export function PileCapModule() {
           style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
         >
           <PileCapSVG inp={state} result={result} mode="pdf" width={320} />
+        </div>
+        <div
+          id="pile-cap-rebar-svg-pdf"
+          style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
+        >
+          <PileCapRebarSVG inp={state} result={result} mode="pdf" width={560} />
         </div>
       </div>
 

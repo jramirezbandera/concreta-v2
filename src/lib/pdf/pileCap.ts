@@ -139,9 +139,18 @@ export async function exportPileCapPDF(
   );
   twoCol(`s_bar,x = ${result.s_bar_x.toFixed(0)} mm`, `s_max = ${result.s_max.toFixed(0)} mm`);
   twoCol(`lb,req = ${result.lb_net.toFixed(0)} mm`, `lb,disp = ${result.lb_avail.toFixed(0)} mm`);
+  gap();
+
+  // ARMADURA SECUNDARIA — dispuesta por el usuario vs mínimo ex-EHE 58.4.1.4
+  secHeader('ARMADURA SECUNDARIA (disp. / req., ex-EHE 58.4.1.4)');
+  twoCol(`Superior ${inp.n_top} ph${inp.phi_top}`, `${result.As_top_prov.toFixed(0)} / ${result.As_top_req.toFixed(0)} mm2`);
+  twoCol(`Cercos ph${inp.phi_cv} c/${inp.s_cv} x${inp.n_cv}`, `${result.As_cv_prov.toFixed(0)} / ${result.As_cv_req.toFixed(0)} mm2/m`);
+  twoCol(`Horiz. caras ph${inp.phi_ch} c/${inp.s_ch}`, `${result.As_ch_prov.toFixed(0)} / ${result.As_ch_req.toFixed(0)} mm2/m`);
 
   // ── Divider + checks table ──────────────────────────────────────────────────
-  const tableY = svgY + SVG_H + 6;
+  // Empieza bajo la figura o bajo la columna derecha, lo que quede mas abajo:
+  // con Mx, placa y la secundaria la columna ya baja mas que la figura.
+  const tableY = Math.max(svgY + SVG_H + 6, ry + 4);
 
   doc.setLineWidth(0.3);
   setGray(doc, 180);
@@ -224,6 +233,21 @@ export async function exportPileCapPDF(
     setGray(doc, 215);
     doc.line(M, rowY, PAGE_W - M, rowY);
     rowY += 4;
+  }
+
+  // ── Figura de armado (planta + secciones + leyenda), en una sola imagen ───
+  const rebarContainer = document.getElementById('pile-cap-rebar-svg-pdf');
+  const rebarEl = rebarContainer?.querySelector('svg') as SVGSVGElement | null;
+  if (rebarEl) {
+    const vb = rebarEl.viewBox?.baseVal;   // jsdom no implementa viewBox
+    const REBAR_W = PAGE_W - 2 * M;
+    const REBAR_H = vb && vb.width > 0 ? REBAR_W * (vb.height / vb.width) : 110;
+    rowY = ensureSpace(doc, rowY + 2, REBAR_H + 8, M);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    setGray(doc, 60);
+    doc.text('ARMADO', M, rowY + 3);
+    await embedSvgAsImage(doc, rebarEl, { x: M, y: rowY + 6, width: REBAR_W, height: REBAR_H });
   }
 
   // ── Footer (every page) ─────────────────────────────────────────────────────

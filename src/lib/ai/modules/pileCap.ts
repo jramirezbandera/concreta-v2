@@ -399,11 +399,12 @@ function buildPileCapPlan(
 // ── Snapshot del estado ───────────────────────────────────────────────────────
 
 // Solo claves NUMÉRICAS del estado: fuera `title`, el flag `dims_auto` con sus
-// cotas manuales L_x/L_y/e_man, y la placa de reparto (plate_*) — la IA trabaja con
+// cotas manuales L_x/L_y/e_man, la placa de reparto (plate_*) y la secundaria dispuesta — la IA trabaja con
 // la geometría del grupo, no con las cotas del encepado ni el detalle de cabeza.
 type StateKey = Exclude<
   keyof PileCapInputs,
   'title' | 'dims_auto' | 'L_x' | 'L_y' | 'e_man' | 'plate_on' | 'plate_shape' | 'd_plate'
+  | 'phi_top' | 'n_top' | 'phi_cv' | 's_cv' | 'n_cv' | 'phi_ch' | 's_ch'
 >;
 
 const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {

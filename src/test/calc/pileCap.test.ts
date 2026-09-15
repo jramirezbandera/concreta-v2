@@ -102,13 +102,48 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.lb_net).toBeGreaterThan(0.5 * r.lb);
   });
 
-  it('armadura secundaria recomendada (fix #79, práctica ex-EHE): sup ≥ 10% inf, retícula 4‰', () => {
-    expect(r.As_top_req).toBeCloseTo(0.1 * r.As_prov_x, 3);
-    expect(r.As_grid_v).toBeCloseTo(4 * Math.min(1150, 400), 1);  // 1600 mm²/m
-    expect(r.As_grid_h).toBeCloseTo(4 * Math.min(800, 575), 1);   // 2300 mm²/m
-    const row = r.checks.find((c) => c.id === 'secondary-rebar')!;
-    expect(row.status).toBe('neutral');
-    expect(row.article).toMatch(/58\.4\.1\.4/);
+  it('armadura secundaria dispuesta vs mínimo ex-EHE 58.4.1.4: sup 2Ø12 ≥ 10 % inf, caras 4‰ de b_ref = h/2', () => {
+    expect(r.As_top_req).toBeCloseTo(0.1 * r.As_prov_x, 3);     // 113.1 mm²
+    expect(r.As_top_prov).toBeCloseTo(2 * 113.1, 0);             // 2Ø12
+    expect(r.b_ref).toBe(400);                                   // min(1950, 1150, 800/2)
+    expect(r.As_cv_min).toBeCloseTo(1600, 6);                    // 0,004·400·1000
+    expect(r.As_ch_min).toBeCloseTo(1600, 6);                    // misma sección de referencia
+    expect(r.As_cv_prov).toBeCloseTo(2 * 113.1 * 10, 0);         // Ø12 c/100, 2 ramas = 2262 mm²/m
+    expect(r.As_ch_prov).toBeCloseTo(2 * 113.1 * 10, 0);
+    // Criterios mecánicos de la hoja del estudio: muy por debajo del 4‰
+    expect(r.As_cv_mech).toBeCloseTo(300 / 3 * 1000 / r.fyd / 1.95, 1);  // N/(1,5·2) en 1,95 m
+    expect(r.As_ch_mech).toBeCloseTo(r.Ft_x / 4 * 1000 / r.fyd / 0.8, 3);
+    expect(r.As_cv_req).toBe(r.As_cv_min);
+    expect(r.As_ch_req).toBe(r.As_ch_min);
+    for (const id of ['top-steel', 'stirrups-v', 'face-steel-h']) {
+      const row = r.checks.find((c) => c.id === id)!;
+      expect(row.status).toBe('ok');
+      expect(row.article).toMatch(/58\.4\.1\.4/);
+    }
+    expect(r.checks.find((c) => c.id === 'stirrups-v')!.description).toMatch(/0,4 %/);
+  });
+
+  it('secundaria insuficiente → INCUMPLE; ramas y separación entran en lo dispuesto', () => {
+    // Ø10 c/200 con 2 ramas = 785 mm²/m < 1600
+    const poor = calcPileCap({ ...base, phi_cv: 10, s_cv: 200, phi_ch: 10, s_ch: 200, n_top: 0 });
+    expect(poor.As_cv_prov).toBeCloseTo(2 * 78.5 * 5, 0);
+    expect(poor.checks.find((c) => c.id === 'stirrups-v')!.status).toBe('fail');
+    expect(poor.checks.find((c) => c.id === 'face-steel-h')!.status).toBe('fail');
+    expect(poor.checks.find((c) => c.id === 'top-steel')!.status).toBe('fail');
+    // Cerco doble (4 ramas) duplica lo dispuesto
+    const four = calcPileCap({ ...base, phi_cv: 10, s_cv: 200, n_cv: 4 });
+    expect(four.As_cv_prov).toBeCloseTo(2 * poor.As_cv_prov, 6);
+    // Separación nula → invalid
+    expect(calcPileCap({ ...base, s_cv: 0 }).valid).toBe(false);
+  });
+
+  it('el criterio mecánico gobierna cuando el 4‰ es pequeño (encepado esbelto muy cargado)', () => {
+    // h=400 → b_ref = 200 → 4‰ = 800 mm²/m; N=6000 → N/(1,5·2)=2000 kN → 4600 mm² en 1,95 m
+    const r2 = calcPileCap({ ...base, h_enc: 400, cover: 40, N_Ed: 6000, R_adm: 4000 });
+    expect(r2.valid).toBe(true);
+    expect(r2.As_cv_mech).toBeGreaterThan(r2.As_cv_min);
+    expect(r2.As_cv_req).toBe(r2.As_cv_mech);
+    expect(r2.checks.find((c) => c.id === 'stirrups-v')!.description).toMatch(/1,5·n/);
   });
 
   it('todas las filas no neutrales en ok (FTUX verde)', () => {
@@ -121,7 +156,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     const ids = r.checks.map((c) => c.id);
     for (const id of ['spacing', 'edge-distance', 'cap-depth', 'pile-react-max', 'strut-angle',
       'strut-capacity', 'tie-steel-x', 'bar-spacing', 'bar-spacing-min',
-      'anchorage', 'node-column', 'secondary-rebar']) {
+      'anchorage', 'node-column', 'rigidity', 'top-steel', 'stirrups-v', 'face-steel-h']) {
       expect(ids).toContain(id);
     }
   });
@@ -510,7 +545,7 @@ describe('Sin NaN/Infinity', () => {
       expect(r.valid).toBe(true);
       for (const v of [r.R_max, r.R_min, r.theta_deg, r.Fs_max, r.sigma_strut,
         r.Ft_x, r.As_tie_x, r.As_prov_x, r.s_bar_x, r.lb, r.lb_net, r.lb_avail,
-        r.W_cap, r.sigma_col, r.As_grid_v, r.As_grid_h]) {
+        r.W_cap, r.sigma_col, r.As_cv_req, r.As_ch_req, r.As_top_prov]) {
         expect(Number.isFinite(v)).toBe(true);
       }
       r.checks.filter((c) => !c.neutral).forEach((c) => {

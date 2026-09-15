@@ -116,6 +116,13 @@ export function PileCapResults({ inp, result }: Props) {
         <ValueRow label="s_bar,y" value={`${result.s_bar_y.toFixed(0)} mm`} />
       )}
 
+      {/* Armadura secundaria dispuesta vs requerida (ex-EHE 58.4.1.4) */}
+      <GroupHeader label="Armadura secundaria (ex-EHE 58.4.1.4)" />
+      <ValueRow label="b_ref (4‰)" value={`${result.b_ref.toFixed(0)} mm`} />
+      <ValueRow label="Superior" value={`${inp.n_top as number}Ø${inp.phi_top as number} → ${result.As_top_prov.toFixed(0)} mm² (req. ${result.As_top_req.toFixed(0)})`} />
+      <ValueRow label="Cercos vert." value={`Ø${inp.phi_cv as number} c/${inp.s_cv as number} ×${inp.n_cv as number} → ${result.As_cv_prov.toFixed(0)} mm²/m (req. ${result.As_cv_req.toFixed(0)})`} />
+      <ValueRow label="Horiz. caras" value={`Ø${inp.phi_ch as number} c/${inp.s_ch as number} → ${result.As_ch_prov.toFixed(0)} mm²/m (req. ${result.As_ch_req.toFixed(0)})`} />
+
       {/* Anclaje */}
       <GroupHeader label="Anclaje (CE Anejo 19 §8.4.4)" />
       <ValueRow label="lb,básica" value={`${result.lb.toFixed(0)} mm`} />

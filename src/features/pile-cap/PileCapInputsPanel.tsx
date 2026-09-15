@@ -95,6 +95,42 @@ function SelectField({
   );
 }
 
+// ── RebarSpecField: Ø + separación en una fila ────────────────────────────────
+
+function RebarSpecField({
+  label, sub, help, fieldDiam, fieldSep, diam, sep, barOptions, setField,
+}: {
+  label: string; sub?: string; help?: string;
+  fieldDiam: keyof PileCapInputs; fieldSep: keyof PileCapInputs;
+  diam: number; sep: number;
+  barOptions: Array<{ value: number; label: string }>;
+  setField: Props['setField'];
+}) {
+  return (
+    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
+      <InputLabel htmlFor={`pc-${String(fieldSep)}`} label={label} sub={sub} help={help} />
+      <div className="flex items-center gap-1 shrink-0">
+        <select
+          value={diam}
+          onChange={(e) => setField(fieldDiam, Number(e.target.value) as PileCapInputs[typeof fieldDiam])}
+          aria-label={`${label} — diámetro`}
+          className="bg-bg-primary border border-border-main rounded pl-1.5 pr-5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+        >
+          {barOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <span className="text-[10px] text-text-disabled font-mono">c/</span>
+        <RawNumberInput
+          id={`pc-${String(fieldSep)}`}
+          value={sep}
+          onChange={(n) => setField(fieldSep, n as PileCapInputs[typeof fieldSep])}
+          unit="mm"
+          ariaLabel={`${label} — separación (mm)`}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const N_OPTIONS = [2, 3, 4] as const;
@@ -350,6 +386,30 @@ export function PileCapInputsPanel({ state, setField }: Props) {
             n=2: 2 pilotes alineados en X. Mx_Ed debe ser 0 (staticamente inadmisible). Usar n=4 para momento biaxial.
           </p>
         )}
+      </CollapsibleSection>
+
+      {/* Armadura secundaria (ex-EHE 58.4.1.4): la dispone el usuario y el
+        * motor la comprueba frente al mínimo (10 % superior, 4‰ en caras) */}
+      <CollapsibleSection label="Armadura secundaria">
+        <SelectField
+          label="Ø superior" field="phi_top" value={state.phi_top as number}
+          options={barOptions} setField={setField}
+          help="Diámetro de las barras superiores, extendidas sin escalonar en toda la longitud de cada banda. Su capacidad debe ser ≥ 10 % de la de la armadura inferior (práctica ex-EHE 58.4.1.4)."
+        />
+        <NumField label="n_sup" sub="Barras sup./banda" field="n_top" value={state.n_top as number} unit="ud" setField={setField}
+          help="Número de barras superiores por banda (por dirección con 4 pilotes; por lado con 3)." />
+        <RebarSpecField
+          label="Cercos vert." sub="Ø y separación" fieldDiam="phi_cv" fieldSep="s_cv"
+          diam={state.phi_cv as number} sep={state.s_cv as number} barOptions={barOptions} setField={setField}
+          help="Cercos verticales cerrados que atan la armadura superior e inferior, repartidos a lo largo del encepado. Cuantía mínima 4‰ del área de la sección perpendicular (ancho de referencia ≤ h/2) y capacidad total ≥ N_Ed/(1,5·n)."
+        />
+        <NumField label="ramas" sub="Ramas por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
+          help="Ramas verticales de cada cerco (2 en un cerco simple; 4 con un cerco doble o dos cercos solapados)." />
+        <RebarSpecField
+          label="Horiz. caras" sub="Ø y sep. vertical" fieldDiam="phi_ch" fieldSep="s_ch"
+          diam={state.phi_ch as number} sep={state.s_ch as number} barOptions={barOptions} setField={setField}
+          help="Armadura horizontal de las dos caras laterales (cercos horizontales o barras de piel), repartida en el canto. Cuantía mínima 4‰ del área de la sección perpendicular (ancho de referencia ≤ h/2) y capacidad total ≥ T/4."
+        />
       </CollapsibleSection>
     </div>
   );
