@@ -73,7 +73,8 @@ function montar() {
 }
 
 /**
- * Viento y nieve publicado en Madrid a 660 m: zona A, aspereza IV, sk 0,56.
+ * Viento y nieve publicado en Madrid a 660 m: zona A, aspereza IV, sk 0,60
+ * (la capital va por la tabla 3.8, no por la E.2).
  *
  * Con el edificio TOCADO, no el de arranque: desde el 13-09-2026 este cuadro
  * sólo lee sobres configurados, y elegir emplazamiento no configura nada (el
@@ -231,11 +232,11 @@ describe('Cargas por planta — la ficha de la fila', () => {
     montar();
 
     abrirFicha('Cubierta');
-    fireEvent.click(screen.getByRole('button', { name: /Usar la nieve publicada \(0,56 kN\/m²\)/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Usar la nieve publicada \(0,60 kN\/m²\)/ }));
 
     expect(screen.getByLabelText('Origen de la nieve de Cubierta')).toHaveValue('publicada');
-    expect(screen.getByText('qn = 0,56 kN/m²')).toBeInTheDocument();
-    expect(screen.getByTitle('Carga de nieve de la cubierta')).toHaveTextContent('0,56');
+    expect(screen.getByText('qn = 0,60 kN/m²')).toBeInTheDocument();
+    expect(screen.getByTitle('Carga de nieve de la cubierta')).toHaveTextContent('0,60');
 
     // Un sobre más nuevo: aviso ámbar, sin bloquear.
     await new Promise((r) => setTimeout(r, 5));

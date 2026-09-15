@@ -41,7 +41,7 @@ function sevilla(): CargasState {
   return s;
 }
 
-/** Viento y nieve publicado en Madrid a 660 m (sk 0,56, un faldón plano). */
+/** Viento y nieve publicado en Madrid a 660 m (sk 0,60 de la tabla 3.8, un faldón plano). */
 function publicarMadrid() {
   const vn = defaultVientoNieveState();
   vn.emplazamiento = { ...vn.emplazamiento, provincia: '28', municipio: 'Madrid', altitud: 660 };
@@ -171,11 +171,12 @@ describe('la nieve del sobre de Viento y nieve', () => {
     publicarMadrid();
     const pub = leerNievePublicada()!;
     expect(pub).toMatchObject({ ine: '28', municipio: 'Madrid', provincia: 'Madrid' });
-    expect(pub.qnMax).toBeCloseTo(0.56, 12);
+    // Madrid capital: sk de la tabla 3.8, que es lo que publica el otro módulo.
+    expect(pub.qnMax).toBeCloseTo(0.6, 12);
     expect(pub.faldones).toHaveLength(1);
     expect(pub.faldones[0]).toMatchObject({ nombre: 'Cubierta', inclinacion: 0 });
-    expect(valorPublicado(pub, null)).toBeCloseTo(0.56, 12);
-    expect(valorPublicado(pub, 'Cubierta')).toBeCloseTo(0.56, 12);
+    expect(valorPublicado(pub, null)).toBeCloseTo(0.6, 12);
+    expect(valorPublicado(pub, 'Cubierta')).toBeCloseTo(0.6, 12);
     expect(valorPublicado(pub, 'Faldón que no existe')).toBeNull();
   });
 
@@ -249,7 +250,7 @@ describe('publicación', () => {
     expect(d.plantas.map((p) => p.nombre)).toEqual(['Cubierta', 'Planta Primera', 'Planta Baja']);
     expect(planta(d.plantas, BAJA).zonas[0]).toMatchObject({ nombre: null, forjado: { tipo: 'reticular', canto: 30 }, pp: 5, resto: 2, G: 7, categoria: 'A1', fila: 'A1', qUso: 2, qkConcentrada: 2, nieve: null, psi: { psi0: 0.7, psi1: 0.5, psi2: 0.3 } });
     expect(planta(d.plantas, BAJA).zonas[0].qd).toBeCloseTo(12.45, 12);
-    expect(planta(d.plantas, CUBIERTA).zonas[0].nieve).toBeCloseTo(0.56, 12);
+    expect(planta(d.plantas, CUBIERTA).zonas[0].nieve).toBeCloseTo(0.6, 12);
     expect(d.lineales).toEqual([{ concepto: 'Cerramiento de fachada', alzado: 7 / 3, altura: 3, gk: 7, Gd: 9.450000000000001 }]);
     expect(d.muros).toBeNull();
     expect(d.nieveOrigen).toEqual({ ts: planta(s.plantas, CUBIERTA).nieve.tsPub, ine: '28' });
