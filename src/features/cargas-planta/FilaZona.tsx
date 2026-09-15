@@ -18,12 +18,22 @@ import { HIPOTESIS_TEXTO } from '../../lib/acciones/cuadrosCargas';
 import { toDisplay } from '../../lib/units/convert';
 import { getPrecision, getUnitLabel } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { CANTO_INICIAL, FORJADO_OPCIONES, USO_OPCIONES } from './catalogos';
+import { CANTO_INICIAL, FORJADO_OPCIONES, TIPO_PLANTA_OPCIONES, USO_OPCIONES } from './catalogos';
 import { permanenteDe, ponerEnCelda, ponerEspesor, type ColumnaEncima } from './columnas';
 import { BOTON_CELDA, CAJA_DER, COLUMNA_QD, COLUMNA_QD_SEL, INPUT, LINEA, LINEA_DER, SELECCION, SEP, TD, TD_NUM } from './estilos';
-import type { PlantaUI, ZonaUI } from './state';
+import { cambioDeTipo, tipoDePlanta, type PlantaUI, type TipoPlanta, type ZonaUI } from './state';
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
+
+/**
+ * El desplegable del tipo de planta, en la segunda línea de la celda junto a
+ * los botones de mover, duplicar y borrar: compacto (20 px, como el chip al
+ * que sustituye) para que esa línea no crezca y la fila siga alineada con la
+ * sección. Un desplegable y no un chip que alterna: con el sótano son tres
+ * cosas, y en el chip sólo cabían dos.
+ */
+const SELECT_TIPO =
+  'h-5 w-[80px] min-w-0 rounded border border-border-main bg-bg-primary px-1 py-0 text-[10.5px] text-text-primary focus:border-accent focus:outline-none';
 
 interface Props {
   planta: PlantaUI;
@@ -115,6 +125,8 @@ export function FilaZona({
     );
   };
 
+  const tipo = tipoDePlanta(planta);
+
   return (
     <tr data-zona={z.id} onClick={onSeleccionar} style={tinte} className="cursor-pointer">
       {/* Planta — abarca sus zonas */}
@@ -129,19 +141,19 @@ export function FilaZona({
               onChange={(ev) => onPlanta({ nombre: ev.target.value })}
             />
             <div className="flex flex-nowrap items-center gap-1">
-              <button
-                type="button"
-                onClick={() => onPlanta({ esCubierta: !planta.esCubierta })}
-                aria-pressed={planta.esCubierta}
-                aria-label={`${planta.nombre || 'La planta'} es cubierta`}
-                title="La nieve y la sobrecarga de conservación sólo se piden en las cubiertas"
-                className={[
-                  'rounded px-1.5 py-px font-mono text-[9px] font-semibold tracking-[0.05em] transition-colors',
-                  planta.esCubierta ? 'border border-accent/40 bg-accent/15 text-accent' : 'border border-border-main bg-bg-elevated text-text-disabled',
-                ].join(' ')}
+              <select
+                value={tipo}
+                aria-label={`Tipo de ${planta.nombre || 'la planta'}`}
+                title={TIPO_PLANTA_OPCIONES.find((o) => o.id === tipo)?.ayuda}
+                className={SELECT_TIPO}
+                onChange={(ev) => onPlanta(cambioDeTipo(ev.target.value as TipoPlanta))}
               >
-                {planta.esCubierta ? 'CUBIERTA' : 'PISO'}
-              </button>
+                {TIPO_PLANTA_OPCIONES.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.etiqueta}
+                  </option>
+                ))}
+              </select>
               <span className="ml-auto flex flex-nowrap items-center gap-0.5">
                 <button
                   type="button"

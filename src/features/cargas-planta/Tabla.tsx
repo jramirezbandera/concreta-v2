@@ -53,6 +53,8 @@ interface Props {
   onMoverPlanta: (id: string, sentido: -1 | 1) => void;
   /** Da la vuelta al orden entero: el arreglo de un edificio tecleado del revés. */
   onInvertirPlantas: () => void;
+  /** Los sótanos debajo de las plantas sobre rasante, sin tocar el orden dentro de cada grupo. */
+  onOrdenarSotanos: () => void;
   onQuitarColumna: (clave: string) => void;
   onAnadirColumna: (catalogoId: string) => void;
   onRenombrarColumna: (clave: string, concepto: string) => void;
@@ -74,6 +76,7 @@ export function Tabla({
   onAnadirZona,
   onMoverPlanta,
   onInvertirPlantas,
+  onOrdenarSotanos,
   onQuitarColumna,
   onAnadirColumna,
   onRenombrarColumna,
@@ -106,11 +109,19 @@ export function Tabla({
    */
   const alReves = plantas.length > 1 && !plantas[0].esCubierta && plantas[plantas.length - 1].esCubierta;
   /**
+   * Un sótano por encima de una planta sobre rasante: la sección pone la
+   * rasante bajo la última planta sobre rasante, así que ese sótano saldría
+   * colgado por encima del suelo. Mismo remedio que la cubierta: se avisa y
+   * se ofrece bajar los sótanos de una vez.
+   */
+  const primerSotano = plantas.findIndex((p) => p.bajoRasante);
+  const sotanoArriba = primerSotano >= 0 && plantas.some((p, i) => i > primerSotano && !p.bajoRasante);
+  /**
    * Anchos en px. Con `table-fixed` mandan estos y nada empuja al resto. G, Q y
    * qd van holgadas a propósito: en el sistema técnico sus valores tienen cuatro
    * cifras (1.185 kg/m² son 11,63 kN/m²) y su cabecera de grupo lleva la unidad.
    */
-  const ANCHO = { planta: 148, zona: 78, forjado: 90, canto: 40, pp: 56, encima: 80, uso: 128, quso: 46, nieve: 54, G: 50, Q: 48, qd: 56 };
+  const ANCHO = { planta: 176, zona: 78, forjado: 90, canto: 40, pp: 56, encima: 80, uso: 128, quso: 46, nieve: 54, G: 50, Q: 48, qd: 56 };
   const anchoPx =
     ANCHO.planta + ANCHO.zona + ANCHO.forjado + ANCHO.canto + ANCHO.pp + Math.max(1, columnas.length) * ANCHO.encima + ANCHO.uso + ANCHO.quso + ANCHO.nieve + ANCHO.G + ANCHO.Q + ANCHO.qd;
 
@@ -121,7 +132,8 @@ export function Tabla({
           Una fila por zona de carga. Diga qué forjado tiene, qué hay encima y para qué se usa: la norma pone en azul
           el peso propio, la sobrecarga y el valor de cálculo qd que se lleva al programa. Si una planta tiene partes
           con distinto uso o forjado —vivienda y vaso de piscina—, añádale una zona. Pulse una fila para ver lo que
-          dice la norma en ella.
+          dice la norma en ella. Diga también qué es cada planta —cubierta, planta o sótano—: la nieve sólo se pide
+          en cubiertas y los sótanos se dibujan bajo la rasante.
         </p>
       )}
 
@@ -132,6 +144,22 @@ export function Tabla({
           </span>
           <button type="button" onClick={onInvertirPlantas} className={BOTON_MENOR} title="Da la vuelta al orden de las plantas">
             Poner la cubierta arriba
+          </button>
+        </div>
+      )}
+
+      {sotanoArriba && (
+        <div className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded border border-state-warn/40 bg-state-warn/5 px-2 py-1.5">
+          <span className="text-[11.5px] leading-snug text-text-secondary">
+            Hay un sótano por encima de una planta sobre rasante: la sección lo dibujaría colgado del suelo.
+          </span>
+          <button
+            type="button"
+            onClick={onOrdenarSotanos}
+            className={BOTON_MENOR}
+            title="Baja los sótanos debajo de las plantas sobre rasante, sin cambiar el orden dentro de cada grupo"
+          >
+            Poner los sótanos abajo
           </button>
         </div>
       )}

@@ -183,6 +183,27 @@ export const PLANTAS_INICIALES: { nombre: string; esCubierta: boolean }[] = [
   { nombre: 'Planta Baja', esCubierta: false },
 ];
 
+/**
+ * «¿Qué es esta planta?»: el desplegable de la celda de la planta. Cubierta
+ * y sótano son excluyentes; «planta» es la que está sobre rasante. No se dice
+ * «piso» (es español de América) ni «planta tipo» (en un proyecto es la que
+ * se repite). En este módulo el tipo sólo mueve el dibujo; viaja en el sobre
+ * porque es lo que los demás módulos necesitan saber del edificio.
+ */
+export const TIPO_PLANTA_OPCIONES: Opcion<'cubierta' | 'planta' | 'sotano'>[] = [
+  {
+    id: 'cubierta',
+    etiqueta: 'Cubierta',
+    ayuda: 'La nieve y la sobrecarga de conservación sólo se piden en las cubiertas. Puede haber más de una: un cuerpo bajo, un ático retranqueado.',
+  },
+  { id: 'planta', etiqueta: 'Planta', ayuda: 'Sobre rasante. Recibe viento y cuenta para la altura de evacuación.' },
+  {
+    id: 'sotano',
+    etiqueta: 'Sótano',
+    ayuda: 'Bajo rasante. La sección la dibuja debajo de la rasante; no recibe viento y en incendio cuenta como sótano.',
+  },
+];
+
 /** Lo que hay encima del forjado en una planta nueva, por tipo de planta. */
 export const PERMANENTES_INICIALES = {
   planta: ['solado', 'tabiqueria'],

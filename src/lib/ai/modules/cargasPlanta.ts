@@ -149,7 +149,7 @@ export const CARGAS_PAYLOAD_SCHEMA: Record<string, unknown> = {
         type: 'object',
         additionalProperties: false,
         required: [
-          'planta', 'es_cubierta', 'zona', 'forjado', 'canto_cm', 'pp_kNm2', 'encima',
+          'planta', 'es_cubierta', 'bajo_rasante', 'zona', 'forjado', 'canto_cm', 'pp_kNm2', 'encima',
           'uso', 'qk_propio_kNm2', 'psi_como', 'inclinacion_grados', 'ligera',
           'acceso_desde', 'escalera', 'balcon', 'nieve_kNm2',
         ],
@@ -161,6 +161,11 @@ export const CARGAS_PAYLOAD_SCHEMA: Record<string, unknown> = {
           es_cubierta: {
             type: 'boolean',
             description: 'true si esta planta es la cubierta del edificio: es la única que admite carga de nieve. Todas las filas de la misma planta deben decir lo mismo.',
+          },
+          bajo_rasante: {
+            type: 'boolean',
+            description:
+              'true si la planta está bajo rasante: sótano, semisótano, aparcamiento enterrado. Nunca junto a es_cubierta = true. Aquí no cambia ninguna carga; lo usan la sección del edificio y los demás módulos (viento, incendio). Todas las filas de la misma planta deben decir lo mismo.',
           },
           zona: {
             type: 'string',
@@ -339,6 +344,7 @@ export interface EncimaAi {
 export interface FilaAi {
   planta: string;
   es_cubierta: boolean;
+  bajo_rasante: boolean;
   zona: string;
   forjado: TipoForjado;
   canto_cm: number;
@@ -402,6 +408,7 @@ function parseFila(raw: Record<string, unknown>): FilaAi {
   return {
     planta: textoO(raw.planta, ''),
     es_cubierta: boolO(raw.es_cubierta, false),
+    bajo_rasante: boolO(raw.bajo_rasante, false),
     zona: textoO(raw.zona, ''),
     forjado,
     canto_cm: numeroO(raw.canto_cm, CANTO_INICIAL[forjado]),
@@ -465,6 +472,7 @@ function filaDeZona(p: PlantaUI, z: ZonaUI): FilaAi {
   return {
     planta: p.nombre,
     es_cubierta: p.esCubierta,
+    bajo_rasante: p.bajoRasante,
     zona: z.nombre,
     forjado: z.forjado.tipo,
     canto_cm: z.forjado.canto,
@@ -626,6 +634,8 @@ function plantasDePropuesta(
       id: base?.id ?? nuevoId('p'),
       nombre,
       esCubierta,
+      // La cubierta manda: un modelo que diga las dos cosas no deja un sótano con nieve.
+      bajoRasante: !esCubierta && cabecera.bajo_rasante,
       nieve,
       zonas: filas.slice(i, fin).map((f, k) => zonaDePropuesta(f, origenes[i + k]?.zona)),
     });
@@ -656,6 +666,10 @@ type Campo = { clave: string; etiqueta: string; texto: (f: FilaAi, system: UnitS
 
 /** Lo que se pinta de cada fila, en el orden en que se lee la tabla. */
 const CAMPOS_FILA: readonly Campo[] = [
+  // Qué es la planta. `es_cubierta` no tenía fila propia porque sólo cambiaba
+  // la nieve, que ya se ve; con el sótano son tres valores y ninguno mueve un
+  // número de este módulo, así que o se enseña como cambio o no se vería.
+  { clave: 'tipo', etiqueta: 'tipo de planta', texto: (f) => (f.es_cubierta ? 'cubierta' : f.bajo_rasante ? 'sótano' : 'planta') },
   { clave: 'forjado', etiqueta: 'forjado', texto: (f) => `${ETIQUETA_FORJADO.get(f.forjado) ?? f.forjado}, ${f.canto_cm} cm` },
   { clave: 'pp', etiqueta: 'peso propio', texto: (f, s) => (f.pp_kNm2 > 0 ? q2(f.pp_kNm2, s) : 'el de la norma') },
   {

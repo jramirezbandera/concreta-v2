@@ -12,7 +12,9 @@
  *   7. el desplegable «Exportar» entrega las cuatro salidas, y cada una con
  *      los bloques que le tocan: la memoria a Word y PDF, el plano a Excel y DXF;
  *   8. el edificio tecleado del revés se avisa y se endereza de una vez;
- *   9. la tabla no pierde columnas por el camino.
+ *   9. la tabla no pierde columnas por el camino;
+ *  10. cada planta dice qué es (cubierta, planta o sótano) y los sótanos se
+ *      bajan de una vez.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -305,6 +307,29 @@ describe('Cargas por planta — el orden de las plantas', () => {
       'Seleccionar Planta Baja',
       'Seleccionar Planta Primera',
     ]);
+  });
+
+  it('cada planta dice qué es; un sótano por encima de una planta se avisa y se baja de una vez', () => {
+    montar();
+    expect(screen.getByLabelText('Tipo de Planta Baja')).toHaveValue('planta');
+    expect(screen.getByLabelText('Tipo de Cubierta')).toHaveValue('cubierta');
+
+    // La planta primera pasa a sótano: queda por encima de la baja.
+    fireEvent.change(screen.getByLabelText('Tipo de Planta Primera'), { target: { value: 'sotano' } });
+    expect(screen.getByLabelText('Tipo de Planta Primera')).toHaveValue('sotano');
+    expect(screen.getByText(/Hay un sótano por encima de una planta sobre rasante/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Poner los sótanos abajo' }));
+    expect(screen.queryByText(/Hay un sótano por encima/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Seleccionar / }).map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Seleccionar Cubierta',
+      'Seleccionar Planta Baja',
+      'Seleccionar Planta Primera',
+    ]);
+    // El desplegable vive dentro de la celda de la planta: la fila no gana ni pierde celdas.
+    const tabla = screen.getByRole('table', { name: 'Cargas por planta y zona' });
+    const cabecera = tabla.querySelectorAll('thead tr')[1] as HTMLTableRowElement;
+    expect(filaDe('Cubierta').cells).toHaveLength(cabecera.cells.length);
   });
 
   it('la zona que era «toda» toma nombre en cuanto la planta tiene una segunda', () => {

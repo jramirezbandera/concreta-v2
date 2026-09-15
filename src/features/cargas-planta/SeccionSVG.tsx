@@ -15,6 +15,10 @@
  *
  * Cerramientos y petos vienen de las cargas lineales: se dibujan en la fachada
  * y sobre la última planta, que es donde apoyan.
+ *
+ * La rasante va debajo de la última planta SOBRE rasante, no de la última de
+ * la lista: los sótanos quedan por debajo, con la fachada a trazos (muro de
+ * sótano). Es lo único que el tipo de planta cambia en este módulo.
  */
 
 import type { KeyboardEvent } from 'react';
@@ -113,7 +117,19 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
 
   const yPrimero = zonas.length > 0 ? yPlanta[zonas[0].iPlanta] : arriba;
   const yUltimo = zonas.length > 0 ? yPlanta[zonas[zonas.length - 1].iPlanta] : arriba;
-  const yRasante = yUltimo + GRUESO_FORJADO + 22;
+  /**
+   * La rasante: bajo el forjado de la última planta sobre rasante. Con sótanos
+   * queda entre medias y los enterrados cuelgan por debajo; si el edificio
+   * entero está enterrado (raro), por encima del primer bloque, sin cuidar el
+   * solape.
+   */
+  const iUltimaSobreRasante = resultado.plantas.reduce((ult, p, i) => (!p.bajoRasante && p.zonas.length > 0 ? i : ult), -1);
+  const haySotanos = resultado.plantas.some((p) => p.bajoRasante && p.zonas.length > 0);
+  const yRasante = iUltimaSobreRasante >= 0 ? yPlanta[iUltimaSobreRasante] + GRUESO_FORJADO + 22 : arriba - 4;
+  /** Donde acaba el edificio hacia abajo: la rasante o, con sótanos, el último forjado enterrado. */
+  const yFondo = Math.max(yRasante, yUltimo + GRUESO_FORJADO + 12);
+  /** Hasta dónde baja la fachada a trazo continuo; de ahí al último forjado, muro de sótano a trazos. */
+  const yPie = haySotanos ? Math.min(yRasante, yUltimo + GRUESO_FORJADO) : yUltimo + GRUESO_FORJADO;
 
   /** El rótulo de la planta, recortado a lo que cabe en el margen del dibujo. */
   const corto = (nombre: string) => (nombre.length > 15 ? `${nombre.slice(0, 14)}…` : nombre);
@@ -131,7 +147,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
     }
   };
 
-  const alturaTotal = Math.max(height, yRasante + 96);
+  const alturaTotal = Math.max(height, yFondo + 96);
 
   return (
     <svg width={width} height={alturaTotal} viewBox={`0 0 ${width} ${alturaTotal}`} role="img" aria-label="Sección del edificio con la carga de cálculo de cada forjado" style={{ display: 'block' }}>
@@ -148,8 +164,15 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
       {/* Fachadas: de la primera planta a la última */}
       {zonas.length > 0 && (
         <>
-          <line x1={bx} y1={yPrimero} x2={bx} y2={yUltimo + GRUESO_FORJADO} stroke={COLOR.seccion} strokeWidth={1.75} />
-          <line x1={bx + bw} y1={yPrimero} x2={bx + bw} y2={yUltimo + GRUESO_FORJADO} stroke={COLOR.seccion} strokeWidth={1.75} />
+          <line x1={bx} y1={yPrimero} x2={bx} y2={yPie} stroke={COLOR.seccion} strokeWidth={1.75} />
+          <line x1={bx + bw} y1={yPrimero} x2={bx + bw} y2={yPie} stroke={COLOR.seccion} strokeWidth={1.75} />
+          {haySotanos && (
+            <>
+              {/* Muros de sótano: la fachada sigue bajo la rasante, a trazos */}
+              <line x1={bx} y1={yPie} x2={bx} y2={yUltimo + GRUESO_FORJADO} stroke={COLOR.seccion} strokeWidth={1.75} strokeDasharray="4 3" data-muro-sotano="" />
+              <line x1={bx + bw} y1={yPie} x2={bx + bw} y2={yUltimo + GRUESO_FORJADO} stroke={COLOR.seccion} strokeWidth={1.75} strokeDasharray="4 3" data-muro-sotano="" />
+            </>
+          )}
           {textoFachada && (
             <text x={bx - 8} y={yFachada} fontSize={8} fill={COLOR.atenuado} textAnchor="middle" transform={`rotate(-90 ${bx - 8} ${yFachada})`} style={{ fontFamily: 'var(--font-mono)' }}>
               {textoFachada}
@@ -230,10 +253,18 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
         </>
       )}
 
-      {/* Rasante */}
+      {/* Rasante. Con sótanos, el terreno sólo fuera de los muros: dentro no hay
+          suelo sino planta enterrada, y el rayado se comía su bloque de carga. */}
       {zonas.length > 0 && (
         <>
-          <Suelo x1={bx - 18} x2={bx + bw + 18} y={yRasante} patron={m.suelo} />
+          {haySotanos ? (
+            <>
+              <Suelo x1={bx - 18} x2={bx} y={yRasante} patron={m.suelo} />
+              <Suelo x1={bx + bw} x2={bx + bw + 18} y={yRasante} patron={m.suelo} />
+            </>
+          ) : (
+            <Suelo x1={bx - 18} x2={bx + bw + 18} y={yRasante} patron={m.suelo} />
+          )}
           <Rotulo x={bx + bw + 22} y={yRasante + 4} tam={8} mono color={COLOR.atenuado}>
             rasante
           </Rotulo>
@@ -241,7 +272,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
       )}
 
       {/* Leyenda */}
-      <g transform={`translate(4 ${yRasante + 28})`}>
+      <g transform={`translate(4 ${yFondo + 28})`}>
         <rect x={0} y={-8} width={10} height={8} fill={mezcla(COLOR.seccion, 25)} stroke={mezcla(COLOR.seccion, 45)} strokeWidth={0.75} />
         <Rotulo x={16} y={0} tam={8.5} mono color={COLOR.secundario}>
           permanente · Gd = 1,35 · G

@@ -34,6 +34,7 @@ import {
   PERMANENTES_INICIALES,
   PLANTAS_INICIALES,
   type NieveModo,
+  TIPO_PLANTA_OPCIONES,
 } from './catalogos';
 import { avisosNieve, leerNievePublicada, type NievePublicada } from './nievePub';
 import { versionViva } from '../../data/proyectoKeys';
@@ -116,8 +117,28 @@ export interface PlantaUI {
   id: string;
   nombre: string;
   esCubierta: boolean;
+  /**
+   * Bajo rasante: un sótano. Aquí sólo cambia el dibujo —la sección lo pone
+   * debajo de la rasante—, pero viaja en el sobre porque es lo que los demás
+   * módulos necesitan saber del edificio: no recibe viento y en incendio es
+   * la columna de sótano de la tabla 3.1. Nunca a la vez que `esCubierta`.
+   */
+  bajoRasante: boolean;
   nieve: NieveUI;
   zonas: ZonaUI[];
+}
+
+/** Lo que una planta ES, para el desplegable: cubierta, planta sobre rasante o sótano. */
+export type TipoPlanta = (typeof TIPO_PLANTA_OPCIONES)[number]['id'];
+
+/** Proyección de los dos booleanos; la cubierta manda si alguien guardó los dos. */
+export function tipoDePlanta(p: Pick<PlantaUI, 'esCubierta' | 'bajoRasante'>): TipoPlanta {
+  return p.esCubierta ? 'cubierta' : p.bajoRasante ? 'sotano' : 'planta';
+}
+
+/** El parche que deja una planta en ese tipo. Es el único camino desde la UI, y nunca enciende los dos. */
+export function cambioDeTipo(tipo: TipoPlanta): Pick<PlantaUI, 'esCubierta' | 'bajoRasante'> {
+  return { esCubierta: tipo === 'cubierta', bajoRasante: tipo === 'sotano' };
 }
 
 export interface LinealUI {
@@ -204,8 +225,8 @@ export function nuevaZona(esCubierta: boolean, nombre = ''): ZonaUI {
   };
 }
 
-export function nuevaPlanta(nombre: string, esCubierta = false): PlantaUI {
-  return { id: nuevoId('p'), nombre, esCubierta, nieve: nievePorDefecto(), zonas: [nuevaZona(esCubierta)] };
+export function nuevaPlanta(nombre: string, esCubierta = false, bajoRasante = false): PlantaUI {
+  return { id: nuevoId('p'), nombre, esCubierta, bajoRasante: !esCubierta && bajoRasante, nieve: nievePorDefecto(), zonas: [nuevaZona(esCubierta)] };
 }
 
 /** La planta que se añade detrás de la última: una copia de ella con otro nombre e ids nuevos. */
@@ -295,7 +316,7 @@ export function ejemploCargasState(): CargasState {
 export function esEstadoInicial(s: CargasState): boolean {
   return (
     s.plantas.length === PLANTAS_INICIALES.length &&
-    s.plantas.every((p, i) => p.nombre === PLANTAS_INICIALES[i].nombre && p.esCubierta === PLANTAS_INICIALES[i].esCubierta && p.zonas.length === 1) &&
+    s.plantas.every((p, i) => p.nombre === PLANTAS_INICIALES[i].nombre && p.esCubierta === PLANTAS_INICIALES[i].esCubierta && !p.bajoRasante && p.zonas.length === 1) &&
     s.plantas.every((p) => p.zonas[0].forjado.ppManual === null && p.zonas[0].forjado.tipo === 'reticular') &&
     s.lineales.length === 1 &&
     !s.muros.hay
@@ -414,12 +435,15 @@ export function normalizar(bruto: unknown): CargasState {
   const plantas = Array.isArray(bruto.plantas)
     ? bruto.plantas.filter(esObjeto).map((p, i): PlantaUI => {
         const esCubierta = bool(p.esCubierta, false);
+        // Guardado antes de los sótanos (15-09-2026) no trae el campo: sobre rasante.
+        const bajoRasante = !esCubierta && bool(p.bajoRasante, false);
         const n = esObjeto(p.nieve) ? p.nieve : {};
         const zonas = Array.isArray(p.zonas) ? p.zonas.filter(esObjeto).map((z) => normalizarZona(z, esCubierta)) : [];
         return {
           id: texto(p.id, nuevoId('p')),
           nombre: texto(p.nombre, `Planta ${i + 1}`),
           esCubierta,
+          bajoRasante,
           nieve: {
             modo: uno(n.modo, ['ninguna', 'publicada', 'manual'] as const, 'ninguna'),
             valor: numero(n.valor, 0),
@@ -500,6 +524,7 @@ export function entradaMotor(state: CargasState): CargasInput {
       id: p.id,
       nombre: p.nombre,
       esCubierta: p.esCubierta,
+      bajoRasante: p.bajoRasante,
       ...(p.esCubierta && p.nieve.modo !== 'ninguna' ? { nieve: p.nieve.valor } : {}),
       zonas: p.zonas.map((z) => ({
         id: z.id,
@@ -583,6 +608,12 @@ export interface PubZonaCargas {
 export interface PubPlantaCargas {
   nombre: string;
   esCubierta: boolean;
+  /**
+   * Sótano. Opcional en el esquema —los sobres anteriores al 15-09-2026 no lo
+   * traen— para no subir `PUB_VERSION` por un dato que las cargas no usan; el
+   * que lo lea, `?? false`. Es lo que viento e incendio necesitan del edificio.
+   */
+  bajoRasante?: boolean;
   zonas: PubZonaCargas[];
 }
 
@@ -615,6 +646,7 @@ export function datosPublicacion(state: CargasState, ev: Evaluacion): PubCargasP
     plantas: r.plantas.map((p) => ({
       nombre: p.nombre,
       esCubierta: p.esCubierta,
+      bajoRasante: p.bajoRasante,
       zonas: p.zonas.map((z) => ({
         nombre: z.nombre || null,
         forjado: { tipo: z.forjado.tipo, canto: z.forjado.canto },

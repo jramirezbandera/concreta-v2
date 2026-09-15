@@ -13,7 +13,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { SeccionSVG } from '../../features/cargas-planta/SeccionSVG';
 import { calcularCargas } from '../../lib/acciones/cargas';
-import { defaultCargasState, entradaMotor, nuevaZona } from '../../features/cargas-planta/state';
+import { defaultCargasState, entradaMotor, nuevaPlanta, nuevaZona } from '../../features/cargas-planta/state';
 
 /** El edificio de arranque, con una piscina en planta baja que carga el triple. */
 function resultado(conPiscina = true) {
@@ -68,6 +68,31 @@ describe('la sección', () => {
     expect(yForjado('Planta Baja (Vaso piscina)')).toBe(yForjado('Planta Baja (Vivienda)'));
     // Y la planta baja, más abajo que la cubierta: la sección va de arriba abajo.
     expect(yForjado('Planta Baja (Vivienda)')).toBeGreaterThan(yForjado('Cubierta'));
+  });
+
+  it('la rasante va bajo la última planta sobre rasante; el sótano cuelga por debajo con la fachada a trazos', () => {
+    const s = defaultCargasState();
+    s.plantas.push(nuevaPlanta('Sótano -1', false, true));
+    const { container } = pintar({ resultado: calcularCargas(entradaMotor(s)) });
+    const yForjado = (nombre: string) => {
+      const g = screen.getByRole('button', { name: `Seleccionar ${nombre}` });
+      const losa = [...g.querySelectorAll('rect')].find((r) => r.getAttribute('fill') === 'var(--color-chart-section)');
+      return Number(losa?.getAttribute('y'));
+    };
+    const yRasante = Number(screen.getByText('rasante').getAttribute('y'));
+    expect(yRasante).toBeGreaterThan(yForjado('Planta Baja'));
+    expect(yRasante).toBeLessThan(yForjado('Sótano -1'));
+    // Muros de sótano: la fachada sigue a trazos por debajo de la rasante.
+    expect(container.querySelectorAll('line[data-muro-sotano]')).toHaveLength(2);
+  });
+
+  it('sin sótanos la rasante queda bajo la última planta y no hay muros a trazos', () => {
+    const { container } = pintar();
+    const yBaja = [...screen.getByRole('button', { name: 'Seleccionar Planta Baja (Vivienda)' }).querySelectorAll('rect')]
+      .filter((r) => r.getAttribute('fill') === 'var(--color-chart-section)')
+      .map((r) => Number(r.getAttribute('y')))[0];
+    expect(Number(screen.getByText('rasante').getAttribute('y'))).toBeGreaterThan(yBaja);
+    expect(container.querySelectorAll('line[data-muro-sotano]')).toHaveLength(0);
   });
 
   it('el alto del bloque es la carga: el vaso de piscina dobla a la vivienda', () => {

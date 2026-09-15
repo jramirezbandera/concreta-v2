@@ -451,6 +451,7 @@ export function CargasPlantaModule() {
                   })
                 }
                 onInvertirPlantas={() => cambiarPlantas((plantas) => [...plantas].reverse())}
+                onOrdenarSotanos={() => cambiarPlantas((plantas) => [...plantas.filter((p) => !p.bajoRasante), ...plantas.filter((p) => p.bajoRasante)])}
                 onAnadirZona={(plantaId) =>
                   cambiarPlantas((plantas) =>
                     plantas.map((x) => {

@@ -35,6 +35,7 @@ function fila(over: Partial<FilaAi> = {}): FilaAi {
   return {
     planta: 'Planta Baja',
     es_cubierta: false,
+    bajo_rasante: false,
     zona: '',
     forjado: 'reticular',
     canto_cm: 30,
@@ -110,6 +111,25 @@ describe('la tabla se reconstruye desde la lista plana', () => {
     expect(plantas.map((x) => x.nombre)).toEqual(['Cubierta', 'Planta Primera', 'Planta Baja']);
     expect(plantas.map((x) => x.zonas.length)).toEqual([1, 1, 2]);
     expect(plantas[2].zonas.map((z) => z.nombre)).toEqual(['Vivienda', 'Vaso piscina']);
+  });
+
+  it('el sótano llega como bajo_rasante y se queda; junto a la cubierta, manda la cubierta', () => {
+    const current = edificioReal();
+    const p = plan(payload({
+      zonas: [
+        fila({ planta: 'Cubierta', es_cubierta: true, bajo_rasante: true, uso: 'G' }),
+        fila({ planta: 'Planta Baja' }),
+        fila({ planta: 'Sótano -1', bajo_rasante: true, uso: 'E' }),
+      ],
+    }), current);
+
+    expect(p.fields.plantas!.map((x) => [x.nombre, x.esCubierta, x.bajoRasante])).toEqual([
+      ['Cubierta', true, false],
+      ['Planta Baja', false, false],
+      ['Sótano -1', false, true],
+    ]);
+    // Y el cambio de tipo se ve en la lista: la primera pasa de planta a sótano.
+    expect(p.changes.some((c) => c.field === 'zonas[1].tipo' || c.label.includes('tipo de planta'))).toBe(true);
   });
 
   it('conserva los ids de las plantas y zonas que ocupaban ese sitio', () => {

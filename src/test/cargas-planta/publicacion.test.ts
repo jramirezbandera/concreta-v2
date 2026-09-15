@@ -5,7 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { datosPublicacion, defaultCargasState, evaluar, MODULO_PUB, PUB_VERSION, publicarResultado } from '../../features/cargas-planta/state';
+import { datosPublicacion, defaultCargasState, evaluar, MODULO_PUB, nuevaPlanta, PUB_VERSION, publicarResultado } from '../../features/cargas-planta/state';
 import { clavePublicacion, leerPublicacion } from '../../lib/pub';
 
 beforeEach(() => {
@@ -64,5 +64,19 @@ describe('el sobre', () => {
     expect(sobre.v).toBe(1);
     expect(sobre.obra).toEqual({ municipio: 'Madrid', provincia: 'Madrid', ine: '28' });
     expect(leerPublicacion(MODULO_PUB, 2)).toBeNull();
+  });
+
+  it('cada planta dice si está bajo rasante, como campo opcional del esquema v1: los sobres viejos siguen valiendo', () => {
+    const s = defaultCargasState();
+    s.emplazamiento = { provincia: '28', municipio: 'Madrid', altitud: 660 };
+    s.plantas.push(nuevaPlanta('Sótano -1', false, true));
+    const d = datosPublicacion(s, evaluar(s, null))!;
+    expect(d.plantas.map((p) => [p.nombre, p.bajoRasante])).toEqual([
+      ['Cubierta', false],
+      ['Planta Primera', false],
+      ['Planta Baja', false],
+      ['Sótano -1', true],
+    ]);
+    expect(PUB_VERSION).toBe(1);
   });
 });

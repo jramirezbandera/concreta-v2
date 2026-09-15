@@ -6,11 +6,13 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  cambioDeTipo,
   cargarEstado,
   datosPublicacion,
   defaultCargasState,
   duplicarPlanta,
   entradaMotor,
+  esEstadoInicial,
   evaluar,
   guardarEstado,
   MODULO_PUB,
@@ -23,6 +25,7 @@ import {
   publicarResultado,
   SCHEMA_VERSION_KEY,
   STORAGE_KEY,
+  tipoDePlanta,
   type CargasState,
 } from '../../features/cargas-planta/state';
 import { avisosNieve, leerNievePublicada, nieveDesdePublicacion, valorPublicado, type NievePublicada } from '../../features/cargas-planta/nievePub';
@@ -63,10 +66,10 @@ describe('estado por defecto', () => {
     const s = defaultCargasState();
     expect(s.emplazamiento).toEqual({ provincia: '', municipio: '', altitud: null });
     // De arriba abajo, que es como las dibuja la sección y como se lee un plano.
-    expect(s.plantas.map((p) => [p.nombre, p.esCubierta])).toEqual([
-      ['Cubierta', true],
-      ['Planta Primera', false],
-      ['Planta Baja', false],
+    expect(s.plantas.map((p) => [p.nombre, p.esCubierta, p.bajoRasante])).toEqual([
+      ['Cubierta', true, false],
+      ['Planta Primera', false, false],
+      ['Planta Baja', false, false],
     ]);
     const baja = planta(s.plantas, BAJA);
     const cubierta = planta(s.plantas, CUBIERTA);
@@ -338,5 +341,55 @@ describe('persistencia y lectura defensiva', () => {
     expect(s.ayuda).toBe(true);
     expect(normalizar(null).plantas).toHaveLength(3);
     expect(normalizar({ plantas: 'no' }).plantas).toHaveLength(3);
+  });
+});
+
+describe('el tipo de planta: cubierta, planta o sótano', () => {
+  it('es una proyección de los dos booleanos, y el parche nunca los enciende a la vez', () => {
+    expect(tipoDePlanta({ esCubierta: true, bajoRasante: false })).toBe('cubierta');
+    expect(tipoDePlanta({ esCubierta: false, bajoRasante: true })).toBe('sotano');
+    expect(tipoDePlanta({ esCubierta: false, bajoRasante: false })).toBe('planta');
+    expect(cambioDeTipo('cubierta')).toEqual({ esCubierta: true, bajoRasante: false });
+    expect(cambioDeTipo('sotano')).toEqual({ esCubierta: false, bajoRasante: true });
+    expect(cambioDeTipo('planta')).toEqual({ esCubierta: false, bajoRasante: false });
+    // Una planta nueva nace sobre rasante, y una cubierta no puede ser sótano.
+    expect(nuevaPlanta('Planta 4').bajoRasante).toBe(false);
+    expect(nuevaPlanta('Sótano -1', false, true).bajoRasante).toBe(true);
+    expect(nuevaPlanta('Cubierta', true, true).bajoRasante).toBe(false);
+  });
+
+  it('con un sótano ya no es el edificio de arranque: no se le ofrece el ejemplo encima', () => {
+    const s = defaultCargasState();
+    expect(esEstadoInicial(s)).toBe(true);
+    Object.assign(planta(s.plantas, BAJA), cambioDeTipo('sotano'));
+    expect(esEstadoInicial(s)).toBe(false);
+  });
+
+  it('normalizar: sin el campo es sobre rasante, y la cubierta manda sobre el sótano', () => {
+    const s = normalizar({
+      plantas: [
+        { nombre: 'Cubierta', esCubierta: true, bajoRasante: true },
+        { nombre: 'Planta Baja' },
+        { nombre: 'Sótano', bajoRasante: true },
+      ],
+    });
+    expect(s.plantas.map((p) => [p.nombre, tipoDePlanta(p)])).toEqual([
+      ['Cubierta', 'cubierta'],
+      ['Planta Baja', 'planta'],
+      ['Sótano', 'sotano'],
+    ]);
+  });
+
+  it('viaja al motor y al sobre sin cambiar ninguna carga ni la versión del esquema', () => {
+    const antes = evaluar(sevilla(), null).resultado.plantas.map((p) => p.zonas[0].qd);
+    const s = sevilla();
+    s.plantas.push(nuevaPlanta('Sótano -1', false, true));
+    const ev = evaluar(s, null);
+    expect(planta(entradaMotor(s).plantas, 'Sótano -1').bajoRasante).toBe(true);
+    expect(ev.resultado.plantas.map((p) => p.bajoRasante)).toEqual([false, false, false, true]);
+    expect(ev.resultado.plantas.slice(0, 3).map((p) => p.zonas[0].qd)).toEqual(antes);
+    const d = datosPublicacion(s, ev)!;
+    expect(d.plantas.map((p) => p.bajoRasante)).toEqual([false, false, false, true]);
+    expect(PUB_VERSION).toBe(1);
   });
 });
