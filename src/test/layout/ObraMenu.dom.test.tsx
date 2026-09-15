@@ -6,7 +6,7 @@
  * es un proyecto, y que la pestaña desfasada no pueda guardar.
  */
 
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ObraMenu } from '../../components/layout/ObraMenu';
@@ -150,6 +150,54 @@ describe('ObraMenu', () => {
       municipio: 'Dos Hermanas',
       altitud: 42,
     });
+  });
+
+  it('El uso se elige de una lista de la app, y Escape la cierra sin cerrar el diálogo', async () => {
+    const user = userEvent.setup();
+    montar();
+    await abrirMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: /^nueva obra/i }));
+
+    // La lista la pinta la aplicación, no el navegador: el `<datalist>` que
+    // había aquí salía con la estética del autorrellenado de Chrome —panel
+    // negro, negrita— dentro de un diálogo claro, y no se podía ni ver desde
+    // una prueba porque no estaba en el documento.
+    const uso = screen.getByLabelText('Uso');
+    await user.type(uso, 'Edificio');
+    const lista = screen.getByRole('listbox', { name: 'Usos habituales' });
+    await user.click(within(lista).getByRole('option', { name: 'Edificio de oficinas' }));
+    expect((uso as HTMLInputElement).value).toBe('Edificio de oficinas');
+    // Elegido el valor, la lista sobra: repetiría lo que ya se lee en el campo.
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    // Sigue siendo texto libre: ninguna lista cerrada cubre todos los usos.
+    await user.clear(uso);
+    await user.type(uso, 'Edificio de viviendas con local en planta baja');
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    // Y Escape con la lista abierta sólo quita la lista: si cerrase el diálogo,
+    // quien la abrió para mirar perdería el nombre y la provincia ya tecleados.
+    await user.clear(uso);
+    await user.type(uso, 'Edificio');
+    expect(screen.getByRole('listbox')).toBeTruthy();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('La altitud dice cuál pide: la del terreno, no la del edificio', async () => {
+    const user = userEvent.setup();
+    montar();
+    await abrirMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: /^nueva obra/i }));
+
+    // Sin la ayuda, «Altitud» a secas junto a «Municipio» se puede leer como la
+    // altura del edificio, que es el otro número en metros de toda la app.
+    await user.click(screen.getByRole('button', { name: 'Ayuda: Altitud' }));
+    const ayuda = await screen.findByRole('tooltip');
+    expect(ayuda.textContent).toMatch(/terreno/i);
+    expect(ayuda.textContent).toMatch(/no la altura del edificio/i);
+    expect(ayuda.textContent).toMatch(/nieve/i);
   });
 
   it('«Datos de la obra…» abre los mismos cinco campos con lo que ya hay, y los guarda', async () => {

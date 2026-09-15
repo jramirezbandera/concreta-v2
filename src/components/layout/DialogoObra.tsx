@@ -18,6 +18,8 @@
 
 import { useState } from 'react';
 import { RawNumberInput } from '../units/RawNumberInput';
+import { CampoSugerido } from '../ui/CampoSugerido';
+import { HelpTooltip } from '../ui/HelpTooltip';
 import { USOS_SUGERIDOS } from '../../features/memoria-dbse/catalogos';
 import { PROVINCIA_OPCIONES } from '../../features/viento-nieve/catalogos';
 import { obraVacia, type Obra } from '../../lib/obra';
@@ -61,20 +63,15 @@ export function DialogoObra({ titulo, texto, confirmar, inicial, onConfirm, onCa
           <label htmlFor="dialogo-obra-uso" className={ETIQUETA}>
             Uso
           </label>
-          <input
+          <CampoSugerido
             id="dialogo-obra-uso"
-            type="text"
-            list="dialogo-obra-usos"
             value={uso}
+            onChange={setUso}
+            sugerencias={USOS_SUGERIDOS}
+            etiquetaLista="Usos habituales"
             placeholder="Nave industrial"
             className={INPUT}
-            onChange={(e) => setUso(e.target.value)}
           />
-          <datalist id="dialogo-obra-usos">
-            {USOS_SUGERIDOS.map((u) => (
-              <option key={u} value={u} />
-            ))}
-          </datalist>
         </div>
 
         <div className="col-span-2">
@@ -106,9 +103,17 @@ export function DialogoObra({ titulo, texto, confirmar, inicial, onConfirm, onCa
         </div>
 
         <div>
-          <label htmlFor="dialogo-obra-altitud" className={ETIQUETA}>
-            Altitud
-          </label>
+          {/* Qué altitud es: la del TERRENO, no la del edificio, y es la que
+              decide la nieve. El ⓘ va FUERA del <label> —dentro, pulsarlo
+              llevaría el foco a la caja en vez de abrir la ayuda—. */}
+          <span className="mb-1 flex items-center gap-1 text-[11.5px] text-text-secondary">
+            <label htmlFor="dialogo-obra-altitud">Altitud</label>
+            <HelpTooltip
+              text="La del terreno donde se construye, sobre el nivel del mar; no la altura del edificio. De ella sale la nieve por zona y altitud y, por encima de 1.000 m, el hielo en los voladizos y los ψ de nieve alta."
+              refText="DB SE-AE 3.5.2 · tabla E.2 · DB SE tabla 4.2"
+              fieldLabel="Altitud"
+            />
+          </span>
           <RawNumberInput
             id="dialogo-obra-altitud"
             value={altitud ?? NaN}
