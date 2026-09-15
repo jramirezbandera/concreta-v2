@@ -34,7 +34,7 @@ import { getUnitLabel } from '../../lib/units/format';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { ResultadoExport } from '../../lib/export/descargar';
 import { cuadroAccionesPlano, cuadroNieveMemoria, cuadroVientoMemoria, seccionesPlanoXlsx, type EmplazamientoCuadro } from '../../lib/acciones/cuadros';
-import { VIENTO_NIEVE_FALLBACK_DOCX, VIENTO_NIEVE_FALLBACK_PDF, VIENTO_NIEVE_FALLBACK_XLSX } from '../../lib/export/filename';
+import { VIENTO_NIEVE_FALLBACK_DOCX, VIENTO_NIEVE_FALLBACK_DXF, VIENTO_NIEVE_FALLBACK_PDF, VIENTO_NIEVE_FALLBACK_XLSX } from '../../lib/export/filename';
 import type { Block } from '../../lib/materiales/cuadros';
 import { guardarObra, leerObra } from '../../lib/obra';
 import { VISTAS_LIENZO, type VistaLienzo } from './catalogos';
@@ -43,6 +43,7 @@ import { CubiertaSVG } from './lienzo/CubiertaSVG';
 import { EdificioSVG } from './lienzo/EdificioSVG';
 import { FachadasSVG } from './lienzo/FachadasSVG';
 import { NieveSVG } from './lienzo/NieveSVG';
+import { emplazamientoDeCuadro } from './plano';
 import { Resultados } from './Resultados';
 import {
   cargarEstado,
@@ -65,13 +66,14 @@ const EJEMPLO_DESCARTADO_KEY = 'concreta-viento-nieve-example-dismissed';
 
 const ANEJO = adaptadorDe('concreta-viento-nieve');
 
-type FormatoId = 'docx' | 'pdf' | 'xlsx' | IdAnejo;
+type FormatoId = 'docx' | 'pdf' | 'xlsx' | 'dxf' | IdAnejo;
 
 /** Lo que cambia de un formato a otro: rótulo, extensión y nombre por defecto. */
 const FORMATOS: Record<FormatoId, { etiqueta: string; fallback: string; extension: string; enError: string }> = {
   docx: { etiqueta: 'Word', fallback: VIENTO_NIEVE_FALLBACK_DOCX, extension: 'docx', enError: 'documento de Word' },
   pdf: { etiqueta: 'PDF', fallback: VIENTO_NIEVE_FALLBACK_PDF, extension: 'pdf', enError: 'PDF' },
   xlsx: { etiqueta: 'Excel', fallback: VIENTO_NIEVE_FALLBACK_XLSX, extension: 'xlsx', enError: 'Excel' },
+  dxf: { etiqueta: 'DXF', fallback: VIENTO_NIEVE_FALLBACK_DXF, extension: 'dxf', enError: 'DXF' },
   anejo: { ...FORMATO_ANEJO, fallback: VIENTO_NIEVE_FALLBACK_PDF },
 };
 
@@ -82,7 +84,7 @@ const opcion = (id: FormatoId, detalle: string) => ({
 });
 
 /**
- * Lo que despliega «Exportar»: las tres salidas del módulo, cada una con el
+ * Lo que despliega «Exportar»: las cuatro salidas del módulo, cada una con el
  * documento que entrega y su destino en lenguaje de obra. El PDF de la memoria
  * es además el capítulo que entra en el anejo de cálculo. Mismo desplegable que
  * el cuadro de materiales — antes eran dos botones en la barra, y desde que hay
@@ -99,7 +101,10 @@ const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
   },
   {
     titulo: 'Cuadro de plano',
-    opciones: [opcion('xlsx', 'para capturar y pegar en el plano')],
+    opciones: [
+      opcion('xlsx', 'para capturar y pegar en el plano'),
+      opcion('dxf', 'dibujado, para insertar en el CAD'),
+    ],
   },
   GRUPO_ANEJO,
 ];
@@ -187,16 +192,8 @@ export function VientoNieveModule() {
   const direccion: 'x' | 'y' = direccionElegida ?? (evaluacion.viento && evaluacion.viento.x.Ftotal > evaluacion.viento.y.Ftotal ? 'x' : 'y');
 
   const emplazamientoCuadro = useMemo<EmplazamientoCuadro>(
-    () => ({
-      provincia: evaluacion.zonas.provincia?.nombre ?? '—',
-      municipio: state.emplazamiento.municipio,
-      altitud: state.emplazamiento.altitud,
-      zonaEolica: evaluacion.zonas.zonaEolica,
-      zonaInvernal: evaluacion.zonas.zonaInvernal,
-      zonaEolicaProvincia: evaluacion.zonas.provincia?.zonaEolica ?? null,
-      zonaInvernalProvincia: evaluacion.zonas.provincia?.zonaInvernal ?? null,
-    }),
-    [evaluacion.zonas, state.emplazamiento.municipio, state.emplazamiento.altitud],
+    () => emplazamientoDeCuadro(state, evaluacion),
+    [state, evaluacion],
   );
 
   // ── Acciones del formulario ───────────────────────────────────────────────
@@ -277,8 +274,12 @@ export function VientoNieveModule() {
     // exporta de verdad. Los bloques se componen aquí, al exportar: ya no hay
     // pestaña que los pinte.
     exportFn: async (titulo) => {
-      if (formatoElegido === 'xlsx') {
+      if (formatoElegido === 'xlsx' || formatoElegido === 'dxf') {
         const bloquesPlano = cuadroAccionesPlano(evaluacion.viento, evaluacion.nieve, emplazamientoCuadro);
+        if (formatoElegido === 'dxf') {
+          const { exportarVientoNieveDxf } = await import('../../lib/dxf/vientoNieve');
+          return exportarVientoNieveDxf(bloquesPlano, titulo);
+        }
         const { exportarVientoNieveXlsx } = await import('../../lib/xlsx/vientoNieve');
         return exportarVientoNieveXlsx(seccionesPlanoXlsx(bloquesPlano), titulo);
       }

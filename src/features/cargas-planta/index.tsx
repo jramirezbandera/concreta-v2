@@ -36,19 +36,17 @@ import {
   cuadroCargasMemoria,
   cuadroPredimensionado,
   seccionesCargasXlsx,
-  type ResumenVientoPlano,
 } from '../../lib/acciones/cuadrosCargas';
 import { CARGAS_PLANTA_FALLBACK_DOCX, CARGAS_PLANTA_FALLBACK_DXF, CARGAS_PLANTA_FALLBACK_PDF, CARGAS_PLANTA_FALLBACK_XLSX } from '../../lib/export/filename';
 import type { Block } from '../../lib/materiales/cuadros';
 import { guardarObra, leerObra } from '../../lib/obra';
-import { leerPublicacion } from '../../lib/pub';
-import { MODULO_PUB as MODULO_VIENTO_NIEVE, PUB_VERSION as PUB_VERSION_VIENTO_NIEVE, type PubVientoNieve } from '../viento-nieve/state';
 import { BarraObra } from './BarraObra';
 import { anadirColumna, quitarColumna, renombrarColumna } from './columnas';
 import { FichaDeZona } from './Ficha';
 import { Lineales } from './Lineales';
 import { Muros } from './Muros';
 import { leerNievePublicada, nieveDesdePublicacion } from './nievePub';
+import { resumenVientoPublicado } from './plano';
 import { resumenSismoPublicado } from './sismoPub';
 import { SeccionSVG } from './SeccionSVG';
 import { Tabla } from './Tabla';
@@ -122,14 +120,6 @@ const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
   },
   GRUPO_ANEJO,
 ];
-
-/** El bloque de viento del cuadro del plano, del sobre de Viento y nieve. */
-function resumenVientoPublicado(): ResumenVientoPlano | null {
-  const sobre = leerPublicacion<PubVientoNieve>(MODULO_VIENTO_NIEVE, PUB_VERSION_VIENTO_NIEVE);
-  const v = sobre?.datos?.viento;
-  if (!v) return null;
-  return { zonaEolica: v.zonaEolica, vb: v.vb, aspereza: v.aspereza };
-}
 
 export function CargasPlantaModule() {
   const { openDrawer } = useDrawer();
