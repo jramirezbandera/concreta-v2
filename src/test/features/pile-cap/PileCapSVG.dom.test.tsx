@@ -33,9 +33,10 @@ function planPolygon(n: number, width = 440) {
 }
 
 describe('PileCapSVG — contorno en planta', () => {
-  it('n=2 y n=4: rectángulo de 4 vértices', () => {
+  it('n=2, n=4 y n=6: rectángulo de 4 vértices', () => {
     expect(planPolygon(2).pts).toHaveLength(4);
     expect(planPolygon(4).pts).toHaveLength(4);
+    expect(planPolygon(6).pts).toHaveLength(4);
   });
 
   it('n=3: hexágono (triángulo achaflanado) dentro del lienzo, con el chaflán superior horizontal', () => {
@@ -65,11 +66,12 @@ describe('PileCapSVG — contorno en planta', () => {
     expect(texts.some((t) => t.startsWith('Lx='))).toBe(false);
   });
 
-  it('tirantes sólo entre pilotes contiguos: 1 con n=2, 3 con n=3 y 4 con n=4 (sin diagonales)', () => {
+  it('tirantes = bandas del motor: 1 con n=2, 3 con n=3, 4 con n=4 y 7 con n=6 (sin diagonales)', () => {
     const ties = (n: number) => planPolygon(n).plan.querySelectorAll('line').length;
     expect(ties(2)).toBe(1);
     expect(ties(3)).toBe(3);
     expect(ties(4)).toBe(4);
+    expect(ties(6)).toBe(7);
   });
 
   it('la cota superior queda por encima del contorno (no lo pisa)', () => {

@@ -1,5 +1,8 @@
 // Pile cap (encepado de micropilotes) — Código Estructural (CE) / CTE DB-SE-C §5.1.4
-// n = 2, 3, or 4 micropiles. Strut-and-tie method (bielas y tirantes).
+// n = 2, 3, 4 or 6 micropiles. Strut-and-tie method (bielas y tirantes).
+// n=6 es la retícula 2 × 3 del plano tipo del usuario: dos columnas a ±s_x/2 y
+// tres filas a −s, 0, +s, con el pilar en el centro; bandas sobre cada fila y
+// cada columna (EHE-08 58.4.1.2.2.1) y la biela pésima en las esquinas.
 // All units: mm, MPa, kN unless noted.
 //
 // NORMA DE APLICACIÓN: Código Estructural (RD 470/2021) + Anejo 19 (EC2).
@@ -77,6 +80,10 @@ export interface PileCapResult {
 
   // Pile positions [mm] from group centroid
   pilePos: PilePos[];
+  /** Tirantes (bandas) como parejas de índices de pilotes: el único de n=2,
+   *  los tres lados de n=3, los cuatro lados de n=4 y, con n=6, las tres filas
+   *  y los cuatro tramos de las dos columnas. Los dibujos parten de aquí. */
+  ties: [number, number][];
 
   // Navier reactions [kN]
   reactions: number[];
@@ -165,7 +172,7 @@ export interface PileCapResult {
 
 const EMPTY: PileCapResult = {
   valid: false,
-  pilePos: [], reactions: [], R_max: 0, R_min: 0,
+  pilePos: [], ties: [], reactions: [], R_max: 0, R_min: 0,
   L_x: 0, L_y: 0, outline: [], A_cap: 0, e_borde: 0, e_min: 0, s_min: 0, h_min: 0,
   W_cap: 0,
   d_eff: 0, z_eff: 0, a_crit: 0, a_eff: 0, theta_deg: 0,
@@ -194,9 +201,19 @@ function invalid(msg: string): PileCapResult {
 
 // ── Pile positions (group centroid at origin) ──────────────────────────────
 
-function getPilePositions(n: number, s: number): PilePos[] {
+function getPilePositions(n: number, s: number, s_x: number = s): PilePos[] {
   if (n === 2) {
     return [{ x: -s / 2, y: 0 }, { x: s / 2, y: 0 }];
+  }
+  if (n === 6) {
+    // Retícula 2 × 3: columnas a ±s_x/2, filas a −s, 0, +s (s = entre filas).
+    // Numeración por filas de abajo arriba: 1-2, 3-4, 5-6.
+    const a = s_x / 2;
+    return [
+      { x: -a, y: -s }, { x: a, y: -s },
+      { x: -a, y:  0 }, { x: a, y:  0 },
+      { x: -a, y:  s }, { x: a, y:  s },
+    ];
   }
   if (n === 3) {
     // Equilateral triangle, pile A at top (+y)
@@ -217,6 +234,15 @@ function getPilePositions(n: number, s: number): PilePos[] {
   ];
 }
 
+/** Parejas de pilotes unidas por un tirante (banda), por índice. */
+function getTies(n: number): [number, number][] {
+  if (n === 2) return [[0, 1]];
+  if (n === 3) return [[0, 1], [1, 2], [0, 2]];
+  if (n === 4) return [[0, 1], [2, 3], [0, 2], [1, 3]];
+  // n === 6: tres filas y los dos tramos de cada columna
+  return [[0, 1], [2, 3], [4, 5], [0, 2], [2, 4], [1, 3], [3, 5]];
+}
+
 // ── Cap dimensions ─────────────────────────────────────────────────────────
 
 // Edge distance mínima: regla de buena práctica española (tradición ex-EHE
@@ -228,9 +254,10 @@ export function minEdgeDistance(d_p: number): number {
 }
 
 /** Bounding box de los EJES de pilotes [mm]. El encepado se centra en esta caja. */
-function pileExtents(n: number, s: number): { ext_x: number; ext_y: number } {
+function pileExtents(n: number, s: number, s_x: number = s): { ext_x: number; ext_y: number } {
   if (n === 2) return { ext_x: s, ext_y: 0 };
   if (n === 3) return { ext_x: s, ext_y: s * Math.sqrt(3) / 2 };
+  if (n === 6) return { ext_x: s_x, ext_y: 2 * s };
   return { ext_x: s, ext_y: s };  // n === 4
 }
 
@@ -370,13 +397,13 @@ export function autoEdge3(d_p: number, s: number, b_col: number, h_col: number):
  * entradas muestre el valor auto y lo siembre al pasar a modo manual.
  */
 export function autoCapDims(
-  n: number, s: number, d_p: number, b_col: number, h_col: number,
+  n: number, s: number, d_p: number, b_col: number, h_col: number, s_x: number = s,
 ): { L_x: number; L_y: number } {
   if (n === 3) {
     return polygonBBox(triCapOutline(s, autoEdge3(d_p, s, b_col, h_col)));
   }
   const e = minEdgeDistance(d_p);
-  const { ext_x, ext_y } = pileExtents(n, s);
+  const { ext_x, ext_y } = pileExtents(n, s, s_x);
   const L_x = roundUp50(ext_x + 2 * e);
   const L_y = n === 2
     ? roundUp50(Math.max(b_col, h_col, d_p) + 2 * e)
@@ -399,6 +426,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const n       = inp.n as number;
   const d_p     = inp.d_p as number;
   const s       = inp.s as number;
+  // n=6: separación entre las dos columnas (x); s es la de las filas (y).
+  const s_x     = (inp.s_x as number | undefined) ?? 2 * s;
   const h_enc   = inp.h_enc as number;
   // dims_auto puede faltar en estados guardados anteriores a este campo → auto.
   const dims_auto = (inp.dims_auto as boolean | undefined) ?? true;
@@ -430,9 +459,10 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const s_g     = (inp.s_g as number | undefined) ?? 100;
 
   // ── Input validation ──────────────────────────────────────────────────────
-  if (n !== 2 && n !== 3 && n !== 4) return invalid('n debe ser 2, 3 ó 4 micropilotes');
+  if (n !== 2 && n !== 3 && n !== 4 && n !== 6) return invalid('n debe ser 2, 3, 4 ó 6 micropilotes');
   if (d_p <= 0)  return invalid('Diámetro de pilote debe ser > 0');
   if (s <= 0)    return invalid('Separación entre pilotes debe ser > 0');
+  if (n === 6 && !(s_x > 0)) return invalid('Separación entre columnas s_x debe ser > 0');
   if (h_enc <= 0) return invalid('Canto del encepado debe ser > 0');
   if (N_Ed <= 0)  return invalid('Axil N_Ed debe ser > 0 (compresión)');
   if (R_adm <= 0) return invalid('R_adm debe ser > 0');
@@ -470,9 +500,14 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const fyd  = Math.min(fyk / GAMMA_S, 400); // MPa
 
   // ── Pile positions & cap dimensions ──────────────────────────────────────
-  const pilePos = getPilePositions(n, s);
+  const pilePos = getPilePositions(n, s, s_x);
+  const ties = getTies(n);
   const e_min = minEdgeDistance(d_p);
-  const { ext_x, ext_y } = pileExtents(n, s);
+  const { ext_x, ext_y } = pileExtents(n, s, s_x);
+  // Fila/columna más alejada del eje del pilar, por sentido (brazos de las
+  // bandas de n=4/6 y vuelo de la rigidez).
+  const x_max = Math.max(...pilePos.map((p) => Math.abs(p.x)));
+  const y_max = Math.max(...pilePos.map((p) => Math.abs(p.y)));
 
   // Dimensiones en planta: automáticas (e_min a borde, redondeo a 5 cm) o
   // definidas por el usuario. En manual NO se impone e_min: se comprueba como
@@ -502,7 +537,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     }
   } else {
     if (dims_auto) {
-      ({ L_x, L_y } = autoCapDims(n, s, d_p, b_col, h_col));
+      ({ L_x, L_y } = autoCapDims(n, s, d_p, b_col, h_col, s_x));
     } else {
       L_x = inp.L_x as number;
       L_y = inp.L_y as number;
@@ -558,27 +593,40 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   if (d_eff <= 0) return invalid('d_eff ≤ 0: canto o recubrimiento incompatible');
   const z_eff = 0.85 * d_eff;
 
-  // Horizontal distance from column AXIS to CRITICAL pile (R_max)
-  const critIdx = reactions.indexOf(R_max);
-  const critPile = pilePos[critIdx];
-  const a_crit = Math.sqrt(critPile.x * critPile.x + critPile.y * critPile.y);
-
-  // For n=2: a_crit = s/2 · For n=3: s/√3 (all equidistant) · For n=4: s/√2
+  // Biela pésima entre los pilotes comprimidos: la más tendida (menor θ: la
+  // del pilote más alejado del pilar) para el ángulo, y la de mayor fuerza
+  // Fs = R/sinθ para la tensión nodal. Con 2, 3 y 4 pilotes todos equidistan
+  // del pilar (s/2, s/√3, s/√2) y las dos coinciden con la del pilote de
+  // R_max; con 6 las esquinas están más lejos que la fila central.
   // a_eff: descontando 0.25·a_col en la dirección radial de la biela. Para
-  // n=3/4 (dirección radial oblicua) se usa min(b_col, h_col): descontar de
+  // n≥3 (dirección radial oblicua) se usa min(b_col, h_col): descontar de
   // menos agranda a_eff → θ más tendida y Fs mayor (lado seguro). El clamp
   // evita degenerar con pilares enormes respecto a s.
   const col_radial = n === 2 ? b_col : Math.min(b_col, h_col);
-  const a_eff = Math.max(a_crit - 0.25 * col_radial, 50);
-
-  const theta_rad = Math.atan2(z_eff, a_eff);
+  let a_crit = 0;
+  let a_eff = 50;
+  let theta_rad = Math.PI / 2;
+  let Fs_max = 0;
+  pilePos.forEach((p, i) => {
+    const R = reactions[i];
+    if (R <= 0) return;
+    const a_i = Math.hypot(p.x, p.y);
+    const ae_i = Math.max(a_i - 0.25 * col_radial, 50);
+    const th_i = Math.atan2(z_eff, ae_i);
+    if (th_i < theta_rad) {
+      theta_rad = th_i;
+      a_crit = a_i;
+      a_eff = ae_i;
+    }
+    Fs_max = Math.max(Fs_max, R / Math.sin(th_i));   // [kN]
+  });
   const theta_deg = theta_rad * (180 / Math.PI);
 
   // ── Strut force & capacity ────────────────────────────────────────────────
   // σRd,max = 0.60·ν'·fcd es la BIELA fisurada de CE Anejo 19 §6.5.2 — lado
   // seguro frente al nodo C-C-T de §6.5.4 (k2 = 0.85·ν'·fcd). La etiqueta
   // anterior («C-C-T node, k=0.60») citaba mal la norma (fix auditoría #83).
-  const Fs_max = R_max / Math.sin(theta_rad);          // [kN]
+  // Fs_max: la mayor R/sinθ de todos los pilotes (calculada arriba).
   // Área del nodo comprimido: con placa de reparto en cabeza la biela apoya en
   // la placa (Ø o lado d_plate); sin placa, en la sección circular del micro.
   const A_node = plate_on
@@ -614,10 +662,13 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     // un 18 % por encima de la referencia.)
     Ft_x = R_max * a_eff / z_eff / SQRT3;   // per side (3 lados iguales)
   } else {
-    // n === 4 (58.4.1.2.1.2): bandas sobre cada fila de pilotes, por
-    // dirección; cada banda se arma para su pilote más cargado.
-    Ft_x = R_max * Math.max(s / 2 - 0.25 * b_col, 50) / z_eff;  // per band ∥ x
-    Ft_y = R_max * Math.max(s / 2 - 0.25 * h_col, 50) / z_eff;  // per band ∥ y
+    // n === 4 y n === 6 (EHE-08 58.4.1.2.2.1): bandas sobre cada fila y cada
+    // columna de pilotes; en cada sentido el brazo es la distancia del eje del
+    // pilar a la fila más alejada, menos 0,25·a (T1d = Nd/(0,85d)·(0,50·l1 −
+    // 0,25·a1) con l1/2 = x_max). Cada banda se arma para el pilote más
+    // cargado (R_max, lado seguro).
+    Ft_x = R_max * Math.max(x_max - 0.25 * b_col, 50) / z_eff;  // per band ∥ x
+    Ft_y = R_max * Math.max(y_max - 0.25 * h_col, 50) / z_eff;  // per band ∥ y
   }
 
   // ── Tie reinforcement — EN BANDA sobre los pilotes ────────────────────────
@@ -634,8 +685,15 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const b_x = L_y;   // perp. to tie-x
   const b_y = L_x;   // perp. to tie-y (n=4 only)
 
+  // As,min (CE Anejo 19 §9.2.1.1) es un mínimo de la SECCIÓN completa en cada
+  // sentido, no de cada banda: en las retículas (n=4 y n=6) se reparte entre
+  // las bandas de ese sentido (dos filas, o tres filas y dos columnas). Con
+  // n=2 y n=3 hay una banda por sentido y no cambia nada. Antes se exigía
+  // entero a cada banda y con 6 pilotes salían 50Ø12 por banda.
+  const nb_min_x = n === 6 ? 3 : n === 4 ? 2 : 1;
+  const nb_min_y = n === 6 || n === 4 ? 2 : 1;
   const As_tie_x = Ft_x * 1000 / fyd;
-  const As_min_x = calcAsMin(fctm, fyk, b_x, d_eff);
+  const As_min_x = calcAsMin(fctm, fyk, b_x, d_eff) / nb_min_x;
   const As_adopted_x = Math.max(As_tie_x, As_min_x);
   const n_bars_x = Math.ceil(As_adopted_x / A_phi);
   const As_prov_x = n_bars_x * A_phi;
@@ -648,9 +706,9 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   let As_prov_y: number | null = null;
   let s_bar_y: number | null = null;
 
-  if (n === 4 && Ft_y !== null) {
+  if (Ft_y !== null) {
     As_tie_y = Ft_y * 1000 / fyd;
-    As_min_y = calcAsMin(fctm, fyk, b_y, d_eff);
+    As_min_y = calcAsMin(fctm, fyk, b_y, d_eff) / nb_min_y;
     As_adopted_y = Math.max(As_tie_y, As_min_y);
     n_bars_y = Math.ceil(As_adopted_y / A_phi);
     As_prov_y = n_bars_y * A_phi;
@@ -705,29 +763,38 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     As_cv_req  = 0.004 * b_ref * 1000;
     As_ch_req  = 0.004 * b_ref * 1000;
   } else {
-    const n_bands = n === 3 ? 3 : 4;
-    const L_band  = s + 2 * Math.max(e_borde - cover, 0);
-    L_bands = n_bands * L_band;
+    // Bandas: n=3 tres lados de longitud s; n=4 dos filas y dos columnas de
+    // longitud s; n=6 tres filas de longitud s_x y dos columnas de 2·s.
+    const ext = Math.max(e_borde - cover, 0);
+    const nb_x = n === 4 ? 2 : 3;
+    const nb_y = n === 3 ? 0 : 2;
+    const L_bx = (n === 6 ? s_x : s) + 2 * ext;
+    const L_by = (n === 6 ? 2 * s : s) + 2 * ext;
+    L_bands = nb_x * L_bx + nb_y * L_by;
     As_cv_tot_req  = (N_Ed / (1.5 * n)) * 1000 / fyd;
     As_cv_req      = As_cv_tot_req / (L_bands / 1000);
     As_cv_tot_prov = As_cv_prov * L_bands / 1000;
-    const free_y = Math.max(L_y - 2 * w_band, 100);   // ancho libre para las barras ∥ x
-    const free_x = Math.max(L_x - 2 * w_band, 100);   // ídem para las barras ∥ y
-    const req_x = 0.25 * (n === 4 ? 2 : 1) * As_prov_x / (free_y / 1000);
-    const req_y = n === 4 && As_prov_y !== null ? 0.25 * 2 * As_prov_y / (free_x / 1000) : 0;
+    // Retícula por sentido ≥ 1/4 de las bandas de ese sentido, repartida en el
+    // ancho libre entre bandas (n=3: una banda, lectura de la hoja del estudio,
+    // con el ancho libre de dos bandas).
+    const free_y = Math.max(L_y - (n === 3 ? 2 : nb_x) * w_band, 100); // barras ∥ x
+    const free_x = Math.max(L_x - Math.max(nb_y, 2) * w_band, 100);   // barras ∥ y
+    const req_x = 0.25 * (n === 3 ? 1 : nb_x) * As_prov_x / (free_y / 1000);
+    const req_y = As_prov_y !== null ? 0.25 * nb_y * As_prov_y / (free_x / 1000) : 0;
     As_g_req = Math.max(req_x, req_y);
   }
 
   // ── Build checks ──────────────────────────────────────────────────────────
   const checks: CheckRow[] = [];
 
-  // 1. Pile spacing
+  // 1. Pile spacing (n=6: la menor de filas y columnas)
+  const s_gov = n === 6 ? Math.min(s, s_x) : s;
   checks.push(makeCheck(
     'spacing',
-    'Separación entre pilotes s',
-    s_min, s,
+    n === 6 ? 'Separación entre pilotes min(s, s_x)' : 'Separación entre pilotes s',
+    s_min, s_gov,
     `${s_min.toFixed(0)} mm`,
-    `${s.toFixed(0)} mm`,
+    `${s_gov.toFixed(0)} mm`,
     'CTE DB-SE-C §5.1.4',
   ));
 
@@ -767,9 +834,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
       'Calavera fig. 14-9 (encepado rígido de 3 pilotes)',
     ));
   } else {
-    const v_max = n === 2
-      ? s / 2 - b_col / 2
-      : Math.max(s / 2 - b_col / 2, s / 2 - h_col / 2);
+    const v_max = Math.max(x_max - b_col / 2, y_max - h_col / 2);
     checks.push(makeCheck(
       'rigidity',
       'Encepado rígido: vuelo cara pilar–eje pilote v ≤ 2·h',
@@ -877,8 +942,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     ));
   }
 
-  // 9. Tie reinforcement y (n=4 only)
-  if (n === 4 && As_tie_y !== null && As_prov_y !== null) {
+  // 9. Tie reinforcement y (retículas: n=4 y n=6)
+  if (As_tie_y !== null && As_prov_y !== null) {
     checks.push(makeCheck(
       'tie-steel-y',
       'Armadura tirante dirección y (banda)',
@@ -1001,6 +1066,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   return {
     valid: true,
     pilePos,
+    ties,
     reactions,
     R_max, R_min,
     L_x, L_y, outline, A_cap, e_borde, e_min, s_min, h_min,

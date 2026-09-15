@@ -24,7 +24,7 @@ function mount(n: number, width = 440, mode: 'screen' | 'pdf' = 'screen') {
 }
 
 describe('PileCapRebarSVG — vista Armado', () => {
-  for (const n of [2, 3, 4]) {
+  for (const n of [2, 3, 4, 6]) {
     it(`n=${n}: un solo svg con planta, secciones y leyenda; sin NaN en las coordenadas`, () => {
       const { svg } = mount(n);
       const texts = Array.from(svg.querySelectorAll('text')).map((t) => t.textContent ?? '');
@@ -35,21 +35,21 @@ describe('PileCapRebarSVG — vista Armado', () => {
       expect(texts.some((t) => /^Horizontal caras( \(práctica\))?: Ø12 c\/100/.test(t))).toBe(true);
       // La retícula inferior entre bandas es cosa de 3 y 4 pilotes (EHE-08 58.4.1.2.2.1)
       expect(texts.some((t) => t.startsWith('Retícula inferior: Ø12 c/100'))).toBe(n >= 3);
-      // Sección transversal: cerco perimetral (n=2) o un cerco por banda cortada (2 con n=3 y n=4)
+      // Sección transversal: cerco perimetral (n=2) o un cerco por banda cortada (2 con n=3 y n=4, 3 con n=6)
       const stirrupRects = Array.from(svg.querySelectorAll('rect')).filter((r) => r.getAttribute('rx') === '3');
-      expect(stirrupRects.length).toBe(n === 2 ? 1 : 2);
+      expect(stirrupRects.length).toBe(n === 2 ? 1 : n === 6 ? 3 : 2);
       expect(svg.outerHTML).not.toMatch(/NaN/);
     });
   }
 
-  it('la planta dibuja tantas bandas inferiores como tirantes (n=2: 1, n=3: 3, n=4: 4) con sus barras', () => {
-    for (const [n, bands] of [[2, 1], [3, 3], [4, 4]] as const) {
+  it('la planta dibuja tantas bandas inferiores como tirantes (n=2: 1, n=3: 3, n=4: 4, n=6: 7) con sus barras', () => {
+    for (const [n, bandsX, bandsY] of [[2, 1, 0], [3, 3, 0], [4, 2, 2], [6, 3, 4]] as const) {
       const { svg, result } = mount(n);
       // Las barras inferiores son las <line> de trazo continuo y ancho 1.3
       const inf = Array.from(svg.querySelectorAll('line')).filter((l) => l.getAttribute('stroke-width') === '1.3');
       const perBand = Math.min(result.n_bars_x, 30);
       const perBandY = result.n_bars_y !== null ? Math.min(result.n_bars_y, 30) : perBand;
-      expect(inf.length).toBe(n === 4 ? 2 * perBand + 2 * perBandY : bands * perBand);
+      expect(inf.length).toBe(bandsX * perBand + bandsY * perBandY);
     }
   });
 

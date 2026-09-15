@@ -96,7 +96,7 @@ export function PileCapResults({ inp, result }: Props) {
         </span>
       </div>
 
-      {n === 4 && result.n_bars_y !== null && result.As_min_y !== null &&
+      {n >= 4 && result.n_bars_y !== null && result.As_min_y !== null &&
         result.As_adopted_y !== null && result.As_prov_y !== null && (
         <>
           <ValueRow label={resultLabel('As_req_y')}     value={`${result.As_tie_y?.toFixed(0)} mm²`} />

@@ -92,8 +92,7 @@ function PlanRebar({
   inp, result, size, isPdf, sec,
 }: { inp: PileCapInputs; result: PileCapResult; size: number; isPdf: boolean; sec: Sec }) {
   const c = colors(isPdf);
-  const { pilePos, outline, L_x, L_y, w_band, e_borde, n_bars_x, n_bars_y } = result;
-  const s     = inp.s as number;
+  const { pilePos, ties, outline, L_x, L_y, w_band, e_borde, n_bars_x, n_bars_y } = result;
   const d_p   = inp.d_p as number;
   const b_col = inp.b_col as number;
   const h_col = inp.h_col as number;
@@ -109,17 +108,15 @@ function PlanRebar({
   const px = (x: number) => size / 2 + (x - cx) * scale;
   const py = (y: number) => size / 2 - (y - cy) * scale;
 
-  // Bandas: parejas de pilotes contiguos (a distancia s). Las barras se
-  // prolongan más allá del eje del pilote hasta el borde menos recubrimiento.
+  // Bandas: los tirantes del motor (result.ties). Las barras se prolongan
+  // más allá del eje del pilote hasta el borde menos recubrimiento.
   const ext = Math.max(e_borde - cover, 0);
   type Band = { p: PilePos; q: PilePos; nBars: number };
-  const bands: Band[] = [];
-  pilePos.forEach((p, i) => {
-    pilePos.slice(i + 1).forEach((q) => {
-      if (Math.hypot(q.x - p.x, q.y - p.y) > s * 1.01) return;
-      const alongY = Math.abs(q.x - p.x) < 1e-6;
-      bands.push({ p, q, nBars: alongY && n_bars_y !== null ? n_bars_y : n_bars_x });
-    });
+  const bands: Band[] = ties.map(([i, j]) => {
+    const p = pilePos[i];
+    const q = pilePos[j];
+    const alongY = Math.abs(q.x - p.x) < 1e-6;
+    return { p, q, nBars: alongY && n_bars_y !== null ? n_bars_y : n_bars_x };
   });
   const barLines = (b: Band, count: number, widthFactor: number) => {
     const dx = b.q.x - b.p.x;
@@ -219,7 +216,6 @@ function LongSection({
   const b_col = inp.b_col as number;
   const d_p   = inp.d_p as number;
   const cover = inp.cover as number;
-  const s     = inp.s as number;
   const phi_tie = inp.phi_tie as number;
 
   const margin = 16;
@@ -240,7 +236,8 @@ function LongSection({
   for (let x = ox + cov, k = 0; x <= ox + capW - cov + 1e-6 && k < MAX_STIRRUPS_DRAWN; x += sec.s_cv * scale, k++) {
     stirrups.push(x);
   }
-  const pileXs = [ox + (L_x / 2 - s / 2) * scale, ox + (L_x / 2 + s / 2) * scale];
+  const x_r = Math.max(...result.pilePos.map((p) => Math.abs(p.x)));
+  const pileXs = [ox + (L_x / 2 - x_r) * scale, ox + (L_x / 2 + x_r) * scale];
 
   return (
     <g>
@@ -340,7 +337,9 @@ function TransSection({
     ? [{ y: 0, w: w_band }]
     : n === 4
       ? [{ y: -s_pil / 2, w: w_band }, { y: s_pil / 2, w: w_band }]
-      : [{ y: pilePos[1].y, w: w_band }, { y: pilePos[0].y, w: w_band / Math.cos(Math.PI / 6) }];
+      : n === 6
+        ? [{ y: -s_pil, w: w_band }, { y: 0, w: w_band }, { y: s_pil, w: w_band }]
+        : [{ y: pilePos[1].y, w: w_band }, { y: pilePos[0].y, w: w_band / Math.cos(Math.PI / 6) }];
   const dotsAt = (yc: number, w: number, count: number, factor: number): number[] => {
     const k = Math.min(count, MAX_BARS_DRAWN);
     const ww = w * factor * scale;

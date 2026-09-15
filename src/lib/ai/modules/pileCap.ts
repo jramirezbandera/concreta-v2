@@ -36,7 +36,7 @@ import type { UnitSystem } from '../../units/types';
 const FCK_OPTIONS: readonly number[] = availableFck.filter((f) => f >= 20 && f <= 50);
 // fyk divergente por módulo: el panel solo ofrece 500/400 (como zapatas, sin 600).
 const FYK_OPTIONS: readonly number[] = [400, 500];
-const N_OPTIONS: readonly number[] = [2, 3, 4];
+const N_OPTIONS: readonly number[] = [2, 3, 4, 6];
 
 // ── Payload schema (JSON Schema canónico PLANO, todo nullable) ────────────────
 
@@ -49,7 +49,7 @@ export const PILE_CAP_PAYLOAD_SCHEMA: Record<string, unknown> = {
     'N_Ed_kN', 'Mx_kNm', 'My_kNm', 'R_adm_kN', 'warnings',
   ],
   properties: {
-    n: { type: ['integer', 'null'], enum: [...N_OPTIONS, null], description: 'Número de micropilotes del encepado: 2, 3 ó 4. Con 2 van alineados en x; con 3 forman triángulo equilátero (encepado de planta triangular); con 4, cuadrado.' },
+    n: { type: ['integer', 'null'], enum: [...N_OPTIONS, null], description: 'Número de micropilotes del encepado: 2, 3, 4 ó 6. Con 2 van alineados en x; con 3 forman triángulo equilátero (encepado de planta triangular); con 4, cuadrado; con 6, retícula de dos columnas y tres filas (la separación entre columnas se ajusta en el panel).' },
     d_p_mm: { type: ['number', 'null'], description: 'Diámetro del micropilote en mm.' },
     s_mm: { type: ['number', 'null'], description: 'Separación entre ejes de micropilotes (centro a centro) en mm.' },
     h_enc_mm: { type: ['number', 'null'], description: 'Canto del encepado en mm.' },
@@ -73,7 +73,7 @@ const PROMPT_RULES = `Reglas específicas del módulo Encepados de micropilotes:
 1. TODAS las longitudes van en MILÍMETROS (diámetro del pilote, separación, canto del encepado, pilar, recubrimiento, diámetro del tirante). Los enunciados suelen dar el pilar y el canto en cm o m ("pilar de 40×40 cm", "encepado de 80 cm de canto"): convierte a mm (400 mm, 800 mm) y añade un warning con la conversión.
 2. Las acciones (N_Ed_kN, Mx_kNm, My_kNm) son de CÁLCULO, YA MAYORADAS (ELU). Si el enunciado da cargas características o de servicio, mayóralas antes de proponerlas (γG=1.35 / γQ=1.5 salvo que el enunciado indique otra cosa) y dilo en un warning.
 3. Los momentos entran CON SIGNO: no los pases a valor absoluto.
-4. n (2, 3 ó 4 micropilotes) condiciona toda la geometría. Con n=2 los pilotes van alineados en el eje x y Mx debe ser 0: un Mx ≠ 0 es estáticamente inadmisible (el cálculo no es válido). Si el enunciado trae momento en las dos direcciones, propón n=4.
+4. n (2, 3, 4 ó 6 micropilotes) condiciona toda la geometría. Con n=2 los pilotes van alineados en el eje x y Mx debe ser 0: un Mx ≠ 0 es estáticamente inadmisible (el cálculo no es válido). Si el enunciado trae momento en las dos direcciones, propón n=4.
 5. R_adm_kN es la resistencia de cálculo a compresión de UN micropilote: la fija el estudio geotécnico o el fabricante del micropilote, no este cálculo.
 6. En este módulo son DATOS del problema, no variables de diseño: las acciones (N_Ed, Mx, My), la resistencia del micropilote (R_adm) y el recubrimiento (lo fija la durabilidad). Para que el encepado cumpla actúa SIEMPRE sobre su GEOMETRÍA y su ARMADO: más canto (h_enc, es lo que endereza la biela), mayor separación entre pilotes, más micropilotes, hormigón de más resistencia, tirante de mayor diámetro. NUNCA rebajes una carga ni subas R_adm para que salga el cálculo.`;
 
@@ -281,7 +281,7 @@ function buildPileCapPlan(
   // --- n PRIMERO (gate de geometría: posiciones y tirantes existentes) ---
   if (x.n !== null) {
     if (!N_OPTIONS.includes(x.n)) {
-      skip('n', `El encepado solo admite 2, 3 ó 4 micropilotes (propuesto: ${x.n})`);
+      skip('n', `El encepado solo admite 2, 3, 4 ó 6 micropilotes (propuesto: ${x.n})`);
     } else if (x.n === current.n) {
       skip('n', ALREADY);
     } else {
@@ -403,7 +403,7 @@ function buildPileCapPlan(
 // la geometría del grupo, no con las cotas del encepado ni el detalle de cabeza.
 type StateKey = Exclude<
   keyof PileCapInputs,
-  'title' | 'dims_auto' | 'L_x' | 'L_y' | 'e_man' | 'plate_on' | 'plate_shape' | 'd_plate'
+  'title' | 'dims_auto' | 'L_x' | 'L_y' | 'e_man' | 's_x' | 'plate_on' | 'plate_shape' | 'd_plate'
   | 'phi_top' | 'n_top' | 'phi_cv' | 's_cv' | 'n_cv' | 'phi_ch' | 's_ch' | 'phi_g' | 's_g'
 >;
 

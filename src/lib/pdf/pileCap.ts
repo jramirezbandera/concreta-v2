@@ -95,7 +95,7 @@ export async function exportPileCapPDF(
       `${inp.plate_shape === 'cuad' ? 'lado' : 'D'} = ${inp.d_plate} mm`,
     );
   }
-  twoCol(`s = ${inp.s} mm`, `h = ${inp.h_enc} mm`);
+  twoCol(n === 6 ? `s_y = ${inp.s} / s_x = ${inp.s_x} mm` : `s = ${inp.s} mm`, `h = ${inp.h_enc} mm`);
   twoCol(`fck = ${inp.fck} MPa`, `fyk = ${inp.fyk} MPa`);
   twoCol(`N_Ed = ${fmtSi(inp.N_Ed, 'force')}`, `R_adm = ${fmtSi(inp.R_adm, 'force')}`);
   if (inp.Mx_Ed !== 0) twoCol(`Mx = ${fmtSi(inp.Mx_Ed, 'moment', 2)}`, `My = ${fmtSi(inp.My_Ed, 'moment', 2)}`);

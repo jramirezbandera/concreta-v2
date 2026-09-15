@@ -36,7 +36,7 @@ function PlanView({
   inp, result, size, isPdf, system,
 }: { inp: PileCapInputs; result: PileCapResult; size: number; isPdf: boolean; system: UnitSystem }) {
   const c = colors(isPdf);
-  const { pilePos, reactions, L_x, L_y, R_max, outline, e_borde } = result;
+  const { pilePos, ties, reactions, L_x, L_y, R_max, outline, e_borde } = result;
   const n     = inp.n as number;
   const s_pil = inp.s as number;
   const d_p   = inp.d_p as number;
@@ -91,20 +91,17 @@ function PlanView({
         strokeLinejoin="round"
       />
 
-      {/* Tie lines (bottom layer) — sólo entre pilotes CONTIGUOS (a distancia
-        * s): son las bandas que arma el motor. Con 4 pilotes las diagonales
-        * (s·√2) no son tirantes del modelo y se pintaban como si lo fueran. */}
-      {pilePos.map((p, i) =>
-        pilePos.slice(i + 1).filter((q) => Math.hypot(q.x - p.x, q.y - p.y) <= s_pil * 1.01).map((q, j) => (
-          <line
-            key={`tie-${i}-${j}`}
-            x1={px(p.x)} y1={py(p.y)}
-            x2={px(q.x)} y2={py(q.y)}
-            stroke={c.tieStroke} strokeWidth={1.2} strokeDasharray="4 3"
-            opacity={0.6}
-          />
-        ))
-      )}
+      {/* Tie lines (bottom layer): las bandas que arma el motor (result.ties),
+        * sin diagonales. */}
+      {ties.map(([i, j]) => (
+        <line
+          key={`tie-${i}-${j}`}
+          x1={px(pilePos[i].x)} y1={py(pilePos[i].y)}
+          x2={px(pilePos[j].x)} y2={py(pilePos[j].y)}
+          stroke={c.tieStroke} strokeWidth={1.2} strokeDasharray="4 3"
+          opacity={0.6}
+        />
+      ))}
 
       {/* Column — en el centroide del grupo de pilotes */}
       <rect
@@ -232,11 +229,11 @@ function SectionView({
   const ox = (width - capW) / 2;
   const oy = margin + colStubH;
 
-  // Pile x positions for n=2 (symmetric, only 2 piles)
-  // For n=3/4: show 2 representative piles at ±s/2 in x for section view
-  const s = inp.s as number;
-  const pile_x_left  = ox + (L_x / 2 - s / 2) * scale;
-  const pile_x_right = ox + (L_x / 2 + s / 2) * scale;
+  // Sección por la fila de pilotes más ancha: dos pilotes a ±x_max (s/2 con
+  // 2, 3 y 4 pilotes; s_x/2 con la retícula 2 × 3).
+  const x_r = Math.max(...result.pilePos.map((p) => Math.abs(p.x)));
+  const pile_x_left  = ox + (L_x / 2 - x_r) * scale;
+  const pile_x_right = ox + (L_x / 2 + x_r) * scale;
   const pile_y       = oy + capH + r_pile;   // pile tops at cap bottom
 
   // Tie bar y position (from cap bottom)
@@ -349,7 +346,7 @@ function SectionView({
             <text x={px} y={pile_y + r_pile + 10}
               textAnchor="middle" fontSize={isPdf ? 6 : 7}
               fill={c.textSec} fontFamily="monospace">
-              {n === 3 ? (i === 0 ? 'B' : 'C') : (i === 0 ? '1,3' : '2,4')}
+              {n === 3 ? (i === 0 ? 'B' : 'C') : n === 6 ? (i === 0 ? '1,3,5' : '2,4,6') : (i === 0 ? '1,3' : '2,4')}
             </text>
           )}
         </g>

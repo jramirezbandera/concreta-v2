@@ -77,7 +77,7 @@ describe('pileCap adapter — parseo defensivo', () => {
 describe('pileCap adapter — gate n', () => {
   it('n fuera de {2,3,4} → skip con motivo', () => {
     const p = plan({ n: 5 });
-    expect(skipFor(p, 'Nº de micropilotes')?.reason).toContain('2, 3 ó 4');
+    expect(skipFor(p, 'Nº de micropilotes')?.reason).toContain('2, 3, 4 ó 6');
     expect(p.fields.n).toBeUndefined();
   });
 

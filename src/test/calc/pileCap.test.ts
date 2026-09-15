@@ -166,11 +166,12 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r3.checks.find((c) => c.id === 'stirrups-v')!.status).toBe('ok');
   });
 
-  it('n=4: la retícula se compara con las DOS bandas de cada sentido; Ø12 c/100 cumple y c/200 no', () => {
+  it('n=4: la retícula se compara con las DOS bandas de cada sentido; Ø12 c/100 cumple y c/300 no', () => {
     const r4 = calcPileCap({ ...base, n: 4 });
     expect(r4.As_g_req).toBeCloseTo(0.25 * 2 * r4.As_prov_x / ((r4.L_y - 2 * r4.w_band) / 1000), 3);
     expect(r4.checks.find((c) => c.id === 'grid-h')!.status).toBe('ok');
-    const poor = calcPileCap({ ...base, n: 4, s_g: 200 });
+    // As,min repartido: 9Ø12 por banda (1018 mm²) → req 0,25·2·1018/1,27 = 401 mm²/m; Ø12 c/300 = 377
+    const poor = calcPileCap({ ...base, n: 4, s_g: 300 });
     expect(poor.checks.find((c) => c.id === 'grid-h')!.status).toBe('fail');
     expect(calcPileCap({ ...base, n: 4, s_g: 0 }).valid).toBe(false);
   });
@@ -539,6 +540,98 @@ describe('Planta triangular (n=3)', () => {
   });
 });
 
+// ── Retícula 2 × 3 (n=6) ──────────────────────────────────────────────────
+// Plano tipo del usuario: dos columnas de micropilotes con el doble de
+// separación que las tres filas, pilar en el centro. Bandas sobre cada fila y
+// cada columna (EHE-08 58.4.1.2.2.1); la biela pésima es la de las esquinas.
+describe('Retícula 2 × 3 (n=6)', () => {
+  // h=1400 para que la biela de esquina (a ≈ 1697) quede dentro de 26,5°
+  const inp6 = { ...base, n: 6, h_enc: 1400 };
+  const r = calcPileCap(inp6);
+
+  it('posiciones: columnas a ±s_x/2 = ±1200, filas a −s, 0, +s; envolvente cuadrada 3150', () => {
+    expect(r.valid).toBe(true);
+    expect(r.pilePos).toHaveLength(6);
+    expect(r.pilePos.map((p) => p.x)).toEqual([-1200, 1200, -1200, 1200, -1200, 1200]);
+    expect(r.pilePos.map((p) => p.y)).toEqual([-1200, -1200, 0, 0, 1200, 1200]);
+    expect(r.L_x).toBe(3150);   // 2400 + 2·360 = 3120 → ↑50
+    expect(r.L_y).toBe(3150);   // 2·1200 + 720 = 3120 → ↑50
+    expect(r.outline).toHaveLength(4);
+  });
+
+  it('tirantes: tres filas y los cuatro tramos de las columnas, sin diagonales', () => {
+    expect(r.ties).toHaveLength(7);
+    for (const [i, j] of r.ties) {
+      const p = r.pilePos[i];
+      const q = r.pilePos[j];
+      expect(Math.abs(p.x - q.x) < 1e-9 || Math.abs(p.y - q.y) < 1e-9).toBe(true);
+    }
+  });
+
+  it('bandas: Ft,x = R·(s_x/2 − 0,25·b)/z y Ft,y = R·(s − 0,25·h)/z (T1d de 58.4.1.2.2.1 con l/2 = x_max)', () => {
+    expect(r.Ft_x).toBeCloseTo(r.R_max * (1200 - 100) / r.z_eff, 6);
+    expect(r.Ft_y!).toBeCloseTo(r.R_max * (1200 - 100) / r.z_eff, 6);
+    expect(r.n_bars_y).not.toBeNull();
+    expect(r.checks.map((c) => c.id)).toContain('tie-steel-y');
+  });
+
+  it('la biela pésima es la de la esquina (a = √2·1200), no la de la fila central (1200)', () => {
+    expect(r.a_crit).toBeCloseTo(Math.hypot(1200, 1200), 6);
+    expect(r.a_eff).toBeCloseTo(Math.hypot(1200, 1200) - 100, 6);
+    expect(r.theta_deg).toBeCloseTo(Math.atan2(r.z_eff, r.a_eff) * 180 / Math.PI, 6);
+    expect(r.Fs_max).toBeCloseTo(r.R_max / Math.sin(r.theta_deg * Math.PI / 180), 6);
+    expect(r.checks.find((c) => c.id === 'strut-angle')!.status).toBe('ok');
+    // Con el canto por defecto (800) la esquina queda a 21° → INCUMPLE
+    expect(calcPileCap({ ...base, n: 6 }).checks.find((c) => c.id === 'strut-angle')!.status).toBe('fail');
+  });
+
+  it('separación mínima con la menor de filas y columnas; rigidez con el vuelo mayor', () => {
+    expect(r.checks.find((c) => c.id === 'spacing')!.limit).toBe('1200 mm');
+    const tight = calcPileCap({ ...inp6, s_x: 700 });
+    expect(tight.checks.find((c) => c.id === 'spacing')!.status).toBe('fail');
+    expect(tight.checks.find((c) => c.id === 'spacing')!.limit).toBe('700 mm');
+    expect(r.checks.find((c) => c.id === 'rigidity')!.value).toBe('1000 mm');   // 1200 − 200
+    expect(calcPileCap({ ...inp6, s_x: 0 }).valid).toBe(false);
+    expect(calcPileCap({ ...base, n: 5 }).valid).toBe(false);
+  });
+
+  it('secundaria: retícula ≥ 1/4 de las TRES filas (x) y de las DOS columnas (y); cercos en las cinco bandas', () => {
+    const ext = r.e_borde - 60;
+    expect(r.L_bands).toBeCloseTo(3 * (2400 + 2 * ext) + 2 * (2400 + 2 * ext), 6);
+    const req_x = 0.25 * 3 * r.As_prov_x / ((r.L_y - 3 * r.w_band) / 1000);
+    const req_y = 0.25 * 2 * r.As_prov_y! / ((r.L_x - 2 * r.w_band) / 1000);
+    expect(r.As_g_req).toBeCloseTo(Math.max(req_x, req_y), 6);
+    expect(r.As_cv_tot_req).toBeCloseTo(300 / 9 * 1000 / r.fyd, 6);
+    expect(r.checks.map((c) => c.id)).toContain('grid-h');
+  });
+
+  it('As,min de la sección se reparte entre las bandas del sentido: /3 en x y /2 en y con n=6, /2 con n=4', () => {
+    const fctm = 2.56;
+    const total_x = Math.max(0.26 * (fctm / 500) * r.L_y * r.d_eff, 0.0013 * r.L_y * r.d_eff);
+    const total_y = Math.max(0.26 * (fctm / 500) * r.L_x * r.d_eff, 0.0013 * r.L_x * r.d_eff);
+    expect(r.As_min_x).toBeCloseTo(total_x / 3, 3);
+    expect(r.As_min_y!).toBeCloseTo(total_y / 2, 3);
+    const r4 = calcPileCap({ ...base, n: 4 });
+    const total4 = Math.max(0.26 * (fctm / 500) * r4.L_y * r4.d_eff, 0.0013 * r4.L_y * r4.d_eff);
+    expect(r4.As_min_x).toBeCloseTo(total4 / 2, 3);
+    // n=2: una banda, el mínimo entero (1123,7 mm² → 10Ø12, como en el FTUX)
+    expect(calcPileCap(base).As_min_x).toBeCloseTo(1123.7, 0);
+  });
+
+  it('n=2, 3 y 4 no cambian con la generalización (bielas equidistantes)', () => {
+    const r2 = calcPileCap(base);
+    expect(r2.a_crit).toBe(600);
+    expect(r2.a_eff).toBe(500);
+    expect(r2.Fs_max).toBeCloseTo(r2.R_max / Math.sin(r2.theta_deg * Math.PI / 180), 6);
+    const r4 = calcPileCap({ ...base, n: 4 });
+    expect(r4.a_crit).toBeCloseTo(1200 / Math.SQRT2, 6);
+    expect(r4.Ft_x).toBeCloseTo(r4.R_max * (600 - 100) / r4.z_eff, 6);
+    expect(r4.ties).toHaveLength(4);
+    expect(calcPileCap({ ...base, n: 3 }).ties).toHaveLength(3);
+    expect(r2.ties).toEqual([[0, 1]]);
+  });
+});
+
 // ── Validación de entradas ────────────────────────────────────────────────
 describe('Validación', () => {
   it('n fuera de {2,3,4} → invalid', () => {
@@ -565,7 +658,7 @@ describe('Validación', () => {
 
 // ── Robustez numérica ─────────────────────────────────────────────────────
 describe('Sin NaN/Infinity', () => {
-  for (const n of [2, 3, 4]) {
+  for (const n of [2, 3, 4, 6]) {
     it(`n=${n} con momentos: campos numéricos finitos`, () => {
       const r = calcPileCap({
         ...base, n,

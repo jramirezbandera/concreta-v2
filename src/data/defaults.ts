@@ -669,7 +669,7 @@ export const compositeSectionDefaults: CompositeSectionInputs = {
 export interface PileCapInputs {
   /** Nombre del elemento para el PDF (metadato de documento). Reservado: excluir de inputsFingerprint(). */
   title:    string;
-  n:        number;  // 2 | 3 | 4 — number of micropiles
+  n:        number;  // 2 | 3 | 4 | 6 — number of micropiles (6 = retícula 2 × 3)
   d_p:      number;  // mm — pile diameter
   /** true → placa de reparto en cabeza de micro: el nodo comprimido de la biela
    *  apoya en la placa (área mayor), no en la sección del tubo. */
@@ -677,7 +677,8 @@ export interface PileCapInputs {
   /** Forma de la placa de reparto: 'circ' (Ø d_plate) o 'cuad' (lado d_plate). */
   plate_shape: 'circ' | 'cuad';
   d_plate:  number;  // mm — Ø (circ) o lado (cuad) de la placa de reparto
-  s:        number;  // mm — pile spacing c/c
+  s:        number;  // mm — pile spacing c/c (n=6: entre filas, dirección y)
+  s_x:      number;  // mm — n=6: separación entre las dos columnas (dirección x)
   h_enc:    number;  // mm — cap depth
   /** true → Lx/Ly automáticas (e_min a borde, redondeo a 5 cm); false → usa L_x/L_y. */
   dims_auto: boolean;
@@ -725,6 +726,7 @@ export const pileCapDefaults: PileCapInputs = {
   plate_shape: 'circ',
   d_plate: 320,      // semilla al activar la placa (≈ d_p + 100, redondeado)
   s:       1200,
+  s_x:     2400,     // n=6: el plano tipo lleva el doble entre columnas que entre filas
   h_enc:   800,
   dims_auto: true,
   L_x:     1950,

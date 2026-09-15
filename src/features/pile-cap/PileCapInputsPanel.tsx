@@ -133,7 +133,7 @@ function RebarSpecField({
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const N_OPTIONS = [2, 3, 4] as const;
+const N_OPTIONS = [2, 3, 4, 6] as const;
 
 export function PileCapInputsPanel({ state, setField }: Props) {
   const n = state.n as number;
@@ -143,7 +143,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
   // manuales al cambiar de modo (punto de partida redondeado a 5 cm).
   const auto = autoCapDims(
     n, state.s as number, state.d_p as number,
-    state.b_col as number, state.h_col as number,
+    state.b_col as number, state.h_col as number, state.s_x as number,
   );
   const eMin = minEdgeDistance(state.d_p as number);
   // n=3: la planta es triangular y la cota de obra es e (eje de pilote a
@@ -265,8 +265,14 @@ export function PileCapInputsPanel({ state, setField }: Props) {
           </>
         )}
 
-        <NumField label="s"      sub="Sep. c/c"         field="s"      value={state.s as number}      unit="mm"  setField={setField}
-          help="Separación entre ejes de pilotes (centro a centro). Determina el brazo del tirante." />
+        <NumField label={n === 6 ? 's_y' : 's'} sub={n === 6 ? 'Sep. filas (y)' : 'Sep. c/c'} field="s" value={state.s as number} unit="mm" setField={setField}
+          help={n === 6
+            ? 'Separación entre las tres filas de micropilotes (dirección y). Determina el brazo de las bandas en y.'
+            : 'Separación entre ejes de pilotes (centro a centro). Determina el brazo del tirante.'} />
+        {n === 6 && (
+          <NumField label="s_x" sub="Sep. columnas (x)" field="s_x" value={state.s_x as number} unit="mm" setField={setField}
+            help="Separación entre las dos columnas de micropilotes (dirección x). En el plano tipo es el doble de la de las filas, con lo que la planta sale cuadrada. Manda la menor de las dos en la separación mínima." />
+        )}
         <NumField labelKey="h_encepado" field="h_enc"  value={state.h_enc as number}  setField={setField} />
         <NumField labelKey="b_col"      field="b_col"  value={state.b_col as number}  setField={setField} />
         <NumField labelKey="h_col"      field="h_col"  value={state.h_col as number}  setField={setField} />
