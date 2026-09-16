@@ -136,6 +136,13 @@ export interface PileCapResult {
   As_ch_prov: number;    // 2·A(φ_ch)·1000/s_ch (dos caras) [mm²/m]
   As_g_req: number;      // n≥3: retícula inferior entre bandas [mm²/m], 1/4 de las bandas; n=2: 0
   As_g_prov: number;     // A(φ_g)·1000/s_g [mm²/m]
+  // Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2): suma de inferior,
+  // superior y laterales en cada sentido, referida a la sección total.
+  rho_min: number;       // 0,0010 (B400) / 0,0009 (B500)
+  rho_x: number;         // acero ∥ x / (L_y·h)
+  rho_y: number;         // acero ∥ y / (L_x·h)
+  As_dir_x: number;      // acero total ∥ x contabilizado [mm²]
+  As_dir_y: number;      // acero total ∥ y contabilizado [mm²]
 
   // Tie band width over piles [mm]
   w_band: number;
@@ -181,6 +188,7 @@ const EMPTY: PileCapResult = {
   As_top_req: 0, As_top_prov: 0, b_ref: 0,
   As_cv_req: 0, As_cv_prov: 0, As_cv_tot_req: 0, As_cv_tot_prov: 0, L_bands: 0,
   As_ch_req: 0, As_ch_prov: 0, As_g_req: 0, As_g_prov: 0,
+  rho_min: 0, rho_x: 0, rho_y: 0, As_dir_x: 0, As_dir_y: 0,
   w_band: 0,
   Ft_x: 0, Ft_y: null,
   fyd: 0,
@@ -784,6 +792,43 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     As_g_req = Math.max(req_x, req_y);
   }
 
+  // ── Cuantía geométrica mínima (EHE-08 art. 42.3.5 y 58.8.2) ──────────────
+  // 58.8.2: «La armadura longitudinal debe satisfacer lo establecido en el
+  // Artículo 42º. La cuantía mínima se refiere a la suma de la armadura de la
+  // cara inferior, de la cara superior y de las paredes laterales, en la
+  // dirección considerada.» Valor: tabla 42.3.5, nota (1) —losas de
+  // cimentación y zapatas armadas: la mitad de 2,0/1,8‰—, referido a la
+  // sección total de hormigón: 1,0‰ con B400 y 0,9‰ con B500. La tabla no
+  // nombra los encepados; se toma el valor de las zapatas, el de la práctica.
+  // Sentido x: sección L_y·h; cuenta las bandas ∥ x, la retícula inferior
+  // ∥ x, las superiores de esas bandas y las horizontales de las dos caras ∥ x.
+  // Sentido y: sección L_x·h; ídem con las bandas ∥ y y, con 2 pilotes (sin
+  // bandas ∥ y), las ramas horizontales de los cercos perimetrales. Con 3
+  // pilotes las dos bandas inclinadas se proyectan (sin 60°) sobre y.
+  const rho_min = fyk >= 500 ? 0.0009 : 0.0010;
+  const h_lat = Math.max(h_enc - cover - Math.max(40, phi_tie), 0);   // altura con horizontales de cara
+  const lat_per_face = getBarArea(phi_ch) * h_lat / s_ch;             // mm² por cara
+  const top_band = As_top_prov;
+  let As_dir_x: number;
+  let As_dir_y: number;
+  if (n === 2) {
+    const n_cercos = Math.floor(Math.max(L_x - 2 * cover, 0) / s_cv) + 1;
+    As_dir_x = As_prov_x + top_band + 2 * lat_per_face;
+    As_dir_y = n_cercos * 2 * getBarArea(phi_cv) + 2 * lat_per_face;
+  } else if (n === 3) {
+    const proj = 2 * Math.sin(Math.PI / 3);   // las dos bandas inclinadas sobre y
+    As_dir_x = As_prov_x + top_band + lat_per_face;
+    As_dir_y = proj * (As_prov_x + top_band) + proj * lat_per_face;
+  } else {
+    const nbx = n === 6 ? 3 : 2;
+    const grid_x = As_g_prov * Math.max(L_y - nbx * w_band, 0) / 1000;
+    const grid_y = As_g_prov * Math.max(L_x - 2 * w_band, 0) / 1000;
+    As_dir_x = nbx * As_prov_x + grid_x + nbx * top_band + 2 * lat_per_face;
+    As_dir_y = 2 * (As_prov_y ?? 0) + grid_y + 2 * top_band + 2 * lat_per_face;
+  }
+  const rho_x = As_dir_x / (L_y * h_enc);
+  const rho_y = As_dir_y / (L_x * h_enc);
+
   // ── Build checks ──────────────────────────────────────────────────────────
   const checks: CheckRow[] = [];
 
@@ -1063,6 +1108,54 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     });
   }
 
+  // 14. Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2), sentido pésimo
+  {
+    const rho_worst = Math.min(rho_x, rho_y);
+    const dir = rho_x <= rho_y ? 'x' : 'y';
+    checks.push(makeCheck(
+      'min-ratio',
+      `Cuantía geométrica mínima, sentido ${dir} (inf.+sup.+laterales)`,
+      rho_min, rho_worst,
+      `${(rho_min * 1000).toFixed(1)} por mil`,
+      `${(rho_worst * 1000).toFixed(2)} por mil`,
+      'EHE-08 42.3.5 (zapatas) y 58.8.2',
+    ));
+  }
+
+  // 15. Separación máxima de la armadura de caras ≤ 30 cm (EHE-08 58.8.2)
+  {
+    const s_faces = Math.max(s_ch, s_cv, n >= 3 ? s_g : 0);
+    checks.push(makeCheck(
+      'face-spacing',
+      'Separación máxima en caras (cercos, horizontales, retícula) ≤ 300 mm',
+      s_faces, 300,
+      `${s_faces.toFixed(0)} mm`,
+      '300 mm',
+      'EHE-08 58.8.2',
+    ));
+  }
+
+  // 16. Diámetro mínimo recomendado 12 mm en cimentaciones (EHE-08 58.8.2)
+  {
+    const finos: string[] = [];
+    if (phi_tie < 12) finos.push(`tirante Ø${phi_tie}`);
+    if (n_top > 0 && phi_top < 12) finos.push(`superior Ø${phi_top}`);
+    if (phi_cv < 12) finos.push(`cercos Ø${phi_cv}`);
+    if (phi_ch < 12) finos.push(`horizontal Ø${phi_ch}`);
+    if (n >= 3 && phi_g < 12) finos.push(`retícula Ø${phi_g}`);
+    if (finos.length > 0) {
+      checks.push({
+        id: 'min-diam',
+        description: `Diámetro < 12 mm en ${finos.join(', ')} (se recomienda Ø ≥ 12 en cimentaciones)`,
+        value: finos.length === 1 ? finos[0].replace(/^.*Ø/, 'Ø') + ' mm' : `${finos.length} armaduras`,
+        limit: 'Ø12 mm',
+        utilization: 0.99,
+        status: 'warn',
+        article: 'EHE-08 58.8.2 (recomendación)',
+      });
+    }
+  }
+
   return {
     valid: true,
     pilePos,
@@ -1077,6 +1170,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     As_top_req, As_top_prov, b_ref,
     As_cv_req, As_cv_prov, As_cv_tot_req, As_cv_tot_prov, L_bands,
     As_ch_req, As_ch_prov, As_g_req, As_g_prov,
+    rho_min, rho_x, rho_y, As_dir_x, As_dir_y,
     w_band,
     Ft_x, Ft_y,
     fyd,

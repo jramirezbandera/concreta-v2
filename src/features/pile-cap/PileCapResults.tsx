@@ -138,6 +138,12 @@ export function PileCapResults({ inp, result }: Props) {
         </>
       )}
 
+      {/* Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2) */}
+      <GroupHeader label="Cuantía geométrica (EHE-08 42.3.5 y 58.8.2)" />
+      <ValueRow label="ρ_x" value={`${(result.rho_x * 1000).toFixed(2)} ‰ (${result.As_dir_x.toFixed(0)} mm² / ${result.L_y.toFixed(0)}×${(inp.h_enc as number).toFixed(0)})`} />
+      <ValueRow label="ρ_y" value={`${(result.rho_y * 1000).toFixed(2)} ‰ (${result.As_dir_y.toFixed(0)} mm² / ${result.L_x.toFixed(0)}×${(inp.h_enc as number).toFixed(0)})`} />
+      <ValueRow label="ρ_min" value={`${(result.rho_min * 1000).toFixed(1)} ‰ (B${inp.fyk as number}, inf.+sup.+laterales)`} />
+
       {/* Anclaje */}
       <GroupHeader label="Anclaje (CE Anejo 19 §8.4.4)" />
       <ValueRow label="lb,básica" value={`${result.lb.toFixed(0)} mm`} />

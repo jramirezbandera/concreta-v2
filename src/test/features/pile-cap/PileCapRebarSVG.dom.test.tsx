@@ -28,7 +28,9 @@ describe('PileCapRebarSVG — vista Armado', () => {
     it(`n=${n}: un solo svg con planta, secciones y leyenda; sin NaN en las coordenadas`, () => {
       const { svg } = mount(n);
       const texts = Array.from(svg.querySelectorAll('text')).map((t) => t.textContent ?? '');
-      expect(texts.some((t) => t.startsWith('PLANTA'))).toBe(true);
+      // Dos plantas, como en los planos tipo: ARMADO INFERIOR y ARMADO SUPERIOR
+      expect(texts.some((t) => t.startsWith('ARMADO INFERIOR'))).toBe(true);
+      expect(texts.some((t) => /^ARMADO SUPERIOR · 2Ø12 por banda$/.test(t))).toBe(true);
       expect(texts).toContain('SECCIÓN LONGITUDINAL');
       expect(texts).toContain('SECCIÓN TRANSVERSAL');
       expect(texts.some((t) => /^Cercos( de banda)?: Ø12 c\/100/.test(t))).toBe(true);
@@ -51,6 +53,17 @@ describe('PileCapRebarSVG — vista Armado', () => {
       const perBandY = result.n_bars_y !== null ? Math.min(result.n_bars_y, 30) : perBand;
       expect(inf.length).toBe(bandsX * perBand + bandsY * perBandY);
     }
+  });
+
+  it('la planta superior lleva n_top barras por banda y ninguna banda inferior', () => {
+    const { svg, result } = mount(4);
+    // Superiores: <line> de ancho 1.1; 2 por banda × 4 bandas
+    const sup = Array.from(svg.querySelectorAll('line')).filter((l) => l.getAttribute('stroke-width') === '1.1');
+    expect(sup.length).toBe(2 * result.ties.length);
+    const none = calcPileCap({ ...pileCapDefaults, n: 2, n_top: 0 });
+    const { container } = render(<PileCapRebarSVG inp={{ ...pileCapDefaults, n: 2, n_top: 0 }} result={none} width={440} />);
+    const texts = Array.from(container.querySelectorAll('text')).map((t) => t.textContent ?? '');
+    expect(texts).toContain('ARMADO SUPERIOR · sin barras');
   });
 
   it('el clon del PDF (560 px) va en rejilla: planta a la izquierda y secciones a la derecha', () => {

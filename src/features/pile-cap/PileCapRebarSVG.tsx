@@ -86,11 +86,15 @@ function secondary(inp: PileCapInputs) {
   };
 }
 
-// ── Planta ────────────────────────────────────────────────────────────────────
+// ── Planta (armado inferior o superior) ──────────────────────────────────────
+// Como en los planos tipo del usuario: dos plantas, ARMADO INFERIOR (bandas
+// sobre los pilotes y, con n ≥ 3, la retícula entre bandas) y ARMADO SUPERIOR
+// (las barras superiores de cada banda). El anillo de la horizontal de caras
+// se ve en las dos.
 
 function PlanRebar({
-  inp, result, size, isPdf, sec,
-}: { inp: PileCapInputs; result: PileCapResult; size: number; isPdf: boolean; sec: Sec }) {
+  inp, result, size, isPdf, sec, layer,
+}: { inp: PileCapInputs; result: PileCapResult; size: number; isPdf: boolean; sec: Sec; layer: 'inferior' | 'superior' }) {
   const c = colors(isPdf);
   const { pilePos, ties, outline, L_x, L_y, w_band, e_borde, n_bars_x, n_bars_y } = result;
   const d_p   = inp.d_p as number;
@@ -98,6 +102,7 @@ function PlanRebar({
   const h_col = inp.h_col as number;
   const cover = inp.cover as number;
   const phi_tie = inp.phi_tie as number;
+  const inferior = layer === 'inferior';
 
   const margin = 22;
   const scale = Math.min((size - 2 * margin) / L_x, (size - 2 * margin) / L_y);
@@ -143,7 +148,7 @@ function PlanRebar({
   // los dos sentidos, simétrica respecto al centroide y recortada al anillo.
   const n = inp.n as number;
   const mesh: { p: PilePos; q: PilePos }[] = [];
-  if (n >= 3) {
+  if (inferior && n >= 3) {
     const xmin = Math.min(...xs);
     const xmax = Math.max(...xs);
     const ymin = Math.min(...ys);
@@ -162,6 +167,10 @@ function PlanRebar({
       if (seg) mesh.push(seg);
     }
   }
+
+  const title = inferior
+    ? `ARMADO INFERIOR · ${n_bars_x}Ø${phi_tie}${n_bars_y !== null && n_bars_y !== n_bars_x ? ` / ${n_bars_y}Ø${phi_tie}` : ''} por banda`
+    : sec.n_top > 0 ? `ARMADO SUPERIOR · ${sec.n_top}Ø${sec.phi_top} por banda` : 'ARMADO SUPERIOR · sin barras';
 
   return (
     <g>
@@ -189,17 +198,17 @@ function PlanRebar({
         width={b_col * scale} height={h_col * scale}
         fill={c.colFill} stroke={c.colStroke} strokeWidth={1}
       />
-      {/* Bandas inferiores */}
-      {bands.map((b, bi) => barLines(b, b.nBars, 1).map((l, i) => (
+      {/* Bandas inferiores (planta inferior) */}
+      {inferior && bands.map((b, bi) => barLines(b, b.nBars, 1).map((l, i) => (
         <line key={`inf-${bi}-${i}`} {...l} stroke={c.bottom} strokeWidth={1.3} strokeLinecap="round" />
       )))}
-      {/* Superiores (discontinuas, en el 60 % de la banda) */}
-      {sec.n_top > 0 && bands.map((b, bi) => barLines(b, sec.n_top, 0.6).map((l, i) => (
-        <line key={`sup-${bi}-${i}`} {...l} stroke={c.top} strokeWidth={1} strokeDasharray="6 3" />
+      {/* Superiores (planta superior), en el 60 % de la banda */}
+      {!inferior && sec.n_top > 0 && bands.map((b, bi) => barLines(b, sec.n_top, 0.6).map((l, i) => (
+        <line key={`sup-${bi}-${i}`} {...l} stroke={c.top} strokeWidth={1.1} strokeLinecap="round" />
       )))}
       <text x={size / 2} y={12} textAnchor="middle" fontSize={isPdf ? 7 : 8}
         fill={c.textSec} fontFamily={FONT}>
-        {`PLANTA · inferior ${n_bars_x}Ø${phi_tie}${n_bars_y !== null && n_bars_y !== n_bars_x ? ` / ${n_bars_y}Ø${phi_tie}` : ''} por banda`}
+        {title}
       </text>
     </g>
   );
@@ -491,6 +500,9 @@ function Legend({
 }
 
 // ── Wrapper ───────────────────────────────────────────────────────────────────
+// Dos plantas (inferior y superior) arriba, las dos secciones debajo y la
+// leyenda al pie. Plantas lado a lado desde 400 px y secciones lado a lado
+// desde 520 px (clon del PDF); en móvil todo se apila.
 
 export function PileCapRebarSVG({ inp, result, width, mode = 'screen' }: Props) {
   const isPdf = mode === 'pdf';
@@ -505,20 +517,25 @@ export function PileCapRebarSVG({ inp, result, width, mode = 'screen' }: Props) 
     );
   }
   const sec = secondary(inp);
-  const grid = width >= 520;
   const gap = 10;
-  const planSize = grid ? Math.round(width * 0.42) : Math.min(width, 280);
-  const secW = grid ? width - planSize - gap : width;
-  const secH = Math.round(secW * 0.5);
-  const legendRows = (inp.n as number) === 2 ? 4 : 5;
-  const legendH = (grid ? Math.ceil(legendRows / 2) : legendRows) * 14 + 8;
-  const bodyH = grid ? Math.max(planSize, 2 * secH + gap) : planSize + 2 * (secH + gap);
-  const totalH = bodyH + gap + legendH;
+  const plansSide = width >= 400;
+  const planSize = plansSide ? Math.min((width - gap) / 2, 280) : Math.min(width, 280);
+  const plansH = plansSide ? planSize : 2 * planSize + gap;
+  const plansX0 = plansSide ? (width - 2 * planSize - gap) / 2 : (width - planSize) / 2;
+  const plan2X = plansSide ? plansX0 + planSize + gap : plansX0;
+  const plan2Y = plansSide ? 0 : planSize + gap;
 
-  const planX = grid ? 0 : (width - planSize) / 2;
-  const secX = grid ? planSize + gap : 0;
-  const sec1Y = grid ? 0 : planSize + gap;
-  const sec2Y = sec1Y + secH + gap;
+  const secsSide = width >= 520;
+  const secW = secsSide ? (width - gap) / 2 : width;
+  const secH = Math.round(secW * (secsSide ? 0.62 : 0.5));
+  const secsH = secsSide ? secH : 2 * secH + gap;
+  const secsY = plansH + gap;
+  const sec2X = secsSide ? secW + gap : 0;
+  const sec2Y = secsSide ? secsY : secsY + secH + gap;
+
+  const legendRows = (inp.n as number) === 2 ? 4 : 5;
+  const legendH = (width >= 520 ? Math.ceil(legendRows / 2) : legendRows) * 14 + 8;
+  const totalH = secsY + secsH + gap + legendH;
 
   return (
     <div
@@ -530,16 +547,19 @@ export function PileCapRebarSVG({ inp, result, width, mode = 'screen' }: Props) 
         xmlns="http://www.w3.org/2000/svg"
         aria-label="Armado del encepado"
       >
-        <g transform={`translate(${planX},0)`}>
-          <PlanRebar inp={inp} result={result} size={planSize} isPdf={isPdf} sec={sec} />
+        <g transform={`translate(${plansX0},0)`}>
+          <PlanRebar inp={inp} result={result} size={planSize} isPdf={isPdf} sec={sec} layer="inferior" />
         </g>
-        <g transform={`translate(${secX},${sec1Y})`}>
+        <g transform={`translate(${plan2X},${plan2Y})`}>
+          <PlanRebar inp={inp} result={result} size={planSize} isPdf={isPdf} sec={sec} layer="superior" />
+        </g>
+        <g transform={`translate(0,${secsY})`}>
           <LongSection inp={inp} result={result} width={secW} height={secH} isPdf={isPdf} sec={sec} />
         </g>
-        <g transform={`translate(${secX},${sec2Y})`}>
+        <g transform={`translate(${sec2X},${sec2Y})`}>
           <TransSection inp={inp} result={result} width={secW} height={secH} isPdf={isPdf} sec={sec} />
         </g>
-        <g transform={`translate(0,${bodyH + gap})`}>
+        <g transform={`translate(0,${secsY + secsH + gap})`}>
           <Legend inp={inp} result={result} width={width} isPdf={isPdf} sec={sec} />
         </g>
       </svg>

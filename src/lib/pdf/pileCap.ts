@@ -157,6 +157,12 @@ export async function exportPileCapPDF(
     twoCol(`Sup. ${inp.n_top}ph${inp.phi_top}, caras ph${inp.phi_ch}c/${inp.s_ch}`, 'no exigidas');
   }
 
+  // CUANTIA GEOMETRICA (EHE-08 42.3.5 + 58.8.2)
+  gap();
+  secHeader('CUANTIA GEOMETRICA (EHE-08 42.3.5 y 58.8.2)');
+  twoCol(`rho x = ${(result.rho_x * 1000).toFixed(2)} por mil`, `rho y = ${(result.rho_y * 1000).toFixed(2)} por mil`);
+  twoCol(`minimo ${(result.rho_min * 1000).toFixed(1)} por mil (B${inp.fyk})`, '');
+
   // ── Divider + checks table ──────────────────────────────────────────────────
   // Empieza bajo la figura o bajo la columna derecha, lo que quede mas abajo:
   // con Mx, placa y la secundaria la columna ya baja mas que la figura.

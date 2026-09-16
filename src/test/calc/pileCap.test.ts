@@ -186,7 +186,8 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     const ids = r.checks.map((c) => c.id);
     for (const id of ['spacing', 'edge-distance', 'cap-depth', 'pile-react-max', 'strut-angle',
       'strut-capacity', 'tie-steel-x', 'bar-spacing', 'bar-spacing-min',
-      'anchorage', 'node-column', 'rigidity', 'top-steel', 'stirrups-v', 'face-steel-h']) {
+      'anchorage', 'node-column', 'rigidity', 'top-steel', 'stirrups-v', 'face-steel-h',
+      'min-ratio', 'face-spacing']) {
       expect(ids).toContain(id);
     }
   });
@@ -537,6 +538,80 @@ describe('Planta triangular (n=3)', () => {
     const t2 = calcPileCap(base);
     expect(t2.outline).toHaveLength(4);
     expect(t2.A_cap).toBeCloseTo(t2.L_x * t2.L_y, 6);
+  });
+});
+
+// ── Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2) ────────────────────
+// 58.8.2 (pág. 282 del texto del Ministerio): «La armadura longitudinal debe
+// satisfacer lo establecido en el Artículo 42º. La cuantía mínima se refiere a
+// la suma de la armadura de la cara inferior, de la cara superior y de las
+// paredes laterales, en la dirección considerada. La armadura dispuesta en las
+// caras superior, inferior y laterales no distará más de 30 cm. Se recomienda
+// que el diámetro mínimo […] no sea inferior a 12 mm.» Tabla 42.3.5, nota (1):
+// losas de cimentación y zapatas armadas, la mitad de 2,0/1,8‰ → 1,0/0,9‰.
+describe('Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2)', () => {
+  const r = calcPileCap(base);
+
+  it('defaults n=2: ρ_min = 0,9‰ (B500); x cuenta banda + superior + 2 caras, y cuenta cercos + 2 caras', () => {
+    expect(r.rho_min).toBe(0.0009);
+    const A12 = 113.1;
+    const lat = A12 * (800 - 60 - 40) / 100;               // Ø12 c/100 en 700 mm de altura, por cara
+    const n_cercos = Math.floor((1950 - 120) / 100) + 1;   // 19
+    expect(r.As_dir_x).toBeCloseTo(r.As_prov_x + r.As_top_prov + 2 * lat, 0);
+    expect(r.As_dir_y).toBeCloseTo(n_cercos * 2 * A12 + 2 * lat, 0);
+    expect(r.rho_x).toBeCloseTo(r.As_dir_x / (1150 * 800), 9);
+    expect(r.rho_y).toBeCloseTo(r.As_dir_y / (1950 * 800), 9);
+    expect(r.rho_x).toBeGreaterThan(0.0009);
+    const row = r.checks.find((c) => c.id === 'min-ratio')!;
+    expect(row.status).toBe('ok');
+    expect(row.article).toMatch(/42\.3\.5/);
+    expect(calcPileCap({ ...base, fyk: 400 }).rho_min).toBe(0.0010);
+  });
+
+  it('encepado grande con poco acero: la cuantía INCUMPLE aunque el tirante cumpla', () => {
+    // 2 pilotes, h = 1500, sin superior, cercos y horizontales Ø8 c/300: en y
+    // sólo hay ramas de cercos y caras → ρ_y ≪ 0,9‰
+    const poor = calcPileCap({ ...base, h_enc: 1500, n_top: 0, phi_cv: 8, s_cv: 300, phi_ch: 8, s_ch: 300 });
+    expect(poor.valid).toBe(true);
+    expect(poor.rho_y).toBeLessThan(0.0009);
+    expect(poor.checks.find((c) => c.id === 'min-ratio')!.status).toBe('fail');
+    expect(poor.checks.find((c) => c.id === 'min-ratio')!.description).toMatch(/sentido y/);
+  });
+
+  it('separación máxima en caras 300 mm y diámetro mínimo recomendado 12 mm', () => {
+    expect(r.checks.find((c) => c.id === 'face-spacing')!.status).toBe('ok');
+    expect(r.checks.find((c) => c.id === 'min-diam')).toBeUndefined();
+    const wide = calcPileCap({ ...base, s_ch: 350 });
+    expect(wide.checks.find((c) => c.id === 'face-spacing')!.status).toBe('fail');
+    const thin = calcPileCap({ ...base, phi_cv: 10, phi_ch: 8 });
+    const row = thin.checks.find((c) => c.id === 'min-diam')!;
+    expect(row.status).toBe('warn');
+    expect(row.description).toMatch(/cercos Ø10/);
+    expect(row.description).toMatch(/horizontal Ø8/);
+    // la retícula sólo cuenta con n ≥ 3
+    expect(calcPileCap({ ...base, s_g: 350 }).checks.find((c) => c.id === 'face-spacing')!.status).toBe('ok');
+    expect(calcPileCap({ ...base, n: 4, s_g: 350 }).checks.find((c) => c.id === 'face-spacing')!.status).toBe('fail');
+  });
+
+  it('n=4 y n=6: las bandas de cada sentido, la retícula y las superiores suman en su sentido', () => {
+    const r4 = calcPileCap({ ...base, n: 4 });
+    const lat = 113.1 * 700 / 100;
+    const grid_x = r4.As_g_prov * (r4.L_y - 2 * r4.w_band) / 1000;
+    expect(r4.As_dir_x).toBeCloseTo(2 * r4.As_prov_x + grid_x + 2 * r4.As_top_prov + 2 * lat, 0);
+    expect(r4.checks.find((c) => c.id === 'min-ratio')!.status).toBe('ok');
+    const r6 = calcPileCap({ ...base, n: 6, h_enc: 1400 });
+    const lat6 = 113.1 * (1400 - 100) / 100;
+    const grid6 = r6.As_g_prov * (r6.L_y - 3 * r6.w_band) / 1000;
+    expect(r6.As_dir_x).toBeCloseTo(3 * r6.As_prov_x + grid6 + 3 * r6.As_top_prov + 2 * lat6, 0);
+    expect(r6.rho_x).toBeGreaterThan(0.0009);
+  });
+
+  it('n=3: sección L_y·h en x con la banda inferior; las inclinadas se proyectan sobre y', () => {
+    const r3 = calcPileCap({ ...base, n: 3 });
+    const lat = 113.1 * 700 / 100;
+    expect(r3.As_dir_x).toBeCloseTo(r3.As_prov_x + r3.As_top_prov + lat, 0);
+    expect(r3.As_dir_y).toBeCloseTo(2 * Math.sin(Math.PI / 3) * (r3.As_prov_x + r3.As_top_prov + lat), 0);
+    expect(r3.checks.find((c) => c.id === 'min-ratio')!.status).toBe('ok');
   });
 });
 
