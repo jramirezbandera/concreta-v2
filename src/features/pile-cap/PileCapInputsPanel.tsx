@@ -441,13 +441,18 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         * (58.4.1.2.2). Lo no exigido para ese n se sigue disponiendo (se
         * dibuja) sin verificación. */}
       <CollapsibleSection label="Armadura secundaria">
+        {/* Malla genérica de las dos caras: es la que evita dejar paños de
+          * hormigón sin armar entre bandas (≤ 30 cm, EHE-08 58.8.2) y, con 3 o
+          * más pilotes, la que además cumple el 1/4 de las bandas. */}
+        <RebarSpecField
+          label="Malla arriba y abajo" sub="Caras sup. e inf." fieldDiam="phi_g" fieldSep="s_g"
+          diam={state.phi_g as number} sep={state.s_g as number} barOptions={barOptions} setField={setField}
+          help={n >= 3
+            ? 'Malla genérica en los dos sentidos, dispuesta en las caras superior e inferior, que cose los paños entre bandas: ninguna cara debe dejar más de 30 cm de hormigón sin armar (EHE-08 58.8.2, retracción). Además, con 3 o más pilotes su capacidad por sentido debe ser ≥ 1/4 de la de las bandas de ese sentido (58.4.1.2.2.1).'
+            : 'Malla genérica en los dos sentidos, dispuesta en las caras superior e inferior, que cose los paños entre bandas: ninguna cara debe dejar más de 30 cm de hormigón sin armar (EHE-08 58.8.2, regla de retracción).'}
+        />
         {n >= 3 && (
           <>
-            <RebarSpecField
-              label="Retícula inferior" sub="Entre bandas" fieldDiam="phi_g" fieldSep="s_g"
-              diam={state.phi_g as number} sep={state.s_g as number} barOptions={barOptions} setField={setField}
-              help="Retícula inferior en los dos sentidos, entre las bandas de la armadura principal. Su capacidad mecánica en cada sentido debe ser ≥ 1/4 de la de las bandas de ese sentido (EHE-08 58.4.1.2.2.1)."
-            />
             <RebarSpecField
               label="Cercos de banda" sub="Atan cada banda" fieldDiam="phi_cv" fieldSep="s_cv"
               diam={state.phi_cv as number} sep={state.s_cv as number} barOptions={barOptions} setField={setField}

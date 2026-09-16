@@ -144,11 +144,11 @@ function PlanRebar({
   const ring = insetPolygon(outline, cover);
   const r_pile = Math.min(Math.max((d_p / 2) * scale, 4), 18);
 
-  // Retícula inferior entre bandas (n ≥ 3, EHE-08 58.4.1.2.2.1): malla a s_g en
+  // Malla genérica de las dos caras (EHE-08 58.8.2: nada más de 30 cm sin
+  // armar; con n ≥ 3 cumple además el 1/4 de las bandas del 58.4.1.2.2.1): a s_g
   // los dos sentidos, simétrica respecto al centroide y recortada al anillo.
-  const n = inp.n as number;
   const mesh: { p: PilePos; q: PilePos }[] = [];
-  if (inferior && n >= 3) {
+  {
     const xmin = Math.min(...xs);
     const xmax = Math.max(...xs);
     const ymin = Math.min(...ys);
@@ -178,7 +178,7 @@ function PlanRebar({
         points={outline.map((p) => `${px(p.x)},${py(p.y)}`).join(' ')}
         fill={c.capFill} stroke={c.capStroke} strokeWidth={1.5} strokeLinejoin="round"
       />
-      {/* Retícula inferior entre bandas (n ≥ 3) */}
+      {/* Malla genérica de esta cara */}
       {mesh.map((l, i) => (
         <line key={`g-${i}`} x1={px(l.p.x)} y1={py(l.p.y)} x2={px(l.q.x)} y2={py(l.q.y)}
           stroke={c.grid} strokeWidth={0.7} />
@@ -357,8 +357,8 @@ function TransSection({
   const faceYs: number[] = [];
   for (let y = oy + capH - cov - sec.s_ch * scale; y > oy + cTop + 1; y -= sec.s_ch * scale) faceYs.push(y);
   const gridXs: number[] = [];
-  if (n >= 3) {
-    for (let x = ox + cov, k = 0; x <= ox + capW - cov + 1e-6 && k < MAX_STIRRUPS_DRAWN; x += sec.s_g * scale, k++) gridXs.push(x);
+  for (let x = ox + cov, k = 0; x <= ox + capW - cov + 1e-6 && k < MAX_STIRRUPS_DRAWN; x += sec.s_g * scale, k++) {
+    gridXs.push(x);
   }
   const legsIn = (x0: number, w: number): number[] => {
     const out: number[] = [];
@@ -407,9 +407,12 @@ function TransSection({
           <circle cx={ox + capW - cov} cy={y} r={rFace} fill={c.face} />
         </g>
       ))}
-      {/* Retícula inferior entre bandas (n ≥ 3) */}
+      {/* Malla genérica: cortada en las dos caras, superior e inferior */}
       {gridXs.map((x, i) => (
-        <circle key={`gd-${i}`} cx={x} cy={oy + capH - cov} r={Math.max(1.2, (sec.phi_g / 2) * scale)} fill={c.grid} />
+        <g key={`gd-${i}`}>
+          <circle cx={x} cy={oy + capH - cov} r={Math.max(1.2, (sec.phi_g / 2) * scale)} fill={c.grid} />
+          <circle cx={x} cy={oy + cTop} r={Math.max(1.2, (sec.phi_g / 2) * scale)} fill={c.grid} />
+        </g>
       ))}
       {/* Barras de banda (inferiores) y superiores */}
       {bands.map((b, bi) => (
@@ -431,12 +434,10 @@ function TransSection({
         fill={c.face} fontFamily={FONT} dominantBaseline="middle">
         por cara
       </text>
-      {n >= 3 && (
-        <text x={ox + capW + 6} y={oy + capH - cov + 3} fontSize={isPdf ? 6.5 : 7.5}
-          fill={c.grid} fontFamily={FONT}>
-          {`retícula Ø${sec.phi_g} c/${sec.s_g}`}
-        </text>
-      )}
+      <text x={ox + capW + 6} y={oy + capH - cov + 3} fontSize={isPdf ? 6.5 : 7.5}
+        fill={c.grid} fontFamily={FONT}>
+        {`malla Ø${sec.phi_g} c/${sec.s_g}`}
+      </text>
       <text x={X(0)} y={oy - colStub + 10} textAnchor="middle" fontSize={isPdf ? 6.5 : 7.5}
         fill={c.stirrup} fontFamily={FONT}>
         {n === 2 ? `cerco Ø${sec.phi_cv} · ${sec.n_cv} ramas` : `cercos de banda Ø${sec.phi_cv} · ${sec.n_cv} ramas`}
@@ -457,9 +458,14 @@ function legendItems(inp: PileCapInputs, result: PileCapResult, sec: Sec, c: Ret
   const inferior = { color: c.bottom, text: `Inferior: ${result.n_bars_x}Ø${phi_tie} por banda (${result.As_prov_x.toFixed(0)} mm²)` };
   const superior = (suffix: string) => ({ color: c.top, dash: '6 3', text: `Superior${suffix}: ${sec.n_top}Ø${sec.phi_top} por banda (${result.As_top_prov.toFixed(0)} mm²)` });
   const caras = (suffix: string) => ({ color: c.face, dash: '5 3', text: `Horizontal caras${suffix}: Ø${sec.phi_ch} c/${sec.s_ch} (${result.As_ch_prov.toFixed(0)} mm²/m)` });
+  const malla = {
+    color: c.grid,
+    text: `Malla arriba y abajo: Ø${sec.phi_g} c/${sec.s_g} (${result.As_g_prov.toFixed(0)} mm²/m por cara)`,
+  };
   if (n === 2) {
     return [
       inferior,
+      malla,
       superior(''),
       { color: c.stirrup, text: `Cercos: Ø${sec.phi_cv} c/${sec.s_cv}, ${sec.n_cv} ramas (${result.As_cv_prov.toFixed(0)} mm²/m)` },
       caras(''),
@@ -467,7 +473,7 @@ function legendItems(inp: PileCapInputs, result: PileCapResult, sec: Sec, c: Ret
   }
   return [
     inferior,
-    { color: c.grid, text: `Retícula inferior: Ø${sec.phi_g} c/${sec.s_g} (${result.As_g_prov.toFixed(0)} mm²/m)` },
+    malla,
     { color: c.stirrup, text: `Cercos de banda: Ø${sec.phi_cv} c/${sec.s_cv}, ${sec.n_cv} ramas (${result.As_cv_prov.toFixed(0)} mm²/m)` },
     superior(' (práctica)'),
     caras(' (práctica)'),
@@ -533,7 +539,7 @@ export function PileCapRebarSVG({ inp, result, width, mode = 'screen' }: Props) 
   const sec2X = secsSide ? secW + gap : 0;
   const sec2Y = secsSide ? secsY : secsY + secH + gap;
 
-  const legendRows = (inp.n as number) === 2 ? 4 : 5;
+  const legendRows = 5;
   const legendH = (width >= 520 ? Math.ceil(legendRows / 2) : legendRows) * 14 + 8;
   const totalH = secsY + secsH + gap + legendH;
 

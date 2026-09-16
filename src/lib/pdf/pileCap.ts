@@ -150,9 +150,10 @@ export async function exportPileCapPDF(
     twoCol(`Superior ${inp.n_top} ph${inp.phi_top}`, `${result.As_top_prov.toFixed(0)} / ${result.As_top_req.toFixed(0)} mm2`);
     twoCol(`Cercos ph${inp.phi_cv} c/${inp.s_cv} x${inp.n_cv}`, `${result.As_cv_prov.toFixed(0)} / ${result.As_cv_req.toFixed(0)} mm2/m`);
     twoCol(`Horiz. caras ph${inp.phi_ch} c/${inp.s_ch}`, `${result.As_ch_prov.toFixed(0)} / ${result.As_ch_req.toFixed(0)} mm2/m`);
+    twoCol(`Malla sup+inf ph${inp.phi_g} c/${inp.s_g}`, `${result.As_g_prov.toFixed(0)} mm2/m por cara`);
   } else {
     secHeader('ARMADURA SECUNDARIA (disp. / req., EHE-08 58.4.1.2.2)');
-    twoCol(`Reticula inf. ph${inp.phi_g} c/${inp.s_g}`, `${result.As_g_prov.toFixed(0)} / ${result.As_g_req.toFixed(0)} mm2/m`);
+    twoCol(`Malla sup+inf ph${inp.phi_g} c/${inp.s_g}`, `${result.As_g_prov.toFixed(0)} / ${result.As_g_req.toFixed(0)} mm2/m`);
     twoCol(`Cercos banda ph${inp.phi_cv} c/${inp.s_cv} x${inp.n_cv}`, `${result.As_cv_prov.toFixed(0)} / ${result.As_cv_req.toFixed(0)} mm2/m`);
     twoCol(`Sup. ${inp.n_top}ph${inp.phi_top}, caras ph${inp.phi_ch}c/${inp.s_ch}`, 'no exigidas');
   }
@@ -161,7 +162,7 @@ export async function exportPileCapPDF(
   gap();
   secHeader('CUANTIA GEOMETRICA (EHE-08 42.3.5 y 58.8.2)');
   twoCol(`rho x = ${(result.rho_x * 1000).toFixed(2)} por mil`, `rho y = ${(result.rho_y * 1000).toFixed(2)} por mil`);
-  twoCol(`minimo ${(result.rho_min * 1000).toFixed(1)} por mil (B${inp.fyk})`, '');
+  twoCol(`minimo ${(result.rho_min * 1000).toFixed(1)} por mil (B${inp.fyk})`, `hueco max ${result.hueco_max.toFixed(0)} mm`);
 
   // ── Divider + checks table ──────────────────────────────────────────────────
   // Empieza bajo la figura o bajo la columna derecha, lo que quede mas abajo:

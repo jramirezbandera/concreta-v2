@@ -134,8 +134,9 @@ export interface PileCapResult {
   L_bands: number;       // n≥3: longitud total de bandas que llevan cercos [mm]; n=2: 0
   As_ch_req: number;     // horizontal de caras [mm²/m de altura]: n=2 4‰·b_ref; n≥3 0
   As_ch_prov: number;    // 2·A(φ_ch)·1000/s_ch (dos caras) [mm²/m]
-  As_g_req: number;      // n≥3: retícula inferior entre bandas [mm²/m], 1/4 de las bandas; n=2: 0
-  As_g_prov: number;     // A(φ_g)·1000/s_g [mm²/m]
+  As_g_req: number;      // n≥3: retícula entre bandas [mm²/m], 1/4 de las bandas; n=2: 0
+  As_g_prov: number;     // A(φ_g)·1000/s_g [mm²/m] — malla genérica, por cara y sentido
+  hueco_max: number;     // mayor distancia entre barras de una cara [mm] (retracción)
   // Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2): suma de inferior,
   // superior y laterales en cada sentido, referida a la sección total.
   rho_min: number;       // 0,0010 (B400) / 0,0009 (B500)
@@ -187,7 +188,7 @@ const EMPTY: PileCapResult = {
   sigma_col: 0, sigma_Rd_col: 0,
   As_top_req: 0, As_top_prov: 0, b_ref: 0,
   As_cv_req: 0, As_cv_prov: 0, As_cv_tot_req: 0, As_cv_tot_prov: 0, L_bands: 0,
-  As_ch_req: 0, As_ch_prov: 0, As_g_req: 0, As_g_prov: 0,
+  As_ch_req: 0, As_ch_prov: 0, As_g_req: 0, As_g_prov: 0, hueco_max: 0,
   rho_min: 0, rho_x: 0, rho_y: 0, As_dir_x: 0, As_dir_y: 0,
   w_band: 0,
   Ft_x: 0, Ft_y: null,
@@ -757,7 +758,12 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const As_top_prov = n_top * getBarArea(phi_top);
   const As_cv_prov  = n_cv * getBarArea(phi_cv) * 1000 / s_cv;   // mm²/m de banda o de encepado
   const As_ch_prov  = 2 * getBarArea(phi_ch) * 1000 / s_ch;      // dos caras, mm²/m de altura
-  const As_g_prov   = getBarArea(phi_g) * 1000 / s_g;            // mm²/m por sentido
+  // Malla genérica de retracción: va en las DOS caras (superior e inferior) y en
+  // los dos sentidos, para cualquier n. Antes sólo se contaba abajo y sólo con
+  // n ≥ 3, y entre bandas quedaban paños de hormigón sin armar: el 58.8.2 pide
+  // que la armadura de las caras superior, inferior y laterales no diste más de
+  // 30 cm, que es la regla de retracción de la práctica.
+  const As_g_prov   = getBarArea(phi_g) * 1000 / s_g;            // mm²/m por cara y sentido
   const b_ref = Math.min(L_x, L_y, h_enc / 2);
   let As_top_req = 0;
   let As_cv_req = 0;
@@ -809,25 +815,33 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const h_lat = Math.max(h_enc - cover - Math.max(40, phi_tie), 0);   // altura con horizontales de cara
   const lat_per_face = getBarArea(phi_ch) * h_lat / s_ch;             // mm² por cara
   const top_band = As_top_prov;
+  // Malla genérica: dos caras (×2), en el ancho que dejan libre las bandas de
+  // ese sentido.
+  const nbx = n === 6 ? 3 : n === 4 ? 2 : 1;   // bandas ∥ x
+  const nby = n === 4 || n === 6 ? 2 : 0;      // bandas ∥ y
+  const grid_x = 2 * As_g_prov * Math.max(L_y - nbx * w_band, 0) / 1000;
+  const grid_y = 2 * As_g_prov * Math.max(L_x - nby * w_band, 0) / 1000;
   let As_dir_x: number;
   let As_dir_y: number;
   if (n === 2) {
     const n_cercos = Math.floor(Math.max(L_x - 2 * cover, 0) / s_cv) + 1;
-    As_dir_x = As_prov_x + top_band + 2 * lat_per_face;
-    As_dir_y = n_cercos * 2 * getBarArea(phi_cv) + 2 * lat_per_face;
+    As_dir_x = As_prov_x + top_band + grid_x + 2 * lat_per_face;
+    As_dir_y = n_cercos * 2 * getBarArea(phi_cv) + grid_y + 2 * lat_per_face;
   } else if (n === 3) {
     const proj = 2 * Math.sin(Math.PI / 3);   // las dos bandas inclinadas sobre y
-    As_dir_x = As_prov_x + top_band + lat_per_face;
-    As_dir_y = proj * (As_prov_x + top_band) + proj * lat_per_face;
+    As_dir_x = As_prov_x + top_band + grid_x + lat_per_face;
+    As_dir_y = proj * (As_prov_x + top_band + lat_per_face) + grid_y;
   } else {
-    const nbx = n === 6 ? 3 : 2;
-    const grid_x = As_g_prov * Math.max(L_y - nbx * w_band, 0) / 1000;
-    const grid_y = As_g_prov * Math.max(L_x - 2 * w_band, 0) / 1000;
     As_dir_x = nbx * As_prov_x + grid_x + nbx * top_band + 2 * lat_per_face;
     As_dir_y = 2 * (As_prov_y ?? 0) + grid_y + 2 * top_band + 2 * lat_per_face;
   }
   const rho_x = As_dir_x / (L_y * h_enc);
   const rho_y = As_dir_y / (L_x * h_enc);
+
+  // Mayor hueco de hormigón sin armar en una cara: la malla cose las caras
+  // superior e inferior (s_g en los dos sentidos) y las laterales las cosen la
+  // horizontal (s_ch en vertical) y las ramas de cerco (s_cv en horizontal).
+  const hueco_max = Math.max(s_g, s_ch, s_cv);
 
   // ── Build checks ──────────────────────────────────────────────────────────
   const checks: CheckRow[] = [];
@@ -1122,14 +1136,19 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     ));
   }
 
-  // 15. Separación máxima de la armadura de caras ≤ 30 cm (EHE-08 58.8.2)
+  // 15. Hormigón sin armar: ninguna cara puede dejar más de 30 cm entre barras
+  //     (EHE-08 58.8.2; regla de retracción). Caras superior e inferior: la
+  //     malla genérica, que es lo que cose los paños entre bandas. Caras
+  //     laterales: horizontales en vertical y ramas de cerco en horizontal.
   {
-    const s_faces = Math.max(s_ch, s_cv, n >= 3 ? s_g : 0);
+    const cual = hueco_max === s_g
+      ? 'malla arriba y abajo'
+      : hueco_max === s_ch ? 'horizontal de caras' : 'cercos';
     checks.push(makeCheck(
       'face-spacing',
-      'Separación máxima en caras (cercos, horizontales, retícula) ≤ 300 mm',
-      s_faces, 300,
-      `${s_faces.toFixed(0)} mm`,
+      `Hormigón sin armar en caras (retracción): ${cual}`,
+      hueco_max, 300,
+      `${hueco_max.toFixed(0)} mm`,
       '300 mm',
       'EHE-08 58.8.2',
     ));
@@ -1169,7 +1188,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     sigma_col, sigma_Rd_col,
     As_top_req, As_top_prov, b_ref,
     As_cv_req, As_cv_prov, As_cv_tot_req, As_cv_tot_prov, L_bands,
-    As_ch_req, As_ch_prov, As_g_req, As_g_prov,
+    As_ch_req, As_ch_prov, As_g_req, As_g_prov, hueco_max,
     rho_min, rho_x, rho_y, As_dir_x, As_dir_y,
     w_band,
     Ft_x, Ft_y,

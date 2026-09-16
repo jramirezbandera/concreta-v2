@@ -552,13 +552,16 @@ describe('Planta triangular (n=3)', () => {
 describe('Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2)', () => {
   const r = calcPileCap(base);
 
-  it('defaults n=2: ρ_min = 0,9‰ (B500); x cuenta banda + superior + 2 caras, y cuenta cercos + 2 caras', () => {
+  it('defaults n=2: ρ_min = 0,9‰ (B500); suma banda, superior, malla de las dos caras y laterales', () => {
     expect(r.rho_min).toBe(0.0009);
     const A12 = 113.1;
     const lat = A12 * (800 - 60 - 40) / 100;               // Ø12 c/100 en 700 mm de altura, por cara
     const n_cercos = Math.floor((1950 - 120) / 100) + 1;   // 19
-    expect(r.As_dir_x).toBeCloseTo(r.As_prov_x + r.As_top_prov + 2 * lat, 0);
-    expect(r.As_dir_y).toBeCloseTo(n_cercos * 2 * A12 + 2 * lat, 0);
+    // Malla Ø12 c/100 en las DOS caras, en el ancho libre de bandas de su sentido
+    const grid_x = 2 * r.As_g_prov * (1150 - r.w_band) / 1000;
+    const grid_y = 2 * r.As_g_prov * 1950 / 1000;          // sin bandas ∥ y con 2 pilotes
+    expect(r.As_dir_x).toBeCloseTo(r.As_prov_x + r.As_top_prov + grid_x + 2 * lat, 0);
+    expect(r.As_dir_y).toBeCloseTo(n_cercos * 2 * A12 + grid_y + 2 * lat, 0);
     expect(r.rho_x).toBeCloseTo(r.As_dir_x / (1150 * 800), 9);
     expect(r.rho_y).toBeCloseTo(r.As_dir_y / (1950 * 800), 9);
     expect(r.rho_x).toBeGreaterThan(0.0009);
@@ -569,39 +572,49 @@ describe('Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2)', () => {
   });
 
   it('encepado grande con poco acero: la cuantía INCUMPLE aunque el tirante cumpla', () => {
-    // 2 pilotes, h = 1500, sin superior, cercos y horizontales Ø8 c/300: en y
-    // sólo hay ramas de cercos y caras → ρ_y ≪ 0,9‰
-    const poor = calcPileCap({ ...base, h_enc: 1500, n_top: 0, phi_cv: 8, s_cv: 300, phi_ch: 8, s_ch: 300 });
+    // 2 pilotes, h = 1500, sin superior y todo Ø8 c/300 (el máximo que admite el
+    // 58.8.2): mucho hormigón y poco acero → ρ_y ≪ 0,9‰
+    const poor = calcPileCap({
+      ...base, h_enc: 1500, n_top: 0,
+      phi_cv: 8, s_cv: 300, phi_ch: 8, s_ch: 300, phi_g: 8, s_g: 300,
+    });
     expect(poor.valid).toBe(true);
     expect(poor.rho_y).toBeLessThan(0.0009);
     expect(poor.checks.find((c) => c.id === 'min-ratio')!.status).toBe('fail');
     expect(poor.checks.find((c) => c.id === 'min-ratio')!.description).toMatch(/sentido y/);
   });
 
-  it('separación máxima en caras 300 mm y diámetro mínimo recomendado 12 mm', () => {
+  it('hormigón sin armar ≤ 300 mm en las tres caras, y diámetro mínimo recomendado 12 mm', () => {
+    expect(r.hueco_max).toBe(100);   // malla, horizontal y cercos, todo c/100
     expect(r.checks.find((c) => c.id === 'face-spacing')!.status).toBe('ok');
     expect(r.checks.find((c) => c.id === 'min-diam')).toBeUndefined();
     const wide = calcPileCap({ ...base, s_ch: 350 });
     expect(wide.checks.find((c) => c.id === 'face-spacing')!.status).toBe('fail');
+    expect(wide.checks.find((c) => c.id === 'face-spacing')!.description).toMatch(/horizontal de caras/);
+    // La malla de las caras superior e inferior cuenta con CUALQUIER n: es la
+    // que cose los paños entre bandas (antes sólo se miraba con n ≥ 3).
+    for (const n of [2, 3, 4, 6]) {
+      const m = calcPileCap({ ...base, n, s_g: 350, h_enc: n === 6 ? 1400 : 800 });
+      expect(m.hueco_max).toBe(350);
+      expect(m.checks.find((c) => c.id === 'face-spacing')!.status).toBe('fail');
+      expect(m.checks.find((c) => c.id === 'face-spacing')!.description).toMatch(/malla arriba y abajo/);
+    }
     const thin = calcPileCap({ ...base, phi_cv: 10, phi_ch: 8 });
     const row = thin.checks.find((c) => c.id === 'min-diam')!;
     expect(row.status).toBe('warn');
     expect(row.description).toMatch(/cercos Ø10/);
     expect(row.description).toMatch(/horizontal Ø8/);
-    // la retícula sólo cuenta con n ≥ 3
-    expect(calcPileCap({ ...base, s_g: 350 }).checks.find((c) => c.id === 'face-spacing')!.status).toBe('ok');
-    expect(calcPileCap({ ...base, n: 4, s_g: 350 }).checks.find((c) => c.id === 'face-spacing')!.status).toBe('fail');
   });
 
-  it('n=4 y n=6: las bandas de cada sentido, la retícula y las superiores suman en su sentido', () => {
+  it('n=4 y n=6: bandas del sentido, malla de las dos caras y superiores', () => {
     const r4 = calcPileCap({ ...base, n: 4 });
     const lat = 113.1 * 700 / 100;
-    const grid_x = r4.As_g_prov * (r4.L_y - 2 * r4.w_band) / 1000;
+    const grid_x = 2 * r4.As_g_prov * (r4.L_y - 2 * r4.w_band) / 1000;
     expect(r4.As_dir_x).toBeCloseTo(2 * r4.As_prov_x + grid_x + 2 * r4.As_top_prov + 2 * lat, 0);
     expect(r4.checks.find((c) => c.id === 'min-ratio')!.status).toBe('ok');
     const r6 = calcPileCap({ ...base, n: 6, h_enc: 1400 });
     const lat6 = 113.1 * (1400 - 100) / 100;
-    const grid6 = r6.As_g_prov * (r6.L_y - 3 * r6.w_band) / 1000;
+    const grid6 = 2 * r6.As_g_prov * (r6.L_y - 3 * r6.w_band) / 1000;
     expect(r6.As_dir_x).toBeCloseTo(3 * r6.As_prov_x + grid6 + 3 * r6.As_top_prov + 2 * lat6, 0);
     expect(r6.rho_x).toBeGreaterThan(0.0009);
   });
@@ -609,8 +622,11 @@ describe('Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2)', () => {
   it('n=3: sección L_y·h en x con la banda inferior; las inclinadas se proyectan sobre y', () => {
     const r3 = calcPileCap({ ...base, n: 3 });
     const lat = 113.1 * 700 / 100;
-    expect(r3.As_dir_x).toBeCloseTo(r3.As_prov_x + r3.As_top_prov + lat, 0);
-    expect(r3.As_dir_y).toBeCloseTo(2 * Math.sin(Math.PI / 3) * (r3.As_prov_x + r3.As_top_prov + lat), 0);
+    const grid_x = 2 * r3.As_g_prov * (r3.L_y - r3.w_band) / 1000;
+    const grid_y = 2 * r3.As_g_prov * r3.L_x / 1000;
+    expect(r3.As_dir_x).toBeCloseTo(r3.As_prov_x + r3.As_top_prov + grid_x + lat, 0);
+    expect(r3.As_dir_y).toBeCloseTo(
+      2 * Math.sin(Math.PI / 3) * (r3.As_prov_x + r3.As_top_prov + lat) + grid_y, 0);
     expect(r3.checks.find((c) => c.id === 'min-ratio')!.status).toBe('ok');
   });
 });

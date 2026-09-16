@@ -121,6 +121,8 @@ export function PileCapResults({ inp, result }: Props) {
         * (el CE no fija mínimos propios): 2 pilotes → 58.4.1.2.1.2; 3 y 4 →
         * 58.4.1.2.2. Lo no exigido para ese n se informa sin «req.». */}
       <GroupHeader label={n === 2 ? 'Armadura secundaria (EHE-08 58.4.1.2.1.2)' : 'Armadura secundaria (EHE-08 58.4.1.2.2)'} />
+      <ValueRow label="Malla sup+inf" value={`Ø${inp.phi_g as number} c/${inp.s_g as number} → ${result.As_g_prov.toFixed(0)} mm²/m por cara`} />
+      <ValueRow label="Hueco máx." value={`${result.hueco_max.toFixed(0)} mm (≤ 300, retracción)`} />
       {n === 2 ? (
         <>
           <ValueRow label="b_ref (4‰)" value={`${result.b_ref.toFixed(0)} mm`} />
@@ -130,7 +132,7 @@ export function PileCapResults({ inp, result }: Props) {
         </>
       ) : (
         <>
-          <ValueRow label="Retícula inf." value={`Ø${inp.phi_g as number} c/${inp.s_g as number} → ${result.As_g_prov.toFixed(0)} mm²/m (req. ${result.As_g_req.toFixed(0)})`} />
+          <ValueRow label="Malla, 1/4 bandas" value={`${result.As_g_prov.toFixed(0)} mm²/m (req. ${result.As_g_req.toFixed(0)})`} />
           <ValueRow label="Cercos banda" value={`Ø${inp.phi_cv as number} c/${inp.s_cv as number} ×${inp.n_cv as number} → ${result.As_cv_prov.toFixed(0)} mm²/m (req. ${result.As_cv_req.toFixed(0)})`} />
           <ValueRow label="Cercos total" value={`${result.As_cv_tot_prov.toFixed(0)} mm² en ${(result.L_bands / 1000).toFixed(2)} m (req. ${result.As_cv_tot_req.toFixed(0)})`} />
           <ValueRow label="Superior" value={`${inp.n_top as number}Ø${inp.phi_top as number} → ${result.As_top_prov.toFixed(0)} mm² (no exigida)`} />

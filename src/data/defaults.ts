@@ -703,8 +703,8 @@ export interface PileCapInputs {
   n_cv:     number;  // ud — ramas verticales de cada cerco
   phi_ch:   number;  // mm — armadura horizontal de las caras laterales
   s_ch:     number;  // mm — separación vertical entre horizontales
-  phi_g:    number;  // mm — retícula inferior entre bandas (n ≥ 3)
-  s_g:      number;  // mm — separación de la retícula inferior
+  phi_g:    number;  // mm — malla genérica de las caras superior e inferior
+  s_g:      number;  // mm — separación de la malla (≤ 300: hormigón sin armar)
   N_Ed:     number;  // kN — design axial (compression > 0)
   Mx_Ed:    number;  // kNm — moment about x-axis (Navier)
   My_Ed:    number;  // kNm — moment about y-axis
