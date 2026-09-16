@@ -55,10 +55,10 @@ function NumField({
 // ── SelectField ───────────────────────────────────────────────────────────────
 
 function SelectField({
-  labelKey, label, help, field, value, options, setField,
+  labelKey, label, sub, help, field, value, options, setField,
 }: {
   labelKey?: LabelKey;
-  label?: string; help?: string; field: keyof PileCapInputs; value: string | number;
+  label?: string; sub?: string; help?: string; field: keyof PileCapInputs; value: string | number;
   options: Array<{ value: string | number; label: string }>;
   setField: Props['setField'];
 }) {
@@ -66,7 +66,7 @@ function SelectField({
     ? LABELS[labelKey].sym
       ? { label: LABELS[labelKey].sym, sub: LABELS[labelKey].descShort }
       : { label: LABELS[labelKey].descShort, sub: undefined as string | undefined }
-    : { label: label ?? '', sub: undefined as string | undefined };
+    : { label: label ?? '', sub };
   return (
     <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
       <InputLabel
@@ -95,7 +95,10 @@ function SelectField({
   );
 }
 
-// ── RebarSpecField: Ø + separación en una fila ────────────────────────────────
+// ── RebarSpecField: Ø + separación, etiqueta encima ───────────────────────────
+// En una sola fila no caben nombre, desplegable de Ø y separación: el panel
+// mide 288 px y la etiqueta se recortaba a «Re…», «Ce…», «Ho…». Va en dos
+// líneas, con el nombre entero arriba y los dos controles debajo.
 
 function RebarSpecField({
   label, sub, help, fieldDiam, fieldSep, diam, sep, barOptions, setField,
@@ -107,9 +110,9 @@ function RebarSpecField({
   setField: Props['setField'];
 }) {
   return (
-    <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2">
+    <div className="flex flex-col gap-1 py-1.5">
       <InputLabel htmlFor={`pc-${String(fieldSep)}`} label={label} sub={sub} help={help} />
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1.5 pl-0.5">
         <select
           value={diam}
           onChange={(e) => setField(fieldDiam, Number(e.target.value) as PileCapInputs[typeof fieldDiam])}
@@ -118,13 +121,51 @@ function RebarSpecField({
         >
           {barOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <span className="text-[10px] text-text-disabled font-mono">c/</span>
+        <span className="text-[11px] text-text-disabled font-mono">c/</span>
         <RawNumberInput
           id={`pc-${String(fieldSep)}`}
           value={sep}
           onChange={(n) => setField(fieldSep, n as PileCapInputs[typeof fieldSep])}
           unit="mm"
           ariaLabel={`${label} — separación (mm)`}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── RebarCountField: Ø + número de barras, etiqueta encima ────────────────────
+// Misma forma que RebarSpecField, para que la armadura superior («2Ø12») se lea
+// de una pieza en vez de partida en dos filas que no caben.
+
+function RebarCountField({
+  label, sub, help, fieldDiam, fieldCount, diam, count, barOptions, setField,
+}: {
+  label: string; sub?: string; help?: string;
+  fieldDiam: keyof PileCapInputs; fieldCount: keyof PileCapInputs;
+  diam: number; count: number;
+  barOptions: Array<{ value: number; label: string }>;
+  setField: Props['setField'];
+}) {
+  return (
+    <div className="flex flex-col gap-1 py-1.5">
+      <InputLabel htmlFor={`pc-${String(fieldCount)}`} label={label} sub={sub} help={help} />
+      <div className="flex items-center gap-1.5 pl-0.5">
+        <select
+          value={diam}
+          onChange={(e) => setField(fieldDiam, Number(e.target.value) as PileCapInputs[typeof fieldDiam])}
+          aria-label={`${label} — diámetro`}
+          className="bg-bg-primary border border-border-main rounded pl-1.5 pr-5 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated cursor-pointer transition-colors"
+        >
+          {barOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <span className="text-[11px] text-text-disabled font-mono">x</span>
+        <RawNumberInput
+          id={`pc-${String(fieldCount)}`}
+          value={count}
+          onChange={(nv) => setField(fieldCount, nv as PileCapInputs[typeof fieldCount])}
+          unit="ud"
+          ariaLabel={`${label} — número de barras`}
         />
       </div>
     </div>
@@ -202,7 +243,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
           <InputLabel
             htmlFor="pc-plate-mode"
             label="Placa reparto"
-            sub="Cabeza de micro"
+            sub="En cabeza"
             help="Placa soldada en la cabeza del micropilote (con cartelas) que reparte la carga: el nodo comprimido de la biela se comprueba sobre el área de la placa en lugar de la sección del tubo. Su espesor, cartelas y soldadura se dimensionan aparte."
           />
           <div
@@ -282,7 +323,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
           <InputLabel
             htmlFor="pc-dims-mode"
             label={isTri ? 'e a borde' : 'Lx × Ly'}
-            sub={isTri ? 'Planta triangular' : 'Dims. en planta'}
+            sub={isTri ? 'Planta triangular' : 'En planta'}
             help={isTri
               ? `Con 3 micropilotes la planta es un triángulo con las esquinas achaflanadas: cada pilote queda a la distancia e de sus tres bordes (la cota C de los planos de encepados). Automático: e mínima de buena práctica (≥ ${eMin.toFixed(0)} mm) o la que necesite el pilar para caber, redondeada hacia arriba a 5 cm. Manual: defines e; se comprueba como verificación en resultados.`
               : `Automático: dimensiones mínimas con la distancia de eje de pilote a borde de buena práctica (e ≥ ${eMin.toFixed(0)} mm), redondeadas hacia arriba a 5 cm. Manual: defines Lx y Ly; la distancia a borde se comprueba como verificación en resultados.`}
@@ -369,7 +410,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
           onChange={(v) => setField('My_Ed', v)}
         />
         <UnitNumberInput
-          label="R_c,Rd" sub="Resist. cálculo pilote" field="R_adm"
+          label="R_c,Rd" sub="Por micropilote" field="R_adm"
           help="Resistencia de cálculo a compresión de un pilote (ELU). La reacción de cada pilote no debe superarla."
           value={state.R_adm as number} quantity="force"
           onChange={(v) => setField('R_adm', v)}
@@ -403,16 +444,16 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         {n >= 3 && (
           <>
             <RebarSpecField
-              label="Retícula inf." sub="Entre bandas" fieldDiam="phi_g" fieldSep="s_g"
+              label="Retícula inferior" sub="Entre bandas" fieldDiam="phi_g" fieldSep="s_g"
               diam={state.phi_g as number} sep={state.s_g as number} barOptions={barOptions} setField={setField}
               help="Retícula inferior en los dos sentidos, entre las bandas de la armadura principal. Su capacidad mecánica en cada sentido debe ser ≥ 1/4 de la de las bandas de ese sentido (EHE-08 58.4.1.2.2.1)."
             />
             <RebarSpecField
-              label="Cercos banda" sub="Ø y separación" fieldDiam="phi_cv" fieldSep="s_cv"
+              label="Cercos de banda" sub="Atan cada banda" fieldDiam="phi_cv" fieldSep="s_cv"
               diam={state.phi_cv as number} sep={state.s_cv as number} barOptions={barOptions} setField={setField}
               help="Cercos verticales que atan la armadura principal de cada banda, a lo largo de toda la banda. Capacidad mecánica total ≥ N_Ed/(1,5·n) (EHE-08 58.4.1.2.2.2)."
             />
-            <NumField label="ramas" sub="Ramas por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
+            <NumField label="ramas" sub="Por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
               help="Ramas verticales de cada cerco (2 en un cerco simple; 4 con un cerco doble o dos cercos solapados)." />
             <p className="text-[10px] text-text-disabled leading-relaxed pt-2 pb-0.5">
               No exigidas con {n} pilotes (buena práctica; se dibujan):
@@ -422,23 +463,21 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         {n === 2 && (
           <>
             <RebarSpecField
-              label="Cercos vert." sub="Ø y separación" fieldDiam="phi_cv" fieldSep="s_cv"
+              label="Cercos verticales" sub="Atan superior e inferior" fieldDiam="phi_cv" fieldSep="s_cv"
               diam={state.phi_cv as number} sep={state.s_cv as number} barOptions={barOptions} setField={setField}
               help="Cercos verticales cerrados que atan la armadura superior e inferior, en toda la longitud del encepado. Cuantía mínima 4‰ del área de la sección perpendicular, con ancho de referencia ≤ h/2 (EHE-08 58.4.1.2.1.2)."
             />
-            <NumField label="ramas" sub="Ramas por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
+            <NumField label="ramas" sub="Por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
               help="Ramas verticales de cada cerco (2 en un cerco simple; 4 con un cerco doble o dos cercos solapados)." />
           </>
         )}
-        <SelectField
-          label="Ø superior" field="phi_top" value={state.phi_top as number}
-          options={barOptions} setField={setField}
-          help="Diámetro de las barras superiores, extendidas sin escalonar en toda la longitud. Con 2 pilotes su capacidad debe ser ≥ 1/10 de la de la armadura inferior (EHE-08 58.4.1.2.1.2)."
+        <RebarCountField
+          label="Armadura superior" sub="Barras por banda" fieldDiam="phi_top" fieldCount="n_top"
+          diam={state.phi_top as number} count={state.n_top as number} barOptions={barOptions} setField={setField}
+          help="Barras de la cara superior, extendidas sin escalonar en toda la longitud de cada banda. Con 2 pilotes su capacidad debe ser ≥ 1/10 de la de la armadura inferior (EHE-08 58.4.1.2.1.2)."
         />
-        <NumField label="n_sup" sub="Barras sup./banda" field="n_top" value={state.n_top as number} unit="ud" setField={setField}
-          help="Número de barras superiores por banda (por dirección con 4 pilotes; por lado con 3)." />
         <RebarSpecField
-          label="Horiz. caras" sub="Ø y sep. vertical" fieldDiam="phi_ch" fieldSep="s_ch"
+          label="Horizontal de caras" sub="Las dos caras laterales" fieldDiam="phi_ch" fieldSep="s_ch"
           diam={state.phi_ch as number} sep={state.s_ch as number} barOptions={barOptions} setField={setField}
           help="Cercos horizontales de las caras laterales, repartidos en el canto. Con 2 pilotes, cuantía mínima 4‰ del área de la sección perpendicular, con ancho de referencia ≤ h/2 (EHE-08 58.4.1.2.1.2)."
         />
