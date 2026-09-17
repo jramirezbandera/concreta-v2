@@ -1130,8 +1130,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
       'min-ratio',
       `Cuantía geométrica mínima, sentido ${dir} (inf.+sup.+laterales)`,
       rho_min, rho_worst,
-      `${(rho_min * 1000).toFixed(1)} por mil`,
-      `${(rho_worst * 1000).toFixed(2)} por mil`,
+      `${dec(rho_min * 1000, 1)} ‰`,
+      `${dec(rho_worst * 1000, 2)} ‰`,
       'EHE-08 42.3.5 (zapatas) y 58.8.2',
     ));
   }
