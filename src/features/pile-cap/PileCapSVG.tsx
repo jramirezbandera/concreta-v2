@@ -58,7 +58,10 @@ function PlanView({
   // distintos, una encima de otra, que es justo lo que un plano no hace. El
   // tope de alto evita que una planta casi cuadrada (el triángulo de 3
   // micropilotes) se coma el lienzo a lo alto.
-  const margin = 20;
+  // Márgenes asimétricos: a la derecha la cota Ly, a la izquierda las cotas
+  // que la sección de abajo escribe fuera del encepado (canto y recubrimiento).
+  // Los dos dibujos usan los MISMOS, que es lo que los deja concéntricos.
+  const margin = 40;
   const marginR = 62;
   const legendH = 24;
   const usableW = width - margin - marginR;
@@ -237,7 +240,7 @@ function SectionView({
   // derecho es el MISMO que el de la planta (allí lo pide la cota Ly), de modo
   // que las dos vistas dibujan el encepado al mismo ancho y en la misma
   // posición: se puede bajar la vista de una a otra, como en un plano.
-  const margin = 20;
+  const margin = 40;
   const marginR = 62;
   const colStubH = 80;  // px — symbolic column stub above cap
   const totalH = drawH - margin * 2 - colStubH;

@@ -236,6 +236,14 @@ export function PileCapModule() {
             ref={canvasRef}
             className="hidden lg:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4 min-h-90 items-start"
           >
+            {/* El tope de 440 px deja más de la mitad del lienzo en puntos
+              * vacíos, y el SVG es lo que este módulo enseña. Subirlo a secas
+              * NO es la solución: las dos vistas se apilan, así que a 720 px la
+              * sección se va por debajo del pliegue y deja de verse junto a la
+              * planta (medido: 895 px de dibujo en 618 de lienzo). Lo que pide
+              * un lienzo apaisado es poner planta y sección UNA AL LADO DE LA
+              * OTRA a partir de ~900 px, como ya hace la vista de armado con
+              * sus dos plantas. Ver el informe de /design-review. */}
             {view === 'model'
               ? <PileCapSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" />
               : <PileCapRebarSVG inp={state} result={result} width={Math.min(svgW, 440)} mode="screen" />}
