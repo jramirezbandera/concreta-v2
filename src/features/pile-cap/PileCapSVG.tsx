@@ -33,8 +33,8 @@ function colors(isPdf: boolean) {
 // ── Plan view ────────────────────────────────────────────────────────────────
 
 function PlanView({
-  inp, result, size, isPdf, system,
-}: { inp: PileCapInputs; result: PileCapResult; size: number; isPdf: boolean; system: UnitSystem }) {
+  inp, result, width, isPdf, system,
+}: { inp: PileCapInputs; result: PileCapResult; width: number; isPdf: boolean; system: UnitSystem }) {
   const c = colors(isPdf);
   const { pilePos, ties, reactions, L_x, L_y, R_max, outline, e_borde } = result;
   const n     = inp.n as number;
@@ -51,11 +51,20 @@ function PlanView({
   // 20 px la cota se salía del viewBox y el SVG la cortaba (el usuario leía
   // «Ly=» y nada más). El ancho de la cota es el del texto más largo que puede
   // caber ahí, «Ly=1150 mm» a 10 px de cuerpo monoespaciado.
+  //
+  // La planta ocupa el MISMO ancho que la sección de abajo, y su alto sale del
+  // encepado que hay que dibujar. Antes era un cuadrado de 280 px con la
+  // sección al lado a 440: dos vistas de la misma pieza a dos tamaños
+  // distintos, una encima de otra, que es justo lo que un plano no hace. El
+  // tope de alto evita que una planta casi cuadrada (el triángulo de 3
+  // micropilotes) se coma el lienzo a lo alto.
   const margin = 20;
   const marginR = 62;
-  const scaleX = (size - margin - marginR) / L_x;
-  const scaleY = (size - 2 * margin) / L_y;
-  const scale  = Math.min(scaleX, scaleY);
+  const legendH = 24;
+  const usableW = width - margin - marginR;
+  const usableH = Math.round(width * 0.62) - 2 * margin - legendH;
+  const scale  = Math.min(usableW / L_x, usableH / L_y);
+  const height = Math.round(L_y * scale + 2 * margin + legendH);
 
   // Se centra la ENVOLVENTE del contorno, no el centroide del grupo: el
   // hexágono de n=3 no es simétrico respecto al centroide (sube 2h/3+e y
@@ -67,8 +76,8 @@ function PlanView({
   const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
   // Centro del hueco útil, que ya no es el centro del cuadro: el margen
   // derecho de la cota lo desplaza a la izquierda.
-  const ox = margin + (size - margin - marginR) / 2;
-  const oy = size / 2;
+  const ox = margin + usableW / 2;
+  const oy = margin + (height - 2 * margin - legendH) / 2;
 
   const px = (x: number) => ox + (x - cx) * scale;
   const py = (y: number) => oy - (y - cy) * scale;  // SVG y-axis flipped
@@ -84,9 +93,9 @@ function PlanView({
 
   return (
     <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
       xmlns="http://www.w3.org/2000/svg"
       aria-label="Vista en planta del encepado"
     >
@@ -174,7 +183,7 @@ function PlanView({
         // Envolvente del hexágono: abajo a la derecha (a la derecha del
         // contorno no cabe en el clon del PDF de 280 px)
         <text
-          x={size - 6} y={size - 10}
+          x={width - 6} y={height - 8}
           textAnchor="end" fontSize={isPdf ? 7 : 8}
           fill={c.textSec} fontFamily="monospace"
         >
@@ -192,8 +201,8 @@ function PlanView({
       )}
 
       {/* Legend */}
-      <circle cx={12} cy={size - 14} r={4} fill={c.pileFill} stroke={c.accent} strokeWidth={1.5} />
-      <text x={20} y={size - 10} fontSize={isPdf ? 6 : 7} fill={c.textSec} fontFamily="monospace">
+      <circle cx={12} cy={height - 12} r={4} fill={c.pileFill} stroke={c.accent} strokeWidth={1.5} />
+      <text x={20} y={height - 8} fontSize={isPdf ? 6 : 7} fill={c.textSec} fontFamily="monospace">
         pilote crítico
       </text>
     </svg>
@@ -224,12 +233,16 @@ function SectionView({
   const pileZone = 30;
   const height = drawH + pileZone;
 
-  // Scale to fit cap width + top column stub + small margin
+  // Scale to fit cap width + top column stub + small margin. El margen
+  // derecho es el MISMO que el de la planta (allí lo pide la cota Ly), de modo
+  // que las dos vistas dibujan el encepado al mismo ancho y en la misma
+  // posición: se puede bajar la vista de una a otra, como en un plano.
   const margin = 20;
+  const marginR = 62;
   const colStubH = 80;  // px — symbolic column stub above cap
   const totalH = drawH - margin * 2 - colStubH;
   const scale = Math.min(
-    (width - 2 * margin) / L_x,
+    (width - margin - marginR) / L_x,
     totalH / h_enc,
   );
 
@@ -240,7 +253,7 @@ function SectionView({
   const cov_px = cover * scale;
 
   // Section origin: cap top-left
-  const ox = (width - capW) / 2;
+  const ox = margin + (width - margin - marginR) / 2 - capW / 2;
   const oy = margin + colStubH;
 
   // Sección por la fila de pilotes más ancha: dos pilotes a ±x_max (s/2 con
@@ -401,8 +414,6 @@ export function PileCapSVG({ inp, result, width, mode = 'screen' }: PileCapSVGPr
     );
   }
 
-  const planSize = Math.min(width, 280);
-
   return (
     <div
       id={mode === 'pdf' ? 'pile-cap-svg-pdf' : undefined}
@@ -410,7 +421,7 @@ export function PileCapSVG({ inp, result, width, mode = 'screen' }: PileCapSVGPr
       style={mode === 'pdf' ? { background: '#fff' } : undefined}
     >
       {/* Plan view */}
-      <PlanView inp={inp} result={result} size={planSize} isPdf={isPdf} system={system} />
+      <PlanView inp={inp} result={result} width={width} isPdf={isPdf} system={system} />
 
       {/* Divider label */}
       <div
