@@ -1284,3 +1284,67 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Context:** `src/index.css:466-473`; `src/components/layout/BandaProyecto.tsx:21`; `src/components/layout/BandaAlmacen.tsx:53`; `src/components/ui/estadoFila.ts` (la receta que sí compila); `src/components/checks/index.tsx:20-25` (los diez usos de `bg-state-*/10`).
 
 **Depends on / blocked by:** nada.
+
+## Encepados — el lienzo apaisado con el dibujo apilado: planta y sección una al lado de la otra
+
+**Status:** pendiente. Encontrado por `/design-review` el 2026-09-17 al auditar el módulo de encepados.
+
+**What:** a partir de ~900 px de lienzo, colocar la planta y la sección transversal EN DOS COLUMNAS en la vista Modelo, como ya hace la vista Armado con sus dos plantas (inferior y superior), y subir entonces el tope de ancho del dibujo.
+
+**Why:** el lienzo mide 1008 × 618 px y el dibujo 440 de ancho: el 56 % del lienzo son puntos vacíos, en un módulo cuya tesis de diseño dice «el SVG es el protagonista» (`DESIGN.md`). El atajo está probado y descartado: subir el tope a 720 px agranda el dibujo pero lo hace crecer hacia abajo (895 px de dibujo en 618 de lienzo), y la sección se va por debajo del pliegue, con lo que se pierde lo más útil de la vista, ver planta y sección a la vez. El problema no es el número: es que el contenedor es apaisado y el contenido se apila.
+
+**Pros:** el dibujo dobla de tamaño sin perder de vista ninguna de las dos vistas, y el módulo cumple por fin su propia tesis. La maqueta ya existe en `PileCapRebarSVG` (dos plantas en fila), así que hay de dónde copiar.
+
+**Cons:** hay que decidir el punto de corte y qué pasa entre 440 y 900 px (¿apilado hasta el corte?), y el clon del PDF usa el mismo componente con otro ancho, así que la prueba de solapes del PDF hay que volver a mirarla. No es un número: es maqueta.
+
+**Context:** `src/features/pile-cap/index.tsx:240` (el tope, con el porqué anotado en el propio código); `src/features/pile-cap/PileCapSVG.tsx` (`PlanView` y `SectionView`, ya comparten ancho y márgenes desde `25a4a16`); `src/features/pile-cap/PileCapRebarSVG.tsx` (las dos plantas en fila); informe en `~/.gstack/projects/jramirezbandera-concreta-v2/designs/design-audit-20260917/`.
+
+**Depends on / blocked by:** nada.
+
+## Encepados — tres maquetas de campo en el mismo panel de entrada
+
+**Status:** pendiente. Encontrado por `/design-review` el 2026-09-17.
+
+**What:** unificar las tres maquetas de fila que conviven en `PileCapInputsPanel`: la fila en línea de `DESIGN.md` (etiqueta izquierda, input + unidad derecha), la de Materiales (etiqueta de dos líneas + desplegable ancho) y la de Armadura secundaria (etiqueta encima, controles debajo).
+
+**Why:** `DESIGN.md` define UNA fila de campo y el panel usa tres, una detrás de otra, con lo que el borde derecho de la columna queda irregular: unidades pegadas al borde en Acciones, desplegables a media altura en Materiales, y controles alineados a la izquierda en Armadura secundaria. Ninguna de las tres está mal por separado — la de dos líneas se hizo a propósito para que dejaran de recortarse los rótulos largos (`b731b54`) —, pero juntas se leen como tres formularios pegados.
+
+**Pros:** una sola lectura de arriba abajo del panel, y el borde derecho vuelve a ser una línea.
+
+**Cons:** la variante de dos líneas ocupa más alto, así que unificar hacia ella alarga el panel; unificar hacia la fila en línea devuelve el recorte de rótulos que ya se arregló una vez. Probablemente sea alinear a la derecha los controles de las dos variantes anchas, no elegir una.
+
+**Context:** `src/features/pile-cap/PileCapInputsPanel.tsx` (`NumField`, `SelectField`, `RebarSpecField`, `RebarCountField`); `DESIGN.md` §«Input field (inline row)».
+
+**Depends on / blocked by:** nada.
+
+## El campo numérico corta los valores de seis caracteres en móvil
+
+**Status:** pendiente. Encontrado por `/design-review` el 2026-09-17 auditando encepados, pero es del campo COMPARTIDO.
+
+**What:** dar ancho suficiente al input numérico cuando la letra sube en móvil: `min-w-15 w-auto`, o `w-16` bajo el breakpoint móvil.
+
+**Why:** el input es `w-15` (60 px) en todos los anchos, pero la letra es de 12 px en escritorio y **14 px en móvil** (el salto que evita el zoom automático de iOS). Medido en `/ciment/encepados` a 375 px: «300,00» necesita 64 px de `scrollWidth` en 58 de `clientWidth`, y el usuario lee «300,0(» — no puede leer el valor que acaba de teclear. En encepados toca a `NEd` y `R_c,Rd` con los valores por defecto; le pasa a cualquier módulo con una magnitud de dos decimales y tres cifras enteras.
+
+**Pros:** se lee lo que se teclea, que es lo mínimo que debe hacer un campo.
+
+**Cons:** es el campo compartido de los 29 módulos: cambiar su ancho mueve la columna de entrada en todos, así que quiere una pasada de capturas antes/después por módulo, no un commit a ciegas.
+
+**Context:** `DESIGN.md` §«Input field (inline row)» (fija `w-15`); medido en `src/features/pile-cap/PileCapInputsPanel.tsx` pero el componente es compartido.
+
+**Depends on / blocked by:** nada.
+
+## Los rótulos de grupo del sidebar se quedan en 4,3:1 (AA pide 4,5)
+
+**Status:** pendiente. Encontrado por `/design-review` el 2026-09-17 (detector impeccable, 25 hits, confirmado midiendo en la página).
+
+**What:** oscurecer el color de los rótulos de grupo del sidebar en tema claro (`#64748b` → `#5b6675` o más oscuro), o dejar de usar `state-neutral` para texto sobre `bg-surface`.
+
+**Why:** `#64748b` sobre `#f8fafc` da **4,3:1** y AA pide 4,5 para texto de cuerpo. Afecta a los rótulos de grupo del sidebar («PROYECTO», «MEMORIAS», «ACCIONES»…), al número de versión y a la miga de la topbar — y a 10-11 px, que es donde menos se perdona. `DESIGN.md` dice de `state-neutral` que «pasa AA en los dos temas»: pasa sobre blanco puro (4,76:1), no sobre `bg-surface`, que es donde se usa.
+
+**Pros:** AA de verdad en el chasis que sale en todas las pantallas de la aplicación, y `DESIGN.md` deja de prometer algo que no se cumple.
+
+**Cons:** toca el chasis entero, así que se ve en los 29 módulos a la vez; y hay que decidir si se corrige el token o el uso (el token también vale para «sin datos», donde el gris claro sí quiere decir algo).
+
+**Context:** `DESIGN.md` §«Tema claro (por defecto) — valores» (la fila `state-neutral`); `src/index.css` (`--color-state-neutral`); informe en `~/.gstack/projects/jramirezbandera-concreta-v2/designs/design-audit-20260917/`.
+
+**Depends on / blocked by:** nada.
