@@ -61,14 +61,14 @@ export function PileCapResults({ inp, result }: Props) {
       ) : (
         <ValueRow label="Lx × Ly"  value={`${result.L_x.toFixed(0)} × ${result.L_y.toFixed(0)} mm`} />
       )}
-      <ValueRow label="e_borde — Eje de pilote a borde" value={`${result.e_borde.toFixed(0)} mm`} />
+      <ValueRow label="e_borde — Eje de micropilote a borde" value={`${result.e_borde.toFixed(0)} mm`} />
       <ValueRow label="A_planta — Área del contorno"   value={`${dec(result.A_cap / 1e6, 2)} m²`} />
       <ValueRow label="h_min — Canto mínimo exigido"   value={`${result.h_min.toFixed(0)} mm`} />
 
       {/* Bielas y tirantes */}
       <GroupHeader label="Bielas y tirantes" />
       <ValueRow label="z_eff — Brazo mecánico"        value={`${result.z_eff.toFixed(0)} mm`} />
-      <ValueRow label="a_crit — Eje de pilar a pilote" value={`${result.a_crit.toFixed(0)} mm`} />
+      <ValueRow label="a_crit — Eje de pilar a micropilote" value={`${result.a_crit.toFixed(0)} mm`} />
       <ValueRow label="θ — Ángulo de la biela"         value={`${dec(result.theta_deg, 1)}°`} />
       <ValueRow
         label="Apoyo del nodo comprimido"
@@ -158,8 +158,8 @@ export function PileCapResults({ inp, result }: Props) {
 
       {n === 3 && (
         <p className="text-[10px] text-text-secondary mt-2 leading-relaxed">
-          Nota n=3: encepado rígido de tres pilotes (Calavera fig. 14-9). Planta triangular con
-          las esquinas achaflanadas a e del eje de cada pilote; tirantes en banda sobre los tres
+          Nota n=3: encepado rígido de tres micropilotes (Calavera fig. 14-9). Planta triangular con
+          las esquinas achaflanadas a e del eje de cada micropilote; tirantes en banda sobre los tres
           lados, T = 0,68·R_max/d·(0,58·s − 0,25·a) por lado. CE Anejo 19 §6.5.
         </p>
       )}

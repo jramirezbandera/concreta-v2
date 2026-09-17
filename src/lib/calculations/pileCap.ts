@@ -471,8 +471,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
 
   // ── Input validation ──────────────────────────────────────────────────────
   if (n !== 2 && n !== 3 && n !== 4 && n !== 6) return invalid('n debe ser 2, 3, 4 ó 6 micropilotes');
-  if (d_p <= 0)  return invalid('Diámetro de pilote debe ser > 0');
-  if (s <= 0)    return invalid('Separación entre pilotes debe ser > 0');
+  if (d_p <= 0)  return invalid('Diámetro de micropilote debe ser > 0');
+  if (s <= 0)    return invalid('Separación entre micropilotes debe ser > 0');
   if (n === 6 && !(s_x > 0)) return invalid('Separación entre columnas s_x debe ser > 0');
   if (h_enc <= 0) return invalid('Canto del encepado debe ser > 0');
   if (N_Ed <= 0)  return invalid('Axil N_Ed debe ser > 0 (compresión)');
@@ -490,13 +490,13 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
       return invalid('La placa de reparto debe cubrir la cabeza del micro: Ø/lado ≥ d_p');
     }
     if (d_plate > s) {
-      return invalid('Las placas de pilotes contiguos se solapan: Ø/lado de placa ≤ s');
+      return invalid('Las placas de micropilotes contiguos se solapan: Ø/lado de placa ≤ s');
     }
   }
 
   // For n=2 aligned in x: Σyi²=0 → Mx is statically inadmissible
   if (n === 2 && Math.abs(Mx_Ed) > 0) {
-    return invalid('2 pilotes alineados en X no pueden resistir Mx_Ed ≠ 0. Usar n=4 o girar el encepado.');
+    return invalid('2 micropilotes alineados en X no pueden resistir Mx_Ed ≠ 0. Usar n=4 o girar el encepado.');
   }
 
   // ── Material properties ──────────────────────────────────────────────────
@@ -533,9 +533,9 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   let outline: PilePos[];
   if (n === 3) {
     const e = dims_auto ? autoEdge3(d_p, s, b_col, h_col) : (inp.e_man as number);
-    if (!(e > 0)) return invalid('La distancia de eje de pilote a borde e debe ser > 0');
+    if (!(e > 0)) return invalid('La distancia de eje de micropilote a borde e debe ser > 0');
     if (e < d_p / 2) {
-      return invalid('Los pilotes no caben en planta: aumenta e (eje a borde < d_p/2)');
+      return invalid('Los micropilotes no caben en planta: aumenta e (eje a borde < d_p/2)');
     }
     if (plate_on && e < d_plate / 2) {
       return invalid('La placa de reparto no cabe en planta: aumenta e o reduce la placa');
@@ -564,7 +564,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     const e_y = (L_y - ext_y) / 2;
     e_borde = Math.min(e_x, e_y);
     if (e_x < d_p / 2 || e_y < d_p / 2) {
-      return invalid('Los pilotes no caben en planta: aumenta Lx/Ly (eje a borde < d_p/2)');
+      return invalid('Los micropilotes no caben en planta: aumenta Lx/Ly (eje a borde < d_p/2)');
     }
     if (plate_on && (e_x < d_plate / 2 || e_y < d_plate / 2)) {
       return invalid('La placa de reparto no cabe en planta: aumenta Lx/Ly o reduce la placa');
@@ -869,7 +869,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const s_gov = n === 6 ? Math.min(s, s_x) : s;
   checks.push(makeCheck(
     'spacing',
-    n === 6 ? 'Separación entre pilotes min(s, s_x)' : 'Separación entre pilotes s',
+    n === 6 ? 'Separación entre micropilotes min(s, s_x)' : 'Separación entre micropilotes s',
     s_min, s_gov,
     `${s_min.toFixed(0)} mm`,
     `${s_gov.toFixed(0)} mm`,
@@ -881,7 +881,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   //    el warn de 95% saltaría siempre sin margen real que señalar.
   checks.push({
     id: 'edge-distance',
-    description: 'Distancia eje pilote a borde e',
+    description: 'Distancia eje micropilote a borde e',
     value: `${e_min.toFixed(0)} mm`,
     limit: `${e_borde.toFixed(0)} mm`,
     utilization: e_borde > 0 ? e_min / e_borde : Infinity,
@@ -915,7 +915,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     const v_max = Math.max(x_max - b_col / 2, y_max - h_col / 2);
     checks.push(makeCheck(
       'rigidity',
-      'Encepado rígido: vuelo cara pilar–eje pilote v ≤ 2·h',
+      'Encepado rígido: vuelo cara pilar–eje micropilote v ≤ 2·h',
       v_max, 2 * h_enc,
       `${v_max.toFixed(0)} mm`,
       `${(2 * h_enc).toFixed(0)} mm`,
@@ -926,7 +926,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   // 4. Pile reaction vs R_adm
   checks.push(makeCheckQty(
     'pile-react-max',
-    'Reacción máxima pilote R_max',
+    'Reacción máxima micropilote R_max',
     R_max, R_adm, 'force',
     '—',
   ));
@@ -1132,7 +1132,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     ));
     checks.push({
       id: 'secondary-info',
-      description: `Superior ${n_top}Ø${phi_top} y horizontal de caras Ø${phi_ch} c/${s_ch}: no exigidas con ${n} pilotes (buena práctica; se dibujan)`,
+      description: `Superior ${n_top}Ø${phi_top} y horizontal de caras Ø${phi_ch} c/${s_ch}: no exigidas con ${n} micropilotes (buena práctica; se dibujan)`,
       value: '',
       limit: '',
       utilization: 0,

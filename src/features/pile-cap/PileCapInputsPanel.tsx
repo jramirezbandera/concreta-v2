@@ -234,8 +234,8 @@ export function PileCapInputsPanel({ state, setField }: Props) {
 
       {/* Geometry */}
       <CollapsibleSection label="Geometría">
-        <NumField label="d_p"    sub="Diám. pilote"     field="d_p"    value={state.d_p as number}    unit="mm"  setField={setField}
-          help="Diámetro del pilote. Define la geometría del grupo y la posición de los nudos del modelo." />
+        <NumField label="d_p"    sub="Diám. micropilote"     field="d_p"    value={state.d_p as number}    unit="mm"  setField={setField}
+          help="Diámetro del micropilote. Define la geometría del grupo y la posición de los nudos del modelo." />
 
         {/* Placa de reparto en cabeza de micro: agranda el apoyo del nodo
           * comprimido (la biela se comprueba sobre la placa, no sobre el tubo) */}
@@ -309,7 +309,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         <NumField label={n === 6 ? 's_y' : 's'} sub={n === 6 ? 'Sep. filas (y)' : 'Sep. c/c'} field="s" value={state.s as number} unit="mm" setField={setField}
           help={n === 6
             ? 'Separación entre las tres filas de micropilotes (dirección y). Determina el brazo de las bandas en y.'
-            : 'Separación entre ejes de pilotes (centro a centro). Determina el brazo del tirante.'} />
+            : 'Separación entre ejes de micropilotes (centro a centro). Determina el brazo del tirante.'} />
         {n === 6 && (
           <NumField label="s_x" sub="Sep. columnas (x)" field="s_x" value={state.s_x as number} unit="mm" setField={setField}
             help="Separación entre las dos columnas de micropilotes (dirección x). En el plano tipo es el doble de la de las filas, con lo que la planta sale cuadrada. Manda la menor de las dos en la separación mínima." />
@@ -326,7 +326,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
             sub={isTri ? 'Planta triangular' : 'En planta'}
             help={isTri
               ? `Con 3 micropilotes la planta es un triángulo con las esquinas achaflanadas: cada pilote queda a la distancia e de sus tres bordes (la cota C de los planos de encepados). Automático: e mínima de buena práctica (≥ ${eMin.toFixed(0)} mm) o la que necesite el pilar para caber, redondeada hacia arriba a 5 cm. Manual: defines e; se comprueba como verificación en resultados.`
-              : `Automático: dimensiones mínimas con la distancia de eje de pilote a borde de buena práctica (e ≥ ${eMin.toFixed(0)} mm), redondeadas hacia arriba a 5 cm. Manual: defines Lx y Ly; la distancia a borde se comprueba como verificación en resultados.`}
+              : `Automático: dimensiones mínimas con la distancia de eje de micropilote a borde de buena práctica (e ≥ ${eMin.toFixed(0)} mm), redondeadas hacia arriba a 5 cm. Manual: defines Lx y Ly; la distancia a borde se comprueba como verificación en resultados.`}
           />
           <div
             id="pc-dims-mode"
@@ -376,12 +376,12 @@ export function PileCapInputsPanel({ state, setField }: Props) {
               : `Auto: ${auto.L_x} × ${auto.L_y} mm (e ≥ ${eMin.toFixed(0)} mm a borde, redondeo a 5 cm)`}
           </p>
         ) : isTri ? (
-          <NumField label="e" sub="Eje pilote a borde" field="e_man" value={state.e_man as number} unit="mm" setField={setField}
+          <NumField label="e" sub="Eje a borde" field="e_man" value={state.e_man as number} unit="mm" setField={setField}
             help="Distancia del eje de cada micropilote a los bordes del encepado triangular (lados y chaflanes). Es la cota C del plano: con s y h define toda la planta. Se comprueba frente a la mínima de buena práctica en resultados." />
         ) : (
           <>
             <NumField label="L_x" sub="Ancho planta (x)" field="L_x" value={state.L_x as number} unit="mm" setField={setField}
-              help="Dimensión del encepado en la dirección x (la de los pilotes con n=2). La distancia de eje de pilote a borde resultante se comprueba en resultados." />
+              help="Dimensión del encepado en la dirección x (la de los micropilotes con n=2). La distancia de eje de micropilote a borde resultante se comprueba en resultados." />
             <NumField label="L_y" sub="Largo planta (y)" field="L_y" value={state.L_y as number} unit="mm" setField={setField}
               help="Dimensión del encepado en la dirección y. Debe alojar el pilar y respetar la distancia a borde." />
           </>
@@ -411,7 +411,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
         />
         <UnitNumberInput
           label="R_c,Rd" sub="Por micropilote" field="R_adm"
-          help="Resistencia de cálculo a compresión de un pilote (ELU). La reacción de cada pilote no debe superarla."
+          help="Resistencia de cálculo a compresión de un micropilote (ELU). La reacción de cada micropilote no debe superarla."
           value={state.R_adm as number} quantity="force"
           onChange={(v) => setField('R_adm', v)}
         />
@@ -430,7 +430,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
 
         {n === 2 && (
           <p className="text-[10px] text-text-secondary mt-3 leading-relaxed">
-            n=2: 2 pilotes alineados en x. Mx,Ed debe ser 0 (estáticamente inadmisible). Con momento en los dos ejes, usar n=4.
+            n=2: 2 micropilotes alineados en x. Mx,Ed debe ser 0 (estáticamente inadmisible). Con momento en los dos ejes, usar n=4.
           </p>
         )}
       </CollapsibleSection>
@@ -448,7 +448,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
           label="Malla arriba y abajo" sub="Caras sup. e inf." fieldDiam="phi_g" fieldSep="s_g"
           diam={state.phi_g as number} sep={state.s_g as number} barOptions={barOptions} setField={setField}
           help={n >= 3
-            ? 'Malla genérica en los dos sentidos, dispuesta en las caras superior e inferior, que cose los paños entre bandas: ninguna cara debe dejar más de 30 cm de hormigón sin armar (EHE-08 58.8.2, retracción). Además, con 3 o más pilotes su capacidad por sentido debe ser ≥ 1/4 de la de las bandas de ese sentido (58.4.1.2.2.1).'
+            ? 'Malla genérica en los dos sentidos, dispuesta en las caras superior e inferior, que cose los paños entre bandas: ninguna cara debe dejar más de 30 cm de hormigón sin armar (EHE-08 58.8.2, retracción). Además, con 3 o más micropilotes su capacidad por sentido debe ser ≥ 1/4 de la de las bandas de ese sentido (58.4.1.2.2.1).'
             : 'Malla genérica en los dos sentidos, dispuesta en las caras superior e inferior, que cose los paños entre bandas: ninguna cara debe dejar más de 30 cm de hormigón sin armar (EHE-08 58.8.2, regla de retracción).'}
         />
         {n >= 3 && (
@@ -461,7 +461,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
             <NumField label="ramas" sub="Por cerco" field="n_cv" value={state.n_cv as number} unit="ud" setField={setField}
               help="Ramas verticales de cada cerco (2 en un cerco simple; 4 con un cerco doble o dos cercos solapados)." />
             <p className="text-[10px] text-text-disabled leading-relaxed pt-2 pb-0.5">
-              No exigidas con {n} pilotes (buena práctica; se dibujan):
+              No exigidas con {n} micropilotes (buena práctica; se dibujan):
             </p>
           </>
         )}
@@ -481,13 +481,13 @@ export function PileCapInputsPanel({ state, setField }: Props) {
           fieldDiam="phi_top" fieldCount="n_top"
           diam={state.phi_top as number} count={state.n_top as number} barOptions={barOptions} setField={setField}
           help={n === 2
-            ? 'Barras de la cara superior, extendidas sin escalonar en toda la longitud del encepado y repartidas en todo su ancho (el de dos pilotes se arma como una viga). Su capacidad debe ser ≥ 1/10 de la de la armadura inferior (EHE-08 58.4.1.2.1.2).'
-            : 'Barras de la cara superior, extendidas sin escalonar en toda la longitud de cada banda (buena práctica: con 3 o más pilotes la EHE-08 no las exige).'}
+            ? 'Barras de la cara superior, extendidas sin escalonar en toda la longitud del encepado y repartidas en todo su ancho (el de dos micropilotes se arma como una viga). Su capacidad debe ser ≥ 1/10 de la de la armadura inferior (EHE-08 58.4.1.2.1.2).'
+            : 'Barras de la cara superior, extendidas sin escalonar en toda la longitud de cada banda (buena práctica: con 3 o más micropilotes la EHE-08 no las exige).'}
         />
         <RebarSpecField
           label="Horizontal de caras" sub="Las dos caras laterales" fieldDiam="phi_ch" fieldSep="s_ch"
           diam={state.phi_ch as number} sep={state.s_ch as number} barOptions={barOptions} setField={setField}
-          help="Cercos horizontales de las caras laterales, repartidos en el canto. Con 2 pilotes, cuantía mínima 4‰ del área de la sección perpendicular, con ancho de referencia ≤ h/2 (EHE-08 58.4.1.2.1.2)."
+          help="Cercos horizontales de las caras laterales, repartidos en el canto. Con 2 micropilotes, cuantía mínima 4‰ del área de la sección perpendicular, con ancho de referencia ≤ h/2 (EHE-08 58.4.1.2.1.2)."
         />
       </CollapsibleSection>
     </div>

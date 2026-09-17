@@ -88,7 +88,7 @@ export async function exportPileCapPDF(
   // ENTRADA
   const plateOn = (inp.plate_on as boolean | undefined) ?? false;
   secHeader('ENTRADA');
-  twoCol(`n = ${n} pilotes`, `d_p = ${inp.d_p} mm`);
+  twoCol(`n = ${n} micropilotes`, `d_p = ${inp.d_p} mm`);
   if (plateOn) {
     twoCol(
       `Placa reparto: ${inp.plate_shape === 'cuad' ? 'cuadrada' : 'circular'}`,

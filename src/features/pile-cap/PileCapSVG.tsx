@@ -21,12 +21,16 @@ function colors(isPdf: boolean) {
     colFill:    isPdf ? '#cbd5e1' : 'var(--color-chart-section-fill)',
     colStroke:  isPdf ? '#475569' : 'var(--color-chart-rebar-faint)',
     pileFill:   isPdf ? '#ffffff' : 'var(--color-bg-primary)',
-    pileStroke: isPdf ? '#0ea5e9' : 'var(--color-accent)',
+    // El micropilote más cargado se distingue por COLOR, no sólo por el grosor
+    // del trazo: va en accent con el relleno teñido y los demás en gris. Antes
+    // `pileStroke` era el mismo `accent` y la leyenda señalaba algo invisible.
+    pileStroke: isPdf ? '#94a3b8' : 'var(--color-chart-pile)',   // acero de micropilote, legible en claro y oscuro
+    pileCrit:   isPdf ? '#0284c7' : 'var(--color-accent)',
+    pileCritFill: isPdf ? '#e0f2fe' : 'color-mix(in srgb, var(--color-accent) 16%, transparent)',
     tieStroke:  isPdf ? '#22c55e' : 'var(--color-state-ok)',
     strutStroke:isPdf ? '#f59e0b' : 'var(--color-state-warn)',
     textMain:   isPdf ? '#0f172a' : 'var(--color-text-primary)',
     textSec:    isPdf ? '#475569' : 'var(--color-text-secondary)',
-    accent:     isPdf ? '#0ea5e9' : 'var(--color-accent)',
   };
 }
 
@@ -140,21 +144,21 @@ function PlanView({
               <rect
                 x={px(p.x) - r_plate_px} y={py(p.y) - r_plate_px}
                 width={2 * r_plate_px} height={2 * r_plate_px}
-                fill="none" stroke={c.pileStroke} strokeWidth={1} strokeDasharray="3 2"
+                fill="none" stroke={isCrit ? c.pileCrit : c.pileStroke} strokeWidth={1} strokeDasharray="3 2"
                 opacity={0.8}
               />
             ) : (
               <circle
                 cx={px(p.x)} cy={py(p.y)} r={r_plate_px}
-                fill="none" stroke={c.pileStroke} strokeWidth={1} strokeDasharray="3 2"
+                fill="none" stroke={isCrit ? c.pileCrit : c.pileStroke} strokeWidth={1} strokeDasharray="3 2"
                 opacity={0.8}
               />
             ))}
             <circle
               cx={px(p.x)} cy={py(p.y)} r={r_px}
-              fill={c.pileFill}
-              stroke={isCrit ? c.accent : c.pileStroke}
-              strokeWidth={isCrit ? 2 : 1.5}
+              fill={isCrit ? c.pileCritFill : c.pileFill}
+              stroke={isCrit ? c.pileCrit : c.pileStroke}
+              strokeWidth={isCrit ? 2.5 : 1.5}
             />
             {/* Reaction label */}
             <text
@@ -162,7 +166,8 @@ function PlanView({
               y={py(p.y) + r_px + 10}
               textAnchor="middle"
               fontSize={isPdf ? 7 : 10}
-              fill={c.textSec}
+              fill={isCrit ? c.pileCrit : c.textSec}
+              fontWeight={isCrit ? 600 : undefined}
               fontFamily="monospace"
             >
               {`R${i + 1}=${formatQuantity(reactions[i], 'force', system, { precision: 0 })}`}
@@ -204,9 +209,9 @@ function PlanView({
       )}
 
       {/* Legend */}
-      <circle cx={12} cy={height - 12} r={4} fill={c.pileFill} stroke={c.accent} strokeWidth={1.5} />
+      <circle cx={12} cy={height - 12} r={4} fill={c.pileCritFill} stroke={c.pileCrit} strokeWidth={2} />
       <text x={20} y={height - 8} fontSize={isPdf ? 6 : 9} fill={c.textSec} fontFamily="monospace">
-        pilote crítico
+        micropilote más cargado
       </text>
     </svg>
   );

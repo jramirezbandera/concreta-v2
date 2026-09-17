@@ -70,7 +70,7 @@ export const PILE_CAP_PAYLOAD_SCHEMA: Record<string, unknown> = {
 // ── Prompt del módulo ─────────────────────────────────────────────────────────
 
 const PROMPT_RULES = `Reglas específicas del módulo Encepados de micropilotes:
-1. TODAS las longitudes van en MILÍMETROS (diámetro del pilote, separación, canto del encepado, pilar, recubrimiento, diámetro del tirante). Los enunciados suelen dar el pilar y el canto en cm o m ("pilar de 40×40 cm", "encepado de 80 cm de canto"): convierte a mm (400 mm, 800 mm) y añade un warning con la conversión.
+1. TODAS las longitudes van en MILÍMETROS (diámetro del micropilote, separación, canto del encepado, pilar, recubrimiento, diámetro del tirante). Los enunciados suelen dar el pilar y el canto en cm o m ("pilar de 40×40 cm", "encepado de 80 cm de canto"): convierte a mm (400 mm, 800 mm) y añade un warning con la conversión.
 2. Las acciones (N_Ed_kN, Mx_kNm, My_kNm) son de CÁLCULO, YA MAYORADAS (ELU). Si el enunciado da cargas características o de servicio, mayóralas antes de proponerlas (γG=1.35 / γQ=1.5 salvo que el enunciado indique otra cosa) y dilo en un warning.
 3. Los momentos entran CON SIGNO: no los pases a valor absoluto.
 4. n (2, 3, 4 ó 6 micropilotes) condiciona toda la geometría. Con n=2 los pilotes van alineados en el eje x y Mx debe ser 0: un Mx ≠ 0 es estáticamente inadmisible (el cálculo no es válido). Si el enunciado trae momento en las dos direcciones, propón n=4.
@@ -137,7 +137,7 @@ function parsePayload(raw: unknown): PileCapPayload {
 const LABELS = {
   n: 'Nº de micropilotes',
   d_p_mm: 'Diámetro del micropilote',
-  s_mm: 'Separación entre pilotes s',
+  s_mm: 'Separación entre micropilotes s',
   h_enc_mm: 'Canto del encepado',
   b_col_mm: 'Ancho de pilar b',
   h_col_mm: 'Canto de pilar h',

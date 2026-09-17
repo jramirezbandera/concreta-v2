@@ -74,6 +74,29 @@ describe('PileCapSVG — contorno en planta', () => {
     expect(ties(6)).toBe(7);
   });
 
+  // Hasta el 2026-09-17 el micropilote más cargado se dibujaba con el MISMO
+  // color que los demás (`accent` y `pileStroke` eran el mismo token) y sólo
+  // cambiaba el grosor del trazo, 1,5 → 2: la leyenda señalaba algo invisible.
+  it('el micropilote más cargado se distingue por color y relleno, no sólo por el trazo', () => {
+    const inp = { ...pileCapDefaults, n: 6, Mx_Ed: 20, My_Ed: 20 };
+    const result = calcPileCap(inp);
+    const { container } = render(<PileCapSVG inp={inp} result={result} width={440} mode="pdf" />);
+    const plan = container.querySelector('svg[aria-label="Vista en planta del encepado"]')!;
+    // Sin placa de reparto, los círculos del dibujo son los micropilotes; el de
+    // la leyenda va anclado a la izquierda (cx = 12).
+    const micros = Array.from(plan.querySelectorAll('circle')).filter((el) => el.getAttribute('cx') !== '12');
+    expect(micros).toHaveLength(6);
+    const iCrit = result.reactions.indexOf(result.R_max);
+    const strokes = micros.map((el) => el.getAttribute('stroke'));
+    expect(new Set(strokes).size).toBe(2);
+    expect(strokes.filter((st) => st === strokes[iCrit])).toHaveLength(1);
+    expect(micros[iCrit].getAttribute('fill')).not.toBe(micros[(iCrit + 1) % 6].getAttribute('fill'));
+    // Y la leyenda lo llama por su nombre: son micropilotes
+    const texts = Array.from(plan.querySelectorAll('text')).map((t) => t.textContent ?? '');
+    expect(texts).toContain('micropilote más cargado');
+    expect(texts.some((t) => t.replace(/micropilote/g, '').includes('pilote'))).toBe(false);
+  });
+
   it('la cota superior queda por encima del contorno (no lo pisa)', () => {
     const { pts, plan } = planPolygon(3);
     const top = Math.min(...pts.map((p) => p.y));

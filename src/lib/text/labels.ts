@@ -1285,7 +1285,7 @@ export const LABELS = {
     // Sin la Ø: el panel escribe el símbolo delante y salía «Ø Ø tirante».
     descShort: 'Tirante',
     unit: 'mm',
-    help: 'Diámetro de las barras del tirante inferior que cose los pilotes (modelo de bielas y tirantes).',
+    help: 'Diámetro de las barras del tirante inferior que cose los micropilotes (modelo de bielas y tirantes).',
     modules: ['pileCap'],
   },
 
