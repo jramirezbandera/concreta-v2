@@ -7,11 +7,14 @@ import { AiChatModal } from '../../components/ai/AiChatModal';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
+import { useTitledFileExport } from '../../hooks/useTitledFileExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcMicropiles } from '../../lib/calculations/micropiles';
 import { WARN_UTIL } from '../../lib/calculations/types';
 import { exportMicropilesPDF, micropilesFallbackFilename } from '../../lib/pdf/micropiles';
+import { micropiloteFallbackDxf } from '../../lib/export/filename';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -31,6 +34,25 @@ const VIEW_TABS: { id: MicropilesView; num: string; label: string; color: string
   { id: 'profile',    num: '1', label: 'Perfil',     color: '#a8825a' },
   { id: 'rfcCurve',   num: '2', label: 'Rfc curva',  color: '#38bdf8' },
   { id: 'topSection', num: '3', label: 'Sección tope', color: '#f8fafc' },
+];
+
+/**
+ * Dos salidas y dos documentos, igual que en encepados: el PDF es la memoria
+ * del cálculo —datos, estratos, tope estructural y comprobaciones— y el DXF es
+ * el detalle tipo del estudio con su tabla rellena, para insertarlo en el plano
+ * de cimentación. El detalle no comprueba nada: dice qué hay que ejecutar.
+ */
+type FormatoId = 'pdf' | 'dxf';
+
+const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
+  {
+    titulo: 'Cálculo',
+    opciones: [{ id: 'pdf', etiqueta: 'PDF', detalle: 'la memoria con las comprobaciones' }],
+  },
+  {
+    titulo: 'Detalle de plano',
+    opciones: [{ id: 'dxf', etiqueta: 'DXF', detalle: 'el detalle tipo acotado, para insertar en el CAD' }],
+  },
 ];
 
 function ViewTabButton({
@@ -176,6 +198,35 @@ export function MicropilesModule() {
       onTitleChange: (t) => setField('title', t),
     });
 
+  /**
+   * El DXF no se previsualiza —no hay visor de CAD en el navegador—, así que
+   * confirmar el título genera y descarga en el mismo gesto.
+   *
+   * Y no sale con comprobaciones en rojo: el PDF las enseña y el lector ve el
+   * INCUMPLE; el detalle sólo dice qué poner en obra, y un micropilote que no
+   * verifica no debería salir de aquí sin que nadie lo note. Los avisos no
+   * bloquean: son recomendaciones.
+   */
+  const fallos = result.checks.filter((c) => c.status === 'fail');
+  const motivoBloqueo = !result.valid
+    ? (result.error ?? 'Los datos de entrada no son válidos')
+    : `No se exporta el detalle: no cumple ${fallos
+        .slice(0, 2)
+        .map((c) => c.description)
+        .join('; ')}${fallos.length > 2 ? ` y ${fallos.length - 2} más` : ''}`;
+  const dxf = useTitledFileExport({
+    // El `import()` va DENTRO del manejador: la plantilla (200 KB) y el relleno
+    // no pintan nada hasta que alguien pulsa DXF.
+    exportFn: async (titulo) => {
+      const { exportarMicropiloteDxf } = await import('../../lib/dxf/micropilote');
+      return exportarMicropiloteDxf(state, soil, result, titulo);
+    },
+    valid: result.valid && fallos.length === 0,
+    onTitleChange: (t) => setField('title', t),
+    formatoLabel: 'DXF',
+    invalidMessage: motivoBloqueo,
+  });
+
   // Share enlace: construimos el enlace bajo demanda combinando los inputs
   // escalares (getShareUrl, desde el estado EN MEMORIA de useModuleState) con
   // el array soil comprimido (`?soil=<lz-string>`). Así el destinatario ve
@@ -210,8 +261,13 @@ export function MicropilesModule() {
       <Topbar
         moduleLabel="Micropilotes"
         moduleGroup="Cimentación"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={
+          <ExportarMenu
+            grupos={GRUPOS_EXPORTAR}
+            onElegir={(f) => (f === 'pdf' ? openExport() : dxf.openExport())}
+            exportando={pdfExporting || dxf.exportando}
+          />
+        }
         onMenuOpen={openDrawer}
         onCopyLink={handleCopyLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -355,6 +411,17 @@ export function MicropilesModule() {
           exporting={pdfExporting}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
+        />
+      )}
+
+      {dxf.titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={micropiloteFallbackDxf()}
+          exporting={dxf.exportando}
+          formatLabel="DXF"
+          onConfirm={dxf.confirmTitle}
+          onCancel={dxf.closeTitle}
         />
       )}
 

@@ -65,6 +65,11 @@ export function encepadoFallbackDxf(n: number): string {
   return `concreta-encepado-${n}p-${new Date().toISOString().slice(0, 10)}.dxf`;
 }
 
+/** Ídem para el detalle tipo de micropilote. */
+export function micropiloteFallbackDxf(): string {
+  return `concreta-micropilote-${new Date().toISOString().slice(0, 10)}.dxf`;
+}
+
 export const MATERIALES_FALLBACK_DOCX = 'cuadro-de-materiales.docx';
 export const MATERIALES_FALLBACK_XLSX = 'cuadro-de-materiales.xlsx';
 export const MATERIALES_FALLBACK_DXF = 'cuadro-de-materiales.dxf';
