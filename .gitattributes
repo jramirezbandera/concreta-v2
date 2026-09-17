@@ -34,3 +34,7 @@ src/features/seismic-ncse02/ncse02.hazard.manifest.json text eol=lf
 *.png binary
 *.jpg binary
 *.woff2 binary
+
+# Los DXF de plantilla son del estudio: se copian byte a byte a la salida
+# salvo los números de la tabla, así que no se normalizan ni se difean.
+*.dxf binary

@@ -3,13 +3,16 @@ import { pileCapDefaults, type PileCapInputs } from '../../data/defaults';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
+import { useTitledFileExport } from '../../hooks/useTitledFileExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcPileCap } from '../../lib/calculations/pileCap';
 import { exportPileCapPDF, pileCapFallbackFilename } from '../../lib/pdf/pileCap';
+import { encepadoFallbackDxf } from '../../lib/export/filename';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { pileCapAdapter, summarizePileCapResults } from '../../lib/ai/modules/pileCap';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
@@ -26,6 +29,26 @@ type PileCapView = 'model' | 'rebar';
 const VIEW_TABS: { id: PileCapView; num: string; label: string; color: string }[] = [
   { id: 'model', num: '1', label: 'Modelo',  color: '#38bdf8' },
   { id: 'rebar', num: '2', label: 'Armado',  color: '#64748b' },
+];
+
+/**
+ * Dos salidas, y son dos documentos distintos: el PDF es la memoria del cálculo
+ * —datos, modelo de bielas y tirantes y comprobaciones— y el DXF es el plano
+ * tipo del estudio con la tabla rellena, para insertarlo en el de cimentación.
+ * El detalle no comprueba nada ni lleva las utilizaciones: dice qué hay que
+ * poner en obra.
+ */
+type FormatoId = 'pdf' | 'dxf';
+
+const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
+  {
+    titulo: 'Cálculo',
+    opciones: [{ id: 'pdf', etiqueta: 'PDF', detalle: 'la memoria con las comprobaciones' }],
+  },
+  {
+    titulo: 'Detalle de plano',
+    opciones: [{ id: 'dxf', etiqueta: 'DXF', detalle: 'el plano tipo acotado, para insertar en el CAD' }],
+  },
 ];
 
 function ViewTabButton({
@@ -104,6 +127,24 @@ export function PileCapModule() {
       onTitleChange: (t) => setField('title', t),
     });
 
+  /**
+   * El DXF no se previsualiza —no hay visor de CAD en el navegador—, así que
+   * confirmar el título genera y descarga en el mismo gesto. De ahí el segundo
+   * hook: el del PDF abre la previsualización y este no.
+   */
+  const dxf = useTitledFileExport({
+    // El `import()` va DENTRO del manejador: la plantilla y el relleno no
+    // pintan nada hasta que alguien pulsa DXF.
+    exportFn: async (titulo) => {
+      const { exportarEncepadoDxf } = await import('../../lib/dxf/encepado');
+      return exportarEncepadoDxf(state, result, titulo);
+    },
+    valid: result.valid,
+    onTitleChange: (t) => setField('title', t),
+    formatoLabel: 'DXF',
+    invalidMessage: result.error ?? 'Los datos de entrada no son válidos',
+  });
+
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
     ? Math.max(200, canvasWidth - 32)
@@ -118,8 +159,13 @@ export function PileCapModule() {
       <Topbar
         moduleLabel="Encepados"
         moduleGroup="Cimentación"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={
+          <ExportarMenu
+            grupos={GRUPOS_EXPORTAR}
+            onElegir={(f) => (f === 'pdf' ? openExport() : dxf.openExport())}
+            exportando={pdfExporting || dxf.exportando}
+          />
+        }
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -248,6 +294,17 @@ export function PileCapModule() {
           exporting={pdfExporting}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
+        />
+      )}
+
+      {dxf.titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={encepadoFallbackDxf(state.n)}
+          exporting={dxf.exportando}
+          formatLabel="DXF"
+          onConfirm={dxf.confirmTitle}
+          onCancel={dxf.closeTitle}
         />
       )}
 

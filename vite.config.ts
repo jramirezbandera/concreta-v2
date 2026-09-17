@@ -117,6 +117,23 @@ export default defineConfig({
         // para invalidar tras bump (§9.2 #2).
         runtimeCaching: [
           {
+            // Los planos tipo de encepados (public/plantillas/*.dxf, ~860 KB)
+            // tampoco entran en el precache: su extensión no está en el
+            // globPatterns de arriba y sólo los necesita quien exporta el
+            // detalle de un encepado. Se cachean en runtime al primer export,
+            // y de ahí en adelante el botón funciona sin red. StaleWhileRe-
+            // validate y no CacheFirst porque son dibujo del estudio: si
+            // retocan el plano tipo y se despliega, el siguiente export ya trae
+            // el nuevo sin tener que versionar el nombre de la caché.
+            urlPattern: ({ url }) => url.pathname.startsWith("/plantillas/"),
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "plantillas-dxf",
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: ({ url }) => url.pathname.startsWith("/pyodide/"),
             handler: "CacheFirst",
             options: {
