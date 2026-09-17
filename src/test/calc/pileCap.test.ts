@@ -88,9 +88,24 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(c.status).toBe('ok');
   });
 
-  it('banda sobre pilotes: w_band = d_p + 2·cover = 340 mm, s_bar ≈ 37.8 mm (fix #86)', () => {
-    expect(r.w_band).toBe(340);
-    expect(r.s_bar_x).toBeCloseTo(340 / 9, 1);
+  // Dónde se reparte la armadura principal. La EHE-08 lo dice distinto según el
+  // número de pilotes y el dibujo lo enseña: con n ≥ 3, bandas sobre los pilotes
+  // de ancho d_p + 2·c (58.4.1.2.2, fix #86); con n = 2 el artículo no habla de
+  // banda —el encepado se arma como una viga— y las barras van repartidas en
+  // todo el ancho, que es lo que dibuja el plano tipo del estudio (4Ø20 a lo
+  // ancho de la sección).
+  it('n=2: la inferior se reparte en TODO el ancho (L_y − 2·c = 1030 mm), no en banda', () => {
+    expect(r.w_band).toBe(1150 - 2 * 60);
+    expect(r.s_bar_x).toBeCloseTo(1030 / 9, 1);
+    expect(r.checks.find((c) => c.id === 'bar-spacing')!.description).toMatch(/todo el ancho/);
+    expect(r.checks.find((c) => c.id === 'tie-steel-x')!.description).toMatch(/todo el ancho/);
+  });
+
+  it('n ≥ 3: banda sobre los pilotes, w_band = d_p + 2·cover = 340 mm (fix #86)', () => {
+    for (const n of [3, 4, 6]) {
+      expect(calcPileCap({ ...base, n }).w_band).toBe(340);
+    }
+    expect(calcPileCap({ ...base, n: 4 }).s_bar_x).toBeCloseTo(340 / (calcPileCap({ ...base, n: 4 }).n_bars_x - 1), 1);
   });
 
   it('anclaje: lb ≈ 446.4 (fctd con 0.7, fyd = 400), lb,req ≈ 310.5, lb,disp = 1015 (fix #75)', () => {
@@ -434,8 +449,8 @@ describe('Tirantes por banda (EHE 58.4.1.2)', () => {
     expect(calcPileCap({ ...base, fyk: 500 }).fyd).toBe(400);
   });
 
-  it('congestión: muchas barras en banda → bar-spacing-min fail (fix #82)', () => {
-    const r = calcPileCap({ ...base, N_Ed: 4000, R_adm: 3000 });
+  it('congestión: muchas barras en el ancho de reparto → bar-spacing-min fail (fix #82)', () => {
+    const r = calcPileCap({ ...base, N_Ed: 8000, R_adm: 6000 });
     expect(r.s_bar_x).toBeLessThan(20);
     expect(r.checks.find((c) => c.id === 'bar-spacing-min')!.status).toBe('fail');
   });
@@ -557,8 +572,9 @@ describe('Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2)', () => {
     const A12 = 113.1;
     const lat = A12 * (800 - 60 - 40) / 100;               // Ø12 c/100 en 700 mm de altura, por cara
     const n_cercos = Math.floor((1950 - 120) / 100) + 1;   // 19
-    // Malla Ø12 c/100 en las DOS caras, en el ancho libre de bandas de su sentido
-    const grid_x = 2 * r.As_g_prov * (1150 - r.w_band) / 1000;
+    // Malla Ø12 c/100: en el sentido x la inferior ya barre todo el ancho (armado
+    // de viga), así que sólo suma la cara superior; en y, las dos caras enteras.
+    const grid_x = r.As_g_prov * 1150 / 1000;
     const grid_y = 2 * r.As_g_prov * 1950 / 1000;          // sin bandas ∥ y con 2 pilotes
     expect(r.As_dir_x).toBeCloseTo(r.As_prov_x + r.As_top_prov + grid_x + 2 * lat, 0);
     expect(r.As_dir_y).toBeCloseTo(n_cercos * 2 * A12 + grid_y + 2 * lat, 0);

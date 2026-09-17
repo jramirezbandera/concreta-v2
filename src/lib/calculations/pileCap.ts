@@ -145,7 +145,9 @@ export interface PileCapResult {
   As_dir_x: number;      // acero total ∥ x contabilizado [mm²]
   As_dir_y: number;      // acero total ∥ y contabilizado [mm²]
 
-  // Tie band width over piles [mm]
+  /** Ancho en el que se reparte la armadura principal [mm]: la banda sobre
+   *  los pilotes con n ≥ 3 (d_p + 2·c, EHE-08 58.4.1.2.2) y TODO el ancho
+   *  útil (L_y − 2·c) con n = 2, que se arma como una viga. */
   w_band: number;
 
   // Tie forces [kN]
@@ -680,15 +682,27 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     Ft_y = R_max * Math.max(y_max - 0.25 * h_col, 50) / z_eff;  // per band ∥ y
   }
 
-  // ── Tie reinforcement — EN BANDA sobre los pilotes ────────────────────────
-  // Práctica consolidada (ex-EHE 58.4.1.1): la armadura principal va en bandas de ancho
-  // el diámetro del pilote más dos veces la distancia de su cara superior al
-  // c.d.g. de la armadura (≈ cover con pilote enrasado): w_band = d_p + 2·cover
-  // (fix auditoría #86 — antes se repartía en todo el ancho del encepado).
+  // ── Tie reinforcement — dónde se reparte la armadura principal ────────────
+  // La EHE-08 lo dice distinto según el número de pilotes, y la diferencia se
+  // ve en el dibujo:
+  //  • n ≥ 3 (58.4.1.2.2): «Se sitúa en bandas sobre los pilotes […] cuyo ancho
+  //    es igual al diámetro del pilote más dos veces la distancia entre la cara
+  //    superior del pilote y el centro de gravedad de la armadura del tirante»
+  //    → w_band = d_p + 2·cover (fix auditoría #86).
+  //  • n = 2 (58.4.1.2.1.1): el artículo NO habla de banda. Sólo exige que la
+  //    inferior se coloque «sin reducir su sección, en toda la longitud del
+  //    encepado» y la anclará a partir de los planos verticales por el eje de
+  //    cada pilote. El encepado de dos se arma como una VIGA: las barras van
+  //    repartidas en todo el ancho, que es como lo dibuja el plano tipo del
+  //    estudio (4Ø20 a lo ancho de la sección) y como lo pidió el usuario el
+  //    2026-09-17. De ahí que aquí w_band sea el ancho útil L_y − 2·c: es el
+  //    ancho de reparto, no una banda sobre los pilotes.
   const A_phi = getBarArea(phi_tie);   // mm² per bar
   const s_max = Math.min(250, 15 * phi_tie);
   const s_bar_min = Math.max(20, phi_tie);  // CE Anejo 19 §8.2 (árido fino supuesto)
-  const w_band = Math.min(d_p + 2 * cover, Math.min(L_x, L_y) - 2 * cover);
+  const w_band = n === 2
+    ? Math.max(L_y - 2 * cover, 100)
+    : Math.min(d_p + 2 * cover, Math.min(L_x, L_y) - 2 * cover);
 
   // Width b for As_min per direction (sección completa — mínimo geométrico)
   const b_x = L_y;   // perp. to tie-x
@@ -819,7 +833,12 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   // ese sentido.
   const nbx = n === 6 ? 3 : n === 4 ? 2 : 1;   // bandas ∥ x
   const nby = n === 4 || n === 6 ? 2 : 0;      // bandas ∥ y
-  const grid_x = 2 * As_g_prov * Math.max(L_y - nbx * w_band, 0) / 1000;
+  // Con n=2 la inferior ya barre todo el ancho (armado de viga): la malla sólo
+  // suma en la cara superior. Con n ≥ 3 suma en las dos caras, en el ancho que
+  // dejan libre las bandas de ese sentido.
+  const grid_x = n === 2
+    ? As_g_prov * L_y / 1000
+    : 2 * As_g_prov * Math.max(L_y - nbx * w_band, 0) / 1000;
   const grid_y = 2 * As_g_prov * Math.max(L_x - nby * w_band, 0) / 1000;
   let As_dir_x: number;
   let As_dir_y: number;
@@ -990,7 +1009,9 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     const checkId = n === 3 ? 'tie-steel-3p' : 'tie-steel-x';
     const checkDesc = n === 3
       ? 'Armadura tirante por lado (n=3)'
-      : 'Armadura tirante dirección x (banda)';
+      : n === 2
+        ? 'Armadura tirante inferior (todo el ancho)'
+        : 'Armadura tirante dirección x (banda)';
     checks.push(makeCheck(
       checkId,
       checkDesc,
@@ -1030,7 +1051,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     } else {
       checks.push(makeCheck(
         'bar-spacing',
-        'Separación barras tirante s_bar (banda)',
+        n === 2 ? 'Separación barras tirante s_bar (todo el ancho)' : 'Separación barras tirante s_bar (banda)',
         s_bar_worst, s_max,
         `${s_bar_worst.toFixed(0)} mm`,
         `${s_max.toFixed(0)} mm`,

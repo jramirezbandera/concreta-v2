@@ -477,9 +477,12 @@ export function PileCapInputsPanel({ state, setField }: Props) {
           </>
         )}
         <RebarCountField
-          label="Armadura superior" sub="Barras por banda" fieldDiam="phi_top" fieldCount="n_top"
+          label="Armadura superior" sub={n === 2 ? 'Barras a todo el ancho' : 'Barras por banda'}
+          fieldDiam="phi_top" fieldCount="n_top"
           diam={state.phi_top as number} count={state.n_top as number} barOptions={barOptions} setField={setField}
-          help="Barras de la cara superior, extendidas sin escalonar en toda la longitud de cada banda. Con 2 pilotes su capacidad debe ser ≥ 1/10 de la de la armadura inferior (EHE-08 58.4.1.2.1.2)."
+          help={n === 2
+            ? 'Barras de la cara superior, extendidas sin escalonar en toda la longitud del encepado y repartidas en todo su ancho (el de dos pilotes se arma como una viga). Su capacidad debe ser ≥ 1/10 de la de la armadura inferior (EHE-08 58.4.1.2.1.2).'
+            : 'Barras de la cara superior, extendidas sin escalonar en toda la longitud de cada banda (buena práctica: con 3 o más pilotes la EHE-08 no las exige).'}
         />
         <RebarSpecField
           label="Horizontal de caras" sub="Las dos caras laterales" fieldDiam="phi_ch" fieldSep="s_ch"

@@ -97,6 +97,7 @@ function PlanRebar({
 }: { inp: PileCapInputs; result: PileCapResult; size: number; isPdf: boolean; sec: Sec; layer: 'inferior' | 'superior' }) {
   const c = colors(isPdf);
   const { pilePos, ties, outline, L_x, L_y, w_band, e_borde, n_bars_x, n_bars_y } = result;
+  const n     = inp.n as number;
   const d_p   = inp.d_p as number;
   const b_col = inp.b_col as number;
   const h_col = inp.h_col as number;
@@ -168,9 +169,13 @@ function PlanRebar({
     }
   }
 
+  // Con 2 micropilotes no hay banda: la armadura barre todo el ancho (viga).
+  const donde = n === 2 ? 'en todo el ancho' : 'por banda';
   const title = inferior
-    ? `ARMADO INFERIOR · ${n_bars_x}Ø${phi_tie}${n_bars_y !== null && n_bars_y !== n_bars_x ? ` / ${n_bars_y}Ø${phi_tie}` : ''} por banda`
-    : sec.n_top > 0 ? `ARMADO SUPERIOR · ${sec.n_top}Ø${sec.phi_top} por banda` : 'ARMADO SUPERIOR · sin barras';
+    ? n_bars_y !== null
+      ? `ARMADO INFERIOR · x ${n_bars_x}Ø${phi_tie} / y ${n_bars_y}Ø${phi_tie} por banda`
+      : `ARMADO INFERIOR · ${n_bars_x}Ø${phi_tie} ${donde}`
+    : sec.n_top > 0 ? `ARMADO SUPERIOR · ${sec.n_top}Ø${sec.phi_top} ${donde}` : 'ARMADO SUPERIOR · sin barras';
 
   return (
     <g>
@@ -202,8 +207,9 @@ function PlanRebar({
       {inferior && bands.map((b, bi) => barLines(b, b.nBars, 1).map((l, i) => (
         <line key={`inf-${bi}-${i}`} {...l} stroke={c.bottom} strokeWidth={1.3} strokeLinecap="round" />
       )))}
-      {/* Superiores (planta superior), en el 60 % de la banda */}
-      {!inferior && sec.n_top > 0 && bands.map((b, bi) => barLines(b, sec.n_top, 0.6).map((l, i) => (
+      {/* Superiores (planta superior): en el 60 % de la banda con n ≥ 3 y a todo
+        * el ancho con n = 2, que es donde van (58.4.1.2.1.2) */}
+      {!inferior && sec.n_top > 0 && bands.map((b, bi) => barLines(b, sec.n_top, n === 2 ? 0.85 : 0.6).map((l, i) => (
         <line key={`sup-${bi}-${i}`} {...l} stroke={c.top} strokeWidth={1.1} strokeLinecap="round" />
       )))}
       <text x={size / 2} y={12} textAnchor="middle" fontSize={isPdf ? 7 : 10}
@@ -214,27 +220,117 @@ function PlanRebar({
   );
 }
 
-// ── Sección longitudinal (por la fila de pilotes) ─────────────────────────────
+// ── Las dos figuras de corte, en los dos sentidos ─────────────────────────────
+// Un encepado con tirantes en las DOS direcciones (4 y 6 micropilotes) necesita
+// las dos parejas de secciones: con una sola pareja, la armadura del otro
+// sentido —los 9Ø20 por banda del tipo de 6 frente a los 6Ø20 de la otra— no
+// aparecía en ninguna parte salvo en la planta. Las dos parejas son la misma
+// figura con los ejes intercambiados, así que se dibujan con un descriptor que
+// traduce x ↔ y y un sufijo « X» / « Y» en el rótulo cuando se dibujan las dos.
+
+type Dir = 'x' | 'y';
+
+interface AxisInfo {
+  dir: Dir;
+  /** Longitud del encepado en el sentido del tirante (la de la longitudinal). */
+  span: number;
+  /** Ancho perpendicular (el que se ve en la transversal). */
+  cross: number;
+  /** Borde del contorno en el eje perpendicular (mm desde el centroide). */
+  crossMin: number;
+  /** Dimensión del pilar en el sentido del tirante y en el perpendicular. */
+  colSpan: number;
+  colCross: number;
+  /** Barras del tirante de ese sentido. */
+  nBars: number;
+  /** Del centro al eje del pilote extremo, en el sentido del tirante. */
+  pileOff: number;
+  /** Bandas que corta la transversal: posición en el eje perpendicular y ancho. */
+  bands: { c: number; w: number }[];
+  /** Sufijo del rótulo cuando se dibujan los dos sentidos. */
+  suffix: string;
+}
+
+/** ¿Las dos parejas de secciones saldrían calcadas? Pasa con 4 micropilotes en
+ *  cuadrado y pilar cuadrado: mismas luces, mismas bandas y mismas barras. En
+ *  ese caso se dibuja una sola pareja, sin sufijo, en vez de repetirla. */
+function mismaFigura(a: AxisInfo, b: AxisInfo): boolean {
+  const eq = (u: number, v: number) => Math.abs(u - v) < 0.5;
+  return eq(a.span, b.span) && eq(a.cross, b.cross)
+    && eq(a.colSpan, b.colSpan) && eq(a.colCross, b.colCross)
+    && a.nBars === b.nBars && eq(a.pileOff, b.pileOff)
+    && a.bands.length === b.bands.length
+    && a.bands.every((bd, i) => eq(bd.c, b.bands[i].c) && eq(bd.w, b.bands[i].w));
+}
+
+function axisInfo(inp: PileCapInputs, result: PileCapResult, dir: Dir, both: boolean): AxisInfo {
+  const n     = inp.n as number;
+  const s     = inp.s as number;
+  const s_x   = inp.s_x as number;
+  const { w_band, pilePos, n_bars_x, n_bars_y, L_x, L_y, outline } = result;
+  const suffix = both ? (dir === 'x' ? ' X' : ' Y') : '';
+  if (dir === 'y') {
+    // Sólo se pide con tirantes en los dos sentidos (n = 4 y n = 6): las dos
+    // columnas de pilotes, a ±s_x/2 (n=6) o ±s/2 (n=4).
+    const col = n === 6 ? s_x / 2 : s / 2;
+    return {
+      dir,
+      span: L_y, cross: L_x,
+      crossMin: Math.min(...outline.map((p) => p.x)),
+      colSpan: inp.h_col as number, colCross: inp.b_col as number,
+      nBars: n_bars_y ?? n_bars_x,
+      pileOff: Math.max(...pilePos.map((p) => Math.abs(p.y))),
+      bands: [{ c: -col, w: w_band }, { c: col, w: w_band }],
+      suffix,
+    };
+  }
+  // Plano x = 0. Corta las bandas ∥ x: la única (n=2, que con dos micropilotes
+  // es TODO el ancho —se arma como una viga, EHE-08 58.4.1.2.1.1—), las dos a
+  // ±s/2 (n=4), las tres filas (n=6) o la inferior B–C y el cruce de las dos
+  // inclinadas sobre A (n=3).
+  const bands = n === 2
+    ? [{ c: 0, w: w_band }]
+    : n === 4
+      ? [{ c: -s / 2, w: w_band }, { c: s / 2, w: w_band }]
+      : n === 6
+        ? [{ c: -s, w: w_band }, { c: 0, w: w_band }, { c: s, w: w_band }]
+        : [{ c: pilePos[1].y, w: w_band }, { c: pilePos[0].y, w: w_band / Math.cos(Math.PI / 6) }];
+  return {
+    dir,
+    span: L_x, cross: L_y,
+    crossMin: Math.min(...outline.map((p) => p.y)),
+    colSpan: inp.b_col as number, colCross: inp.h_col as number,
+    nBars: n_bars_x,
+    pileOff: Math.max(...pilePos.map((p) => Math.abs(p.x))),
+    bands,
+    suffix,
+  };
+}
+
+// ── Sección longitudinal (por la fila —o la columna— de pilotes) ──────────────
 
 function LongSection({
-  inp, result, width, height, isPdf, sec,
-}: { inp: PileCapInputs; result: PileCapResult; width: number; height: number; isPdf: boolean; sec: Sec }) {
+  inp, result, width, height, isPdf, sec, ax,
+}: {
+  inp: PileCapInputs; result: PileCapResult; width: number; height: number;
+  isPdf: boolean; sec: Sec; ax: AxisInfo;
+}) {
   const c = colors(isPdf);
-  const { L_x, n_bars_x } = result;
   const h_enc = inp.h_enc as number;
-  const b_col = inp.b_col as number;
   const d_p   = inp.d_p as number;
   const cover = inp.cover as number;
   const phi_tie = inp.phi_tie as number;
+  const { span, colSpan, nBars, pileOff, suffix } = ax;
+  void result;
 
   const margin = 16;
   const colStub = 26;
   const pileStub = 14;
   const scale = Math.min(
-    (width - 2 * margin - 60) / L_x,
+    (width - 2 * margin - 60) / span,
     (height - margin - colStub - pileStub - 22) / h_enc,
   );
-  const capW = L_x * scale;
+  const capW = span * scale;
   const capH = h_enc * scale;
   // El dibujo se corre a la izquierda para dejar sitio a los rótulos de la
   // derecha, pero nunca tanto que se salga: a su izquierda se escribe la cota
@@ -249,17 +345,16 @@ function LongSection({
   for (let x = ox + cov, k = 0; x <= ox + capW - cov + 1e-6 && k < MAX_STIRRUPS_DRAWN; x += sec.s_cv * scale, k++) {
     stirrups.push(x);
   }
-  const x_r = Math.max(...result.pilePos.map((p) => Math.abs(p.x)));
-  const pileXs = [ox + (L_x / 2 - x_r) * scale, ox + (L_x / 2 + x_r) * scale];
+  const pileXs = [ox + (span / 2 - pileOff) * scale, ox + (span / 2 + pileOff) * scale];
 
   return (
     <g>
       <text x={ox} y={11} fontSize={isPdf ? 7 : 10} fill={c.textSec} fontFamily={FONT}>
-        SECCIÓN LONGITUDINAL
+        {`SECCIÓN LONGITUDINAL${suffix}`}
       </text>
       {/* Pilar y encepado */}
-      <rect x={ox + capW / 2 - (b_col / 2) * scale} y={oy - colStub + 14}
-        width={b_col * scale} height={colStub - 14}
+      <rect x={ox + capW / 2 - (colSpan / 2) * scale} y={oy - colStub + 14}
+        width={colSpan * scale} height={colStub - 14}
         fill={c.colFill} stroke={c.colStroke} strokeWidth={1} />
       <rect x={ox} y={oy} width={capW} height={capH}
         fill={c.capFill} stroke={c.capStroke} strokeWidth={1.5} />
@@ -291,7 +386,7 @@ function LongSection({
       {/* Rótulos */}
       <text x={ox + capW + 5} y={oy + capH - cov + 3} fontSize={isPdf ? 6.5 : 9.5}
         fill={c.bottom} fontFamily={FONT}>
-        {`${n_bars_x}Ø${phi_tie}`}
+        {`${nBars}Ø${phi_tie}`}
       </text>
       {sec.n_top > 0 && (
         <text x={ox + capW + 5} y={oy + cTop + 3} fontSize={isPdf ? 6.5 : 9.5}
@@ -312,30 +407,32 @@ function LongSection({
 }
 
 // ── Sección transversal (por el pilar) ────────────────────────────────────────
-// Plano x = 0. Corta las bandas ∥ x: la única (n=2, con el cerco perimetral de
-// la retícula lateral), las dos a ±s/2 (n=4) o la inferior B–C y el cruce de las
-// dos inclinadas sobre A (n=3). Con n ≥ 3 los cercos van alrededor de cada banda
-// (EHE-08 58.4.1.2.2.2) y la retícula inferior aparece como puntos entre bandas.
+// Corta las bandas del sentido del tirante (ver `axisInfo`). Con n ≥ 3 los
+// cercos van alrededor de cada banda (EHE-08 58.4.1.2.2.2) y la retícula
+// inferior aparece como puntos entre bandas; con n = 2 el cerco es perimetral y
+// la armadura inferior barre todo el ancho.
 
 function TransSection({
-  inp, result, width, height, isPdf, sec,
-}: { inp: PileCapInputs; result: PileCapResult; width: number; height: number; isPdf: boolean; sec: Sec }) {
+  inp, result, width, height, isPdf, sec, ax,
+}: {
+  inp: PileCapInputs; result: PileCapResult; width: number; height: number;
+  isPdf: boolean; sec: Sec; ax: AxisInfo;
+}) {
   const c = colors(isPdf);
-  const { L_y, w_band, n_bars_x, outline, pilePos } = result;
   const n     = inp.n as number;
-  const s_pil = inp.s as number;
   const h_enc = inp.h_enc as number;
-  const h_col = inp.h_col as number;
   const cover = inp.cover as number;
   const phi_tie = inp.phi_tie as number;
+  const { cross, crossMin, colCross, nBars, bands, suffix } = ax;
+  void result;
 
   const margin = 16;
   const colStub = 26;
   const scale = Math.min(
-    (width - 2 * margin - 90) / L_y,
+    (width - 2 * margin - 90) / cross,
     (height - margin - colStub - 22) / h_enc,
   );
-  const capW = L_y * scale;
+  const capW = cross * scale;
   const capH = h_enc * scale;
   const ox = Math.max(36, (width - capW) / 2 - 30);
   const oy = margin + colStub;
@@ -343,20 +440,16 @@ function TransSection({
   const cTop = Math.max(40, phi_tie) * scale;
   const rBar = Math.max(1.6, (phi_tie / 2) * scale);
   const rFace = Math.max(1.4, (sec.phi_ch / 2) * scale);
-  const yMin = Math.min(...outline.map((p) => p.y));
-  const X = (y: number) => ox + (y - yMin) * scale;   // y del encepado → x del dibujo
+  const X = (v: number) => ox + (v - crossMin) * scale;   // eje perpendicular → x del dibujo
+  // Con 2 micropilotes la superior también va a todo el ancho (armadura
+  // longitudinal de la cara superior, 58.4.1.2.1.2); en banda se dibuja
+  // centrada en el 60 % para distinguirla de la inferior.
+  const topFactor = n === 2 ? 0.85 : 0.6;
 
-  const bands: { y: number; w: number }[] = n === 2
-    ? [{ y: 0, w: w_band }]
-    : n === 4
-      ? [{ y: -s_pil / 2, w: w_band }, { y: s_pil / 2, w: w_band }]
-      : n === 6
-        ? [{ y: -s_pil, w: w_band }, { y: 0, w: w_band }, { y: s_pil, w: w_band }]
-        : [{ y: pilePos[1].y, w: w_band }, { y: pilePos[0].y, w: w_band / Math.cos(Math.PI / 6) }];
-  const dotsAt = (yc: number, w: number, count: number, factor: number): number[] => {
+  const dotsAt = (center: number, w: number, count: number, factor: number): number[] => {
     const k = Math.min(count, MAX_BARS_DRAWN);
     const ww = w * factor * scale;
-    return Array.from({ length: k }, (_, i) => X(yc) + (k > 1 ? -ww / 2 + (i * ww) / (k - 1) : 0));
+    return Array.from({ length: k }, (_, i) => X(center) + (k > 1 ? -ww / 2 + (i * ww) / (k - 1) : 0));
   };
   const faceYs: number[] = [];
   for (let y = oy + capH - cov - sec.s_ch * scale; y > oy + cTop + 1; y -= sec.s_ch * scale) faceYs.push(y);
@@ -373,10 +466,10 @@ function TransSection({
   return (
     <g>
       <text x={ox} y={11} fontSize={isPdf ? 7 : 10} fill={c.textSec} fontFamily={FONT}>
-        SECCIÓN TRANSVERSAL
+        {`SECCIÓN TRANSVERSAL${suffix}`}
       </text>
-      <rect x={X(0) - (h_col / 2) * scale} y={oy - colStub + 14}
-        width={h_col * scale} height={colStub - 14}
+      <rect x={X(0) - (colCross / 2) * scale} y={oy - colStub + 14}
+        width={colCross * scale} height={colStub - 14}
         fill={c.colFill} stroke={c.colStroke} strokeWidth={1} />
       <rect x={ox} y={oy} width={capW} height={capH}
         fill={c.capFill} stroke={c.capStroke} strokeWidth={1.5} />
@@ -391,7 +484,7 @@ function TransSection({
           ))}
         </g>
       ) : bands.map((b, bi) => {
-        const x0 = X(b.y) - (b.w / 2) * scale;
+        const x0 = X(b.c) - (b.w / 2) * scale;
         const w = b.w * scale;
         return (
           <g key={`band-${bi}`}>
@@ -421,10 +514,10 @@ function TransSection({
       {/* Barras de banda (inferiores) y superiores */}
       {bands.map((b, bi) => (
         <g key={`bars-${bi}`}>
-          {dotsAt(b.y, b.w, n_bars_x, 1).map((x, i) => (
+          {dotsAt(b.c, b.w, nBars, 1).map((x, i) => (
             <circle key={`b-${i}`} cx={x} cy={oy + capH - cov} r={rBar} fill={c.bottom} />
           ))}
-          {dotsAt(b.y, b.w, sec.n_top, 0.6).map((x, i) => (
+          {dotsAt(b.c, b.w, sec.n_top, topFactor).map((x, i) => (
             <circle key={`t-${i}`} cx={x} cy={oy + cTop} r={Math.max(1.6, (sec.phi_top / 2) * scale)} fill={c.top} />
           ))}
         </g>
@@ -448,7 +541,7 @@ function TransSection({
       </text>
       <text x={ox - 4} y={oy + capH - cov} textAnchor="end" fontSize={isPdf ? 6.5 : 9.5}
         fill={c.bottom} fontFamily={FONT} dominantBaseline="middle">
-        {`${n_bars_x}Ø${phi_tie}`}
+        {`${nBars}Ø${phi_tie}`}
       </text>
     </g>
   );
@@ -459,8 +552,23 @@ function TransSection({
 function legendItems(inp: PileCapInputs, result: PileCapResult, sec: Sec, c: ReturnType<typeof colors>) {
   const n = inp.n as number;
   const phi_tie = inp.phi_tie as number;
-  const inferior = { color: c.bottom, text: `Inferior: ${result.n_bars_x}Ø${phi_tie} por banda (${result.As_prov_x.toFixed(0)} mm²)` };
-  const superior = (suffix: string) => ({ color: c.top, dash: '6 3', text: `Superior${suffix}: ${sec.n_top}Ø${sec.phi_top} por banda (${result.As_top_prov.toFixed(0)} mm²)` });
+  // Con tirantes en los dos sentidos la inferior lleva DOS líneas: hasta ahora
+  // la leyenda sólo rotulaba la de x y los 9Ø20 de la otra dirección se
+  // quedaban sin nombre. Con dos micropilotes no hay banda: barre todo el ancho.
+  const dosSentidos = result.n_bars_y !== null && result.As_prov_y !== null;
+  const inferior = dosSentidos
+    ? { color: c.bottom, text: `Inferior dir. x: ${result.n_bars_x}Ø${phi_tie} por banda (${result.As_prov_x.toFixed(0)} mm²)` }
+    : {
+      color: c.bottom,
+      text: n === 2
+        ? `Inferior: ${result.n_bars_x}Ø${phi_tie} en todo el ancho (${result.As_prov_x.toFixed(0)} mm²)`
+        : `Inferior: ${result.n_bars_x}Ø${phi_tie} por banda (${result.As_prov_x.toFixed(0)} mm²)`,
+    };
+  const inferiorY = dosSentidos
+    ? [{ color: c.bottom, text: `Inferior dir. y: ${result.n_bars_y}Ø${phi_tie} por banda (${result.As_prov_y!.toFixed(0)} mm²)` }]
+    : [];
+  const donde = n === 2 ? 'en todo el ancho' : 'por banda';
+  const superior = (suffix: string) => ({ color: c.top, dash: '6 3', text: `Superior${suffix}: ${sec.n_top}Ø${sec.phi_top} ${donde} (${result.As_top_prov.toFixed(0)} mm²)` });
   const caras = (suffix: string) => ({ color: c.face, dash: '5 3', text: `Horizontal caras${suffix}: Ø${sec.phi_ch} c/${sec.s_ch} (${result.As_ch_prov.toFixed(0)} mm²/m)` });
   const malla = {
     color: c.grid,
@@ -477,6 +585,7 @@ function legendItems(inp: PileCapInputs, result: PileCapResult, sec: Sec, c: Ret
   }
   return [
     inferior,
+    ...inferiorY,
     malla,
     { color: c.stirrup, text: `Cercos de banda: Ø${sec.phi_cv} c/${sec.s_cv}, ${sec.n_cv} ramas (${result.As_cv_prov.toFixed(0)} mm²/m)` },
     superior(' (práctica)'),
@@ -510,9 +619,12 @@ function Legend({
 }
 
 // ── Wrapper ───────────────────────────────────────────────────────────────────
-// Dos plantas (inferior y superior) arriba, las dos secciones debajo y la
-// leyenda al pie. Plantas lado a lado desde 400 px y secciones lado a lado
-// desde 520 px (clon del PDF); en móvil todo se apila.
+// Dos plantas (inferior y superior) arriba, las secciones debajo y la leyenda al
+// pie. Con tirantes en los dos sentidos (4 y 6 micropilotes) son DOS parejas de
+// secciones, una por dirección, apiladas: la del otro sentido faltaba y su
+// armadura sólo se veía en la planta. Plantas lado a lado desde 400 px y cada
+// pareja de secciones lado a lado desde 520 px (clon del PDF); en móvil todo se
+// apila.
 
 export function PileCapRebarSVG({ inp, result, width, mode = 'screen' }: Props) {
   const isPdf = mode === 'pdf';
@@ -535,15 +647,18 @@ export function PileCapRebarSVG({ inp, result, width, mode = 'screen' }: Props) 
   const plan2X = plansSide ? plansX0 + planSize + gap : plansX0;
   const plan2Y = plansSide ? 0 : planSize + gap;
 
+  const axY = result.n_bars_y !== null ? axisInfo(inp, result, 'y', false) : null;
+  const dosParejas = axY !== null && !mismaFigura(axisInfo(inp, result, 'x', false), axY);
+  const dirs: Dir[] = dosParejas ? ['x', 'y'] : ['x'];
+  const axes = dirs.map((d) => axisInfo(inp, result, d, dosParejas));
   const secsSide = width >= 520;
   const secW = secsSide ? (width - gap) / 2 : width;
   const secH = Math.round(secW * (secsSide ? 0.62 : 0.5));
-  const secsH = secsSide ? secH : 2 * secH + gap;
+  const secRows = secsSide ? axes.length : 2 * axes.length;
+  const secsH = secRows * secH + (secRows - 1) * gap;
   const secsY = plansH + gap;
-  const sec2X = secsSide ? secW + gap : 0;
-  const sec2Y = secsSide ? secsY : secsY + secH + gap;
 
-  const legendRows = 5;
+  const legendRows = legendItems(inp, result, sec, colors(isPdf)).length;
   const legendH = (width >= 520 ? Math.ceil(legendRows / 2) : legendRows) * 14 + 8;
   const totalH = secsY + secsH + gap + legendH;
 
@@ -563,12 +678,21 @@ export function PileCapRebarSVG({ inp, result, width, mode = 'screen' }: Props) 
         <g transform={`translate(${plan2X},${plan2Y})`}>
           <PlanRebar inp={inp} result={result} size={planSize} isPdf={isPdf} sec={sec} layer="superior" />
         </g>
-        <g transform={`translate(0,${secsY})`}>
-          <LongSection inp={inp} result={result} width={secW} height={secH} isPdf={isPdf} sec={sec} />
-        </g>
-        <g transform={`translate(${sec2X},${sec2Y})`}>
-          <TransSection inp={inp} result={result} width={secW} height={secH} isPdf={isPdf} sec={sec} />
-        </g>
+        {axes.map((ax, i) => {
+          const yLong = secsY + (secsSide ? i : 2 * i) * (secH + gap);
+          const xTrans = secsSide ? secW + gap : 0;
+          const yTrans = secsSide ? yLong : yLong + secH + gap;
+          return (
+            <g key={ax.dir}>
+              <g transform={`translate(0,${yLong})`}>
+                <LongSection inp={inp} result={result} width={secW} height={secH} isPdf={isPdf} sec={sec} ax={ax} />
+              </g>
+              <g transform={`translate(${xTrans},${yTrans})`}>
+                <TransSection inp={inp} result={result} width={secW} height={secH} isPdf={isPdf} sec={sec} ax={ax} />
+              </g>
+            </g>
+          );
+        })}
         <g transform={`translate(0,${secsY + secsH + gap})`}>
           <Legend inp={inp} result={result} width={width} isPdf={isPdf} sec={sec} />
         </g>
