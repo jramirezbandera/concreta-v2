@@ -430,7 +430,7 @@ export function PileCapInputsPanel({ state, setField }: Props) {
 
         {n === 2 && (
           <p className="text-[10px] text-text-secondary mt-3 leading-relaxed">
-            n=2: 2 pilotes alineados en X. Mx_Ed debe ser 0 (staticamente inadmisible). Usar n=4 para momento biaxial.
+            n=2: 2 pilotes alineados en x. Mx,Ed debe ser 0 (estáticamente inadmisible). Con momento en los dos ejes, usar n=4.
           </p>
         )}
       </CollapsibleSection>
