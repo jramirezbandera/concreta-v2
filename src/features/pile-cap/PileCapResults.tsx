@@ -48,8 +48,8 @@ export function PileCapResults({ inp, result }: Props) {
           value={fmtSi(R, 'force')}
         />
       ))}
-      <ValueRow label="R_max" value={fmtSi(result.R_max, 'force')} />
-      <ValueRow label="R_min" value={fmtSi(result.R_min, 'force')} />
+      <ValueRow label="R_max — Pilote más cargado" value={fmtSi(result.R_max, 'force')} />
+      <ValueRow label="R_min — Pilote menos cargado" value={fmtSi(result.R_min, 'force')} />
 
       {/* Geometría del encepado */}
       <GroupHeader label="Geometría del encepado" />
@@ -61,27 +61,27 @@ export function PileCapResults({ inp, result }: Props) {
       ) : (
         <ValueRow label="Lx × Ly"  value={`${result.L_x.toFixed(0)} × ${result.L_y.toFixed(0)} mm`} />
       )}
-      <ValueRow label="e_borde"  value={`${result.e_borde.toFixed(0)} mm`} />
-      <ValueRow label="A_planta" value={`${dec(result.A_cap / 1e6, 2)} m²`} />
-      <ValueRow label="h_min"    value={`${result.h_min.toFixed(0)} mm`} />
+      <ValueRow label="e_borde — Eje de pilote a borde" value={`${result.e_borde.toFixed(0)} mm`} />
+      <ValueRow label="A_planta — Área del contorno"   value={`${dec(result.A_cap / 1e6, 2)} m²`} />
+      <ValueRow label="h_min — Canto mínimo exigido"   value={`${result.h_min.toFixed(0)} mm`} />
 
       {/* Bielas y tirantes */}
       <GroupHeader label="Bielas y tirantes" />
-      <ValueRow label="z_eff"      value={`${result.z_eff.toFixed(0)} mm`} />
-      <ValueRow label="a_crit"     value={`${result.a_crit.toFixed(0)} mm`} />
-      <ValueRow label="θ (biela)"  value={`${dec(result.theta_deg, 1)}°`} />
+      <ValueRow label="z_eff — Brazo mecánico"        value={`${result.z_eff.toFixed(0)} mm`} />
+      <ValueRow label="a_crit — Eje de pilar a pilote" value={`${result.a_crit.toFixed(0)} mm`} />
+      <ValueRow label="θ — Ángulo de la biela"         value={`${dec(result.theta_deg, 1)}°`} />
       <ValueRow
-        label="Apoyo nodo"
+        label="Apoyo del nodo comprimido"
         value={inp.plate_on
           ? `placa ${inp.plate_shape === 'cuad' ? '□' : 'Ø'}${(inp.d_plate as number).toFixed(0)} → ${result.A_node.toFixed(0)} mm²`
           : `micro Ø${(inp.d_p as number).toFixed(0)} → ${result.A_node.toFixed(0)} mm²`}
       />
-      <ValueRow label="σ_biela"    value={fmtSi(result.sigma_strut, 'stress')} />
-      <ValueRow label="σ_Rd,max"   value={fmtSi(result.sigma_Rd_max, 'stress')} />
-      <ValueRow label="fyd tirante" value={`${fmtSi(result.fyd, 'stress', 0)} (≤ 400, EHE-08 40.2)`} />
-      <ValueRow label="Ft,x"       value={fmtSi(result.Ft_x, 'force')} />
+      <ValueRow label="σ_biela — Tensión en la biela"   value={fmtSi(result.sigma_strut, 'stress')} />
+      <ValueRow label="σ_Rd,max — Límite de la biela"   value={fmtSi(result.sigma_Rd_max, 'stress')} />
+      <ValueRow label="fyd — Límite del acero del tirante" value={`${fmtSi(result.fyd, 'stress', 0)} (≤ 400, EHE-08 40.2)`} />
+      <ValueRow label="Ft,x — Tracción del tirante en x" value={fmtSi(result.Ft_x, 'force')} />
       {result.Ft_y !== null && (
-        <ValueRow label="Ft,y" value={fmtSi(result.Ft_y, 'force')} />
+        <ValueRow label="Ft,y — Tracción del tirante en y" value={fmtSi(result.Ft_y, 'force')} />
       )}
 
       {/* Armadura tirantes */}
