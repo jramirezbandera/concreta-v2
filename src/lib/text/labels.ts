@@ -1282,7 +1282,8 @@ export const LABELS = {
   bar_diameter_tie: {
     sym: 'Ø',
     descLong: 'Diámetro del tirante',
-    descShort: 'Ø tirante',
+    // Sin la Ø: el panel escribe el símbolo delante y salía «Ø Ø tirante».
+    descShort: 'Tirante',
     unit: 'mm',
     help: 'Diámetro de las barras del tirante inferior que cose los pilotes (modelo de bielas y tirantes).',
     modules: ['pileCap'],
