@@ -46,9 +46,14 @@ function PlanView({
   const plateSq = inp.plate_shape === 'cuad';
   const d_plate = (inp.d_plate as number | undefined) ?? 0;
 
-  // Scale: fit cap dimensions + small margin
+  // Escala: el contorno más los márgenes. El de la DERECHA es mayor porque
+  // ahí se escribe la cota Ly, fuera del contorno: con el margen simétrico de
+  // 20 px la cota se salía del viewBox y el SVG la cortaba (el usuario leía
+  // «Ly=» y nada más). El ancho de la cota es el del texto más largo que puede
+  // caber ahí, «Ly=1150 mm» a 10 px de cuerpo monoespaciado.
   const margin = 20;
-  const scaleX = (size - 2 * margin) / L_x;
+  const marginR = 62;
+  const scaleX = (size - margin - marginR) / L_x;
   const scaleY = (size - 2 * margin) / L_y;
   const scale  = Math.min(scaleX, scaleY);
 
@@ -60,7 +65,9 @@ function PlanView({
   const ys = outline.map((p) => p.y);
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
   const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-  const ox = size / 2;
+  // Centro del hueco útil, que ya no es el centro del cuadro: el margen
+  // derecho de la cota lo desplaza a la izquierda.
+  const ox = margin + (size - margin - marginR) / 2;
   const oy = size / 2;
 
   const px = (x: number) => ox + (x - cx) * scale;
@@ -180,7 +187,7 @@ function PlanView({
           fill={c.textSec} fontFamily="monospace"
           dominantBaseline="middle"
         >
-          {`Ly=${L_y.toFixed(0)}`}
+          {`Ly=${L_y.toFixed(0)} mm`}
         </text>
       )}
 
@@ -208,12 +215,19 @@ function SectionView({
   const d_plate = (inp.d_plate as number | undefined) ?? 0;
   const { L_x, z_eff, theta_deg } = result;
 
-  const height = Math.round(width * 0.55);
+  // El dibujo (pilar + encepado) y, debajo, la banda donde asoman los
+  // micropilotes. Antes la caja del SVG era sólo el dibujo y los micros se
+  // salían por abajo: el SVG los cortaba a media circunferencia. La escala se
+  // calcula con la altura del dibujo, la de siempre, así que el encepado se ve
+  // exactamente igual; lo único que cambia es que la caja llega hasta abajo.
+  const drawH = Math.round(width * 0.55);
+  const pileZone = 30;
+  const height = drawH + pileZone;
 
   // Scale to fit cap width + top column stub + small margin
   const margin = 20;
   const colStubH = 80;  // px — symbolic column stub above cap
-  const totalH = height - margin * 2 - colStubH;
+  const totalH = drawH - margin * 2 - colStubH;
   const scale = Math.min(
     (width - 2 * margin) / L_x,
     totalH / h_enc,
