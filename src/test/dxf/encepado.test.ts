@@ -23,10 +23,15 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { pileCapDefaults, type PileCapInputs } from '../../data/defaults';
 import { calcPileCap } from '../../lib/calculations/pileCap';
-import { ErrorPlantilla, rellenarEncepado, rutaPlantilla } from '../../lib/dxf/encepado';
+import {
+  ErrorPlantilla,
+  exportarEncepadoDxf,
+  rellenarEncepado,
+  rutaPlantilla,
+} from '../../lib/dxf/encepado';
 
 const leerPlantilla = (n: number) => readFileSync(join('public', rutaPlantilla(n)), 'utf8');
 
@@ -137,6 +142,20 @@ describe('DXF de encepados — la tabla del plano tipo', () => {
     expect(fila.As5).toBe(fila.As3);    // la malla es la misma arriba y abajo
   });
 
+  it('D es la distancia al borde en el sentido de la cota, no la menor de las dos', () => {
+    // 2 pilotes con un ancho estrecho: el motor da e_borde = L_y/2 = 300 (la
+    // menor), pero la D del plano es la de los extremos, (1900 − 1200)/2 = 350.
+    const estrecho = base(2, { dims_auto: false, L_x: 1900, L_y: 600 });
+    expect(calcPileCap(estrecho).e_borde).toBe(300);
+    expect(filaDeDatos(rellenar(estrecho), 2).D).toBe('35');
+    // 6 pilotes con cotas manuales distintas por sentido: se escriben las dos.
+    const desigual = base(6, { dims_auto: false, L_x: 3100, L_y: 3200 });
+    const fila = filaDeDatos(rellenar(desigual), 6);
+    expect(fila.D).toBe('35/40'); // (3100 − 2400)/2 y (3200 − 2·1200)/2
+    expect(fila.L1).toBe('310');
+    expect(fila.L2).toBe('320');
+  });
+
   it('4 micropilotes: una sola casilla de lado, y las dos cuando no son iguales', () => {
     expect(filaDeDatos(rellenar(base(4)), 4).L).toBe('195');
     const rectangular = base(4, { dims_auto: false, L_x: 2000, L_y: 1800 });
@@ -184,6 +203,24 @@ describe('DXF de encepados — las notas al pie', () => {
       expect(nota).toContain('cercos de banda %%C10c/20 de 4 ramas');
     }
   });
+});
+
+describe('DXF de encepados — las notas caben entre la tabla y el marco', () => {
+  /** Cota del borde inferior del marco de cada plano tipo, medida en el .dxf. */
+  const MARCO: Record<number, number> = { 2: 0.142, 3: 0.228, 4: 0.158, 6: 0.031 };
+  for (const n of [2, 3, 4, 6]) {
+    it(`${n} micropilotes: las dos líneas quedan por encima del marco`, () => {
+      const dxf = rellenar(base(n));
+      const [l1, l2] = textos(dxf).filter((t) => t.h < 0.2 && t.y < 1).sort((a, b) => b.y - a.y);
+      expect(l1.y).toBeGreaterThan(l2.y);
+      // Línea base de la segunda a más de media altura de letra del marco:
+      // el descendente de una «p» baja 0,2 alturas, y queda aire. (Cuando el
+      // hueco manda, el reparto deja 0,9 alturas; con el cuerpo pleno, más.)
+      expect(l2.y - MARCO[n]).toBeGreaterThan(0.5 * l2.h);
+      // Y por debajo del borde de la tabla, que está entre 0,83 y 1,13.
+      expect(l1.y).toBeLessThan(1.13);
+    });
+  }
 });
 
 describe('DXF de encepados — el fichero', () => {
@@ -235,6 +272,12 @@ describe('DXF de encepados — el fichero', () => {
       // El único código 5 repetido admisible es el $HANDSEED de la cabecera,
       // que apunta al siguiente libre y no es manejador de nadie.
       expect(repetidos).toBeLessThanOrEqual(1);
+      // Y el $HANDSEED de salida queda por encima de TODO manejador en uso,
+      // incluidos los dos nuevos: el siguiente que asigne el CAD no chocará.
+      const iSeed = lineas.findIndex((l) => l.trim() === '$HANDSEED');
+      const seed = parseInt(lineas[iSeed + 2].trim(), 16);
+      const usados = [...manejadores].map((h) => parseInt(h, 16)).filter(Number.isFinite);
+      expect(seed).toBeGreaterThan(Math.max(...usados.filter((h) => h !== seed)));
     });
   }
 
@@ -244,5 +287,42 @@ describe('DXF de encepados — el fichero', () => {
     expect(() => rellenarEncepado('esto no es un dxf', inp, res)).toThrow(ErrorPlantilla);
     expect(() => rellenarEncepado('  0\r\nSECTION\r\n  2\r\nHEADER\r\n  0\r\nENDSEC\r\n  0\r\nEOF\r\n', inp, res))
       .toThrow(/ENTITIES/);
+  });
+});
+
+describe('DXF de encepados — el punto de entrada del botón', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const conPlantilla = (n: number) => {
+    const mock = vi.fn(async () => ({ ok: true, text: async () => leerPlantilla(n) }) as unknown as Response);
+    vi.stubGlobal('fetch', mock);
+    return mock;
+  };
+
+  it('pide la plantilla de su tipo y la nota lleva el título recién tecleado, no el del estado', async () => {
+    const fetchMock = conPlantilla(3);
+    // El estado todavía dice «viejo»: setField es un setState y al exportar
+    // no ha vuelto a pintar. El título bueno llega por parámetro.
+    const inp = base(3, { title: 'viejo' });
+    const { blob, filename } = await exportarEncepadoDxf(inp, calcPileCap(inp), 'Encepado P-7');
+    expect(fetchMock).toHaveBeenCalledWith('/plantillas/encepado-3.dxf');
+    expect(filename).toBe('encepado-p-7.dxf');
+    const dxf = await blob.text();
+    expect(notas(dxf)[0]).toMatch(/^Encepado P-7 · HA-25/);
+    expect(dxf).not.toContain('viejo');
+    expect(blob.type).toBe('image/vnd.dxf');
+  });
+
+  it('sin título, el nombre lleva el tipo y la fecha', async () => {
+    conPlantilla(2);
+    const inp = base(2, { title: '' });
+    const { filename } = await exportarEncepadoDxf(inp, calcPileCap(inp), '');
+    expect(filename).toMatch(/^concreta-encepado-2p-\d{4}-\d{2}-\d{2}\.dxf$/);
+  });
+
+  it('si la plantilla no llega, falla con su motivo en vez de bajar un fichero vacío', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404 }) as unknown as Response));
+    const inp = base(4);
+    await expect(exportarEncepadoDxf(inp, calcPileCap(inp), 'x')).rejects.toThrow(ErrorPlantilla);
   });
 });

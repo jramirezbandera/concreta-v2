@@ -198,20 +198,22 @@ interface Celda {
   linea: number;
 }
 
-function celdasDeTabla(textos: Texto[], ancla: Texto): Celda[] {
+function celdasDeTabla(textos: Texto[], ancla: Texto): { celdas: Celda[]; yFila: number } {
   const h = ancla.altura;
   const mismaLetra = (t: Texto) => Math.abs(t.altura - h) < 0.01 * h;
   const cabeceras = textos.filter((t) => mismaLetra(t) && Math.abs(t.y - ancla.y) < 0.2 * h);
   const valores = textos.filter(
     (t) => mismaLetra(t) && t.y < ancla.y - 3.8 * h && t.y > ancla.y - 9 * h,
   );
-  return valores.map((v) => {
+  const celdas = valores.map((v) => {
     let mejor = cabeceras[0];
     for (const c of cabeceras) {
       if (Math.abs(c.cx - v.cx) < Math.abs(mejor.cx - v.cx)) mejor = c;
     }
     return { etiqueta: mejor.texto, linea: v.linea };
   });
+  const yFila = valores.length ? Math.min(...valores.map((v) => v.y)) : ancla.y;
+  return { celdas, yFila };
 }
 
 /** Un tramo horizontal del dibujo, venga de una LINE o de una polilínea. */
@@ -255,20 +257,30 @@ interface ZonaNotas {
 /**
  * El hueco libre bajo la tabla.
  *
- * La tabla es la LÍNEA horizontal larga más baja del dibujo (su borde inferior;
- * el marco del plano no cuenta porque es una polilínea, no una línea). El suelo
- * es el primer tramo horizontal que aparece por debajo cruzando su misma franja
- * de x —en los cuatro planos, el marco—, y con eso se reparte el hueco: cuerpo
- * de letra 0,7 del de la tabla si cabe, y si no el que quepa, con un mínimo por
- * debajo del cual ya no se leería. Sin esto, en el tipo de 3 micropilotes —el
- * de tabla más baja— la segunda línea salía escrita sobre el marco.
+ * El borde inferior de la tabla es el PRIMER tramo horizontal largo que hay
+ * por debajo de la fila de datos: el más alto de los que quedan bajo esa
+ * fila, sea línea o polilínea. (Antes se tomaba la línea más baja del dibujo,
+ * que acertaba sólo porque el marco del estudio es una polilínea; con un
+ * marco de líneas las notas habrían salido debajo del marco.) El suelo es el
+ * primer tramo horizontal que aparece por debajo del borde cruzando su misma
+ * franja de x —en los cuatro planos, el marco—, y con eso se reparte el
+ * hueco: cuerpo de letra 0,7 del de la tabla si cabe, y si no el que quepa,
+ * con un mínimo por debajo del cual ya no se leería. Sin medir el suelo, en el
+ * tipo de 3 micropilotes —el de tabla más baja— la segunda línea salía escrita
+ * sobre el marco.
  */
-function zonaDeNotas(pares: Par[], desde: number, hasta: number, h: number): ZonaNotas | null {
+function zonaDeNotas(
+  pares: Par[],
+  desde: number,
+  hasta: number,
+  h: number,
+  yFila: number,
+): ZonaNotas | null {
   const tramos = tramosHorizontales(pares, desde, hasta);
   let pie: Tramo | null = null;
   for (const t of tramos) {
-    if (!t.esLinea || t.x2 - t.x1 < 20 * h) continue;
-    if (!pie || t.y < pie.y) pie = t;
+    if (t.y >= yFila - 0.5 * h || t.x2 - t.x1 < 20 * h) continue;
+    if (!pie || t.y > pie.y) pie = t;
   }
   if (!pie) return null;
   let suelo = -Infinity;
@@ -292,6 +304,11 @@ function cm(mm: number): string {
 /** «4%%C16»: el %%C es el código de Ø que ya usan las celdas de la plantilla. */
 function barras(n: number, phi: number): string {
   return `${n}%%C${phi}`;
+}
+
+/** Una cota, o «a/b» cuando el plano tiene una casilla y el cálculo dos valores. */
+function unaODos(a: number, b: number): string {
+  return Math.abs(a - b) < 5 ? cm(a) : `${cm(a)}/${cm(b)}`;
 }
 
 /** «%%C12c/20»: la armadura que se define por separación, no por número. */
@@ -322,9 +339,19 @@ function valoresDeTabla(inp: PileCapInputs, res: PileCapResult): Record<string, 
   const cercos = aSeparacion(inp.phi_cv, inp.s_cv);
   // n=3: B es la altura del triángulo equilátero, de la base al pilote de arriba.
   const B = n === 3 ? (inp.s * Math.sqrt(3)) / 2 : inp.s;
-  // n=4: la casilla «L» es el lado. Si las dos dimensiones no coinciden (modo
-  // manual), se escriben las dos antes que mentir con una.
-  const lado = Math.abs(res.L_x - res.L_y) < 5 ? cm(res.L_x) : `${cm(res.L_x)}/${cm(res.L_y)}`;
+  // D es la distancia del eje del pilote al borde EN EL SENTIDO de la cota:
+  // con 2 pilotes, a lo largo de ellos (L2 es el ancho entero, no lleva D). El
+  // motor da `e_borde` = la MENOR de las dos direcciones, que con cotas
+  // manuales puede ser la otra; por eso se calcula aquí desde L y la caja de
+  // ejes. Con 3 pilotes e es única por construcción del hexágono. Con 4 ó 6,
+  // si no coinciden (modo manual) se escriben las dos antes que mentir con
+  // una; lo mismo con el lado L del tipo de 4.
+  const cajaX = n === 6 ? inp.s_x : inp.s;
+  const cajaY = n === 6 ? 2 * inp.s : inp.s;
+  const D_x = (res.L_x - cajaX) / 2;
+  const D_y = (res.L_y - cajaY) / 2;
+  const D = n === 3 ? cm(res.e_borde) : n === 2 ? cm(D_x) : unaODos(D_x, D_y);
+  const lado = unaODos(res.L_x, res.L_y);
 
   return {
     MICROPILOTE: String(inp.d_p),
@@ -334,7 +361,7 @@ function valoresDeTabla(inp: PileCapInputs, res: PileCapResult): Record<string, 
     L: lado,
     L1: cm(res.L_x),
     L2: cm(res.L_y),
-    D: cm(res.e_borde),
+    D,
     As1: barras(nBarras, inp.phi_tie),
     As2: inp.n_top > 0 ? barras(inp.n_top, inp.phi_top) : '-',
     // El tipo de 2 micropilotes numera distinto: no tiene casilla de malla y
@@ -443,7 +470,7 @@ export function rellenarEncepado(
   if (!ancla) throw new ErrorPlantilla('No se encuentra la tabla de la plantilla');
 
   // 1. Las cifras de la tabla, celda a celda y sin tocar nada más.
-  const celdas = celdasDeTabla(textos, ancla);
+  const { celdas, yFila } = celdasDeTabla(textos, ancla);
   if (!celdas.length) throw new ErrorPlantilla('La tabla de la plantilla no tiene fila de datos');
   const valores = valoresDeTabla(inp, res);
   for (const c of celdas) {
@@ -454,7 +481,7 @@ export function rellenarEncepado(
   // 2. Las dos notas al pie, en la capa y el estilo de la propia tabla. Se
   //    insertan al final de las entidades, así que va DESPUÉS del paso 1: el
   //    splice corre los índices de las celdas.
-  const zona = zonaDeNotas(pares, desde, hasta, ancla.altura);
+  const zona = zonaDeNotas(pares, desde, hasta, ancla.altura, yFila);
   if (zona) {
     const iSemilla = pares.findIndex((p, i) => p.codigo === 5 && pares[i - 1]?.valor === '$HANDSEED');
     const semilla = iSemilla >= 0 ? pares[iSemilla] : null;
@@ -504,7 +531,15 @@ export async function exportarEncepadoDxf(
   if (!respuesta.ok) {
     throw new ErrorPlantilla(`No se pudo cargar el plano tipo de ${inp.n} micropilotes`);
   }
-  const relleno = rellenarEncepado(await respuesta.text(), inp, res);
+  // El título llega por parámetro y se impone al del estado: `setField` es un
+  // setState y, en el instante de exportar, `inp.title` es todavía el de
+  // ANTES de escribir en el modal. El nombre del fichero ya lo hacía así; la
+  // nota al pie salía con el título viejo.
+  const relleno = rellenarEncepado(
+    await respuesta.text(),
+    titulo === undefined ? inp : { ...inp, title: titulo },
+    res,
+  );
   return {
     blob: new Blob([relleno], { type: 'image/vnd.dxf' }),
     filename: titledFilename(titulo ?? '', encepadoFallbackDxf(inp.n), 'dxf'),

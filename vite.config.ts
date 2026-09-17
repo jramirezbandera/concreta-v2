@@ -120,15 +120,15 @@ export default defineConfig({
             // Los planos tipo de encepados (public/plantillas/*.dxf, ~860 KB)
             // tampoco entran en el precache: su extensión no está en el
             // globPatterns de arriba y sólo los necesita quien exporta el
-            // detalle de un encepado. Se cachean en runtime al primer export,
-            // y de ahí en adelante el botón funciona sin red. StaleWhileRe-
-            // validate y no CacheFirst porque son dibujo del estudio: si
-            // retocan el plano tipo y se despliega, el siguiente export ya trae
-            // el nuevo sin tener que versionar el nombre de la caché.
+            // detalle de un encepado. NetworkFirst y no CacheFirst porque son
+            // dibujo del estudio: con red se baja SIEMPRE el plano tipo vigente
+            // (200 KB por pulsación, nada), y la copia en caché es sólo para
+            // seguir exportando sin red, o si la red tarda más de 5 s.
             urlPattern: ({ url }) => url.pathname.startsWith("/plantillas/"),
-            handler: "StaleWhileRevalidate",
+            handler: "NetworkFirst",
             options: {
               cacheName: "plantillas-dxf",
+              networkTimeoutSeconds: 5,
               expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] },
             },

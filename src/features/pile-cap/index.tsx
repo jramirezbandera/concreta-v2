@@ -132,6 +132,17 @@ export function PileCapModule() {
    * confirmar el título genera y descarga en el mismo gesto. De ahí el segundo
    * hook: el del PDF abre la previsualización y este no.
    */
+  // El detalle NO sale con comprobaciones en rojo. El PDF las enseña y el
+  // lector ve el INCUMPLE; el DXF sólo dice qué poner en obra, y un plano de
+  // un encepado que no verifica no debería poder salir de aquí sin que nadie
+  // lo note. Los avisos (warn) no bloquean: son recomendaciones.
+  const fallos = result.checks.filter((c) => c.status === 'fail');
+  const motivoBloqueo = !result.valid
+    ? (result.error ?? 'Los datos de entrada no son válidos')
+    : `No se exporta el detalle: no cumple ${fallos
+        .slice(0, 2)
+        .map((c) => c.description)
+        .join('; ')}${fallos.length > 2 ? ` y ${fallos.length - 2} más` : ''}`;
   const dxf = useTitledFileExport({
     // El `import()` va DENTRO del manejador: la plantilla y el relleno no
     // pintan nada hasta que alguien pulsa DXF.
@@ -139,10 +150,10 @@ export function PileCapModule() {
       const { exportarEncepadoDxf } = await import('../../lib/dxf/encepado');
       return exportarEncepadoDxf(state, result, titulo);
     },
-    valid: result.valid,
+    valid: result.valid && fallos.length === 0,
     onTitleChange: (t) => setField('title', t),
     formatoLabel: 'DXF',
-    invalidMessage: result.error ?? 'Los datos de entrada no son válidos',
+    invalidMessage: motivoBloqueo,
   });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
