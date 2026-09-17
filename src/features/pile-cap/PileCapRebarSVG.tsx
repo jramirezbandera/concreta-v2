@@ -206,7 +206,7 @@ function PlanRebar({
       {!inferior && sec.n_top > 0 && bands.map((b, bi) => barLines(b, sec.n_top, 0.6).map((l, i) => (
         <line key={`sup-${bi}-${i}`} {...l} stroke={c.top} strokeWidth={1.1} strokeLinecap="round" />
       )))}
-      <text x={size / 2} y={12} textAnchor="middle" fontSize={isPdf ? 7 : 8}
+      <text x={size / 2} y={12} textAnchor="middle" fontSize={isPdf ? 7 : 10}
         fill={c.textSec} fontFamily={FONT}>
         {title}
       </text>
@@ -236,7 +236,11 @@ function LongSection({
   );
   const capW = L_x * scale;
   const capH = h_enc * scale;
-  const ox = (width - capW) / 2 - 20;
+  // El dibujo se corre a la izquierda para dejar sitio a los rótulos de la
+  // derecha, pero nunca tanto que se salga: a su izquierda se escribe la cota
+  // del canto («h=800», anclada al final), y sin este tope el SVG se comía la
+  // primera letra.
+  const ox = Math.max(36, (width - capW) / 2 - 20);
   const oy = margin + colStub;
   const cov = cover * scale;
   const cTop = Math.max(40, phi_tie) * scale;
@@ -250,7 +254,7 @@ function LongSection({
 
   return (
     <g>
-      <text x={ox} y={11} fontSize={isPdf ? 7 : 8} fill={c.textSec} fontFamily={FONT}>
+      <text x={ox} y={11} fontSize={isPdf ? 7 : 10} fill={c.textSec} fontFamily={FONT}>
         SECCIÓN LONGITUDINAL
       </text>
       {/* Pilar y encepado */}
@@ -285,21 +289,21 @@ function LongSection({
         fill="none" stroke={c.bottom} strokeWidth={2} strokeLinejoin="round"
       />
       {/* Rótulos */}
-      <text x={ox + capW + 5} y={oy + capH - cov + 3} fontSize={isPdf ? 6.5 : 7.5}
+      <text x={ox + capW + 5} y={oy + capH - cov + 3} fontSize={isPdf ? 6.5 : 9.5}
         fill={c.bottom} fontFamily={FONT}>
         {`${n_bars_x}Ø${phi_tie}`}
       </text>
       {sec.n_top > 0 && (
-        <text x={ox + capW + 5} y={oy + cTop + 3} fontSize={isPdf ? 6.5 : 7.5}
+        <text x={ox + capW + 5} y={oy + cTop + 3} fontSize={isPdf ? 6.5 : 9.5}
           fill={c.top} fontFamily={FONT}>
           {`${sec.n_top}Ø${sec.phi_top}`}
         </text>
       )}
-      <text x={ox + capW / 2} y={oy - colStub + 10} textAnchor="middle" fontSize={isPdf ? 6.5 : 7.5}
+      <text x={ox + capW / 2} y={oy - colStub + 10} textAnchor="middle" fontSize={isPdf ? 6.5 : 9.5}
         fill={c.stirrup} fontFamily={FONT}>
         {`cercos Ø${sec.phi_cv} c/${sec.s_cv}`}
       </text>
-      <text x={ox - 4} y={oy + capH / 2} textAnchor="end" fontSize={isPdf ? 6.5 : 7.5}
+      <text x={ox - 4} y={oy + capH / 2} textAnchor="end" fontSize={isPdf ? 6.5 : 9.5}
         fill={c.textSec} fontFamily={FONT} dominantBaseline="middle">
         {`h=${h_enc}`}
       </text>
@@ -333,7 +337,7 @@ function TransSection({
   );
   const capW = L_y * scale;
   const capH = h_enc * scale;
-  const ox = (width - capW) / 2 - 30;
+  const ox = Math.max(36, (width - capW) / 2 - 30);
   const oy = margin + colStub;
   const cov = cover * scale;
   const cTop = Math.max(40, phi_tie) * scale;
@@ -368,7 +372,7 @@ function TransSection({
 
   return (
     <g>
-      <text x={ox} y={11} fontSize={isPdf ? 7 : 8} fill={c.textSec} fontFamily={FONT}>
+      <text x={ox} y={11} fontSize={isPdf ? 7 : 10} fill={c.textSec} fontFamily={FONT}>
         SECCIÓN TRANSVERSAL
       </text>
       <rect x={X(0) - (h_col / 2) * scale} y={oy - colStub + 14}
@@ -426,23 +430,23 @@ function TransSection({
         </g>
       ))}
       {/* Rótulos */}
-      <text x={ox + capW + 6} y={oy + (capH + cTop - cov) / 2} fontSize={isPdf ? 6.5 : 7.5}
+      <text x={ox + capW + 6} y={oy + (capH + cTop - cov) / 2} fontSize={isPdf ? 6.5 : 9.5}
         fill={c.face} fontFamily={FONT} dominantBaseline="middle">
         {`Ø${sec.phi_ch} c/${sec.s_ch}`}
       </text>
-      <text x={ox + capW + 6} y={oy + (capH + cTop - cov) / 2 + 11} fontSize={isPdf ? 6.5 : 7.5}
+      <text x={ox + capW + 6} y={oy + (capH + cTop - cov) / 2 + 11} fontSize={isPdf ? 6.5 : 9.5}
         fill={c.face} fontFamily={FONT} dominantBaseline="middle">
         por cara
       </text>
-      <text x={ox + capW + 6} y={oy + capH - cov + 3} fontSize={isPdf ? 6.5 : 7.5}
+      <text x={ox + capW + 6} y={oy + capH - cov + 3} fontSize={isPdf ? 6.5 : 9.5}
         fill={c.grid} fontFamily={FONT}>
         {`malla Ø${sec.phi_g} c/${sec.s_g}`}
       </text>
-      <text x={X(0)} y={oy - colStub + 10} textAnchor="middle" fontSize={isPdf ? 6.5 : 7.5}
+      <text x={X(0)} y={oy - colStub + 10} textAnchor="middle" fontSize={isPdf ? 6.5 : 9.5}
         fill={c.stirrup} fontFamily={FONT}>
         {n === 2 ? `cerco Ø${sec.phi_cv} · ${sec.n_cv} ramas` : `cercos de banda Ø${sec.phi_cv} · ${sec.n_cv} ramas`}
       </text>
-      <text x={ox - 4} y={oy + capH - cov} textAnchor="end" fontSize={isPdf ? 6.5 : 7.5}
+      <text x={ox - 4} y={oy + capH - cov} textAnchor="end" fontSize={isPdf ? 6.5 : 9.5}
         fill={c.bottom} fontFamily={FONT} dominantBaseline="middle">
         {`${n_bars_x}Ø${phi_tie}`}
       </text>
@@ -485,7 +489,7 @@ function Legend({
 }: { inp: PileCapInputs; result: PileCapResult; width: number; isPdf: boolean; sec: Sec }) {
   const c = colors(isPdf);
   const items: { color: string; dash?: string; text: string }[] = legendItems(inp, result, sec, c);
-  const fs = isPdf ? 6.5 : 7.5;
+  const fs = isPdf ? 6.5 : 9.5;
   const twoCols = width >= 520;
   return (
     <g>

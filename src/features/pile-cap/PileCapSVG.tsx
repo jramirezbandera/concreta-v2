@@ -158,7 +158,7 @@ function PlanView({
               x={px(p.x)}
               y={py(p.y) + r_px + 10}
               textAnchor="middle"
-              fontSize={isPdf ? 7 : 8}
+              fontSize={isPdf ? 7 : 10}
               fill={c.textSec}
               fontFamily="monospace"
             >
@@ -172,7 +172,7 @@ function PlanView({
         * Lx × Ly no es una cota, se da como referencia) */}
       <text
         x={ox} y={oy - capHalfY - 5}
-        textAnchor="middle" fontSize={isPdf ? 7 : 8}
+        textAnchor="middle" fontSize={isPdf ? 7 : 10}
         fill={c.textSec} fontFamily="monospace"
       >
         {n === 3
@@ -184,7 +184,7 @@ function PlanView({
         // contorno no cabe en el clon del PDF de 280 px)
         <text
           x={width - 6} y={height - 8}
-          textAnchor="end" fontSize={isPdf ? 7 : 8}
+          textAnchor="end" fontSize={isPdf ? 7 : 10}
           fill={c.textSec} fontFamily="monospace"
         >
           {`env. ${L_x.toFixed(0)}×${L_y.toFixed(0)} mm`}
@@ -192,7 +192,7 @@ function PlanView({
       ) : (
         <text
           x={ox + capHalfX + 5} y={oy}
-          textAnchor="start" fontSize={isPdf ? 7 : 8}
+          textAnchor="start" fontSize={isPdf ? 7 : 10}
           fill={c.textSec} fontFamily="monospace"
           dominantBaseline="middle"
         >
@@ -202,7 +202,7 @@ function PlanView({
 
       {/* Legend */}
       <circle cx={12} cy={height - 12} r={4} fill={c.pileFill} stroke={c.accent} strokeWidth={1.5} />
-      <text x={20} y={height - 8} fontSize={isPdf ? 6 : 7} fill={c.textSec} fontFamily="monospace">
+      <text x={20} y={height - 8} fontSize={isPdf ? 6 : 9} fill={c.textSec} fontFamily="monospace">
         pilote crítico
       </text>
     </svg>
@@ -308,7 +308,7 @@ function SectionView({
       <text
         x={col_cx + (pile_x_right - col_cx) / 2 + 5}
         y={col_by + (pile_y - r_pile - col_by) / 2}
-        fontSize={isPdf ? 6.5 : 7.5}
+        fontSize={isPdf ? 6.5 : 9.5}
         fill={c.strutStroke}
         fontFamily="monospace"
         textAnchor="start"
@@ -333,7 +333,7 @@ function SectionView({
       />
       <text
         x={ox - 13} y={(oy + capH + tie_y) / 2}
-        fontSize={isPdf ? 6 : 7} fill={c.textSec}
+        fontSize={isPdf ? 6 : 9} fill={c.textSec}
         fontFamily="monospace" textAnchor="end" dominantBaseline="middle"
       >
         {`c=${cover.toFixed(0)}`}
@@ -347,7 +347,7 @@ function SectionView({
       />
       <text
         x={ox + capW + 14} y={oy + (capH - cov_px) / 2}
-        fontSize={isPdf ? 6 : 7} fill={c.textSec}
+        fontSize={isPdf ? 6 : 9} fill={c.textSec}
         fontFamily="monospace" dominantBaseline="middle"
       >
         {`z=${z_eff.toFixed(0)}`}
@@ -371,7 +371,7 @@ function SectionView({
             fill={c.pileFill} stroke={c.pileStroke} strokeWidth={1.5} />
           {n > 2 && (
             <text x={px} y={pile_y + r_pile + 10}
-              textAnchor="middle" fontSize={isPdf ? 6 : 7}
+              textAnchor="middle" fontSize={isPdf ? 6 : 9}
               fill={c.textSec} fontFamily="monospace">
               {n === 3 ? (i === 0 ? 'B' : 'C') : n === 6 ? (i === 0 ? '1,3,5' : '2,4,6') : (i === 0 ? '1,3' : '2,4')}
             </text>
@@ -382,7 +382,7 @@ function SectionView({
       {/* Cap depth label */}
       <text
         x={ox / 2} y={oy + capH / 2}
-        textAnchor="middle" fontSize={isPdf ? 7 : 8}
+        textAnchor="middle" fontSize={isPdf ? 7 : 10}
         fill={c.textSec} fontFamily="monospace" dominantBaseline="middle"
       >
         {`h=${h_enc}`}
@@ -390,9 +390,9 @@ function SectionView({
 
       {/* Legend row */}
       <line x1={8}  y1={height - 8} x2={22} y2={height - 8} stroke={c.strutStroke} strokeWidth={1.5} strokeDasharray="4 2" />
-      <text x={26} y={height - 5} fontSize={isPdf ? 6 : 7} fill={c.textSec} fontFamily="monospace">biela</text>
+      <text x={26} y={height - 5} fontSize={isPdf ? 6 : 9} fill={c.textSec} fontFamily="monospace">biela</text>
       <line x1={60} y1={height - 8} x2={74} y2={height - 8} stroke={c.tieStroke} strokeWidth={2} />
-      <text x={78} y={height - 5} fontSize={isPdf ? 6 : 7} fill={c.textSec} fontFamily="monospace">tirante</text>
+      <text x={78} y={height - 5} fontSize={isPdf ? 6 : 9} fill={c.textSec} fontFamily="monospace">tirante</text>
     </svg>
   );
 }
