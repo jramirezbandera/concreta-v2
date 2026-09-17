@@ -46,6 +46,11 @@
  *   As3 es el anillo horizontal tumbado y As4 el cerco vertical de pie—, así
  *   que se rellenan aparte (ver `valoresDeTabla`).
  *
+ * **Tres decisiones que el usuario ratificó el 2026-09-17**, para no volver a
+ * abrirlas: esa lectura del tipo de 2; que As3 y As5 salgan iguales, porque el
+ * cálculo lleva UNA malla para las dos caras; y que con tirantes en dos
+ * direcciones la casilla lleve el mayor de los dos, que queda del lado seguro.
+ *
  * **Dos notas al pie.** La tabla del estudio no tiene casilla para todo lo que
  * el cálculo dispone: faltan los materiales y, según el tipo, la malla genérica
  * de las caras (2 micropilotes) o los cercos que atan las bandas (3, 4 y 6, que
