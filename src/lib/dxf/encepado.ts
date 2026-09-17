@@ -51,12 +51,23 @@
  * cálculo lleva UNA malla para las dos caras; y que con tirantes en dos
  * direcciones la casilla lleve el mayor de los dos, que queda del lado seguro.
  *
- * **Dos notas al pie.** La tabla del estudio no tiene casilla para todo lo que
+ * **Una nota al pie.** La tabla del estudio no tiene casilla para todo lo que
  * el cálculo dispone: faltan los materiales y, según el tipo, la malla genérica
  * de las caras (2 micropilotes) o los cercos que atan las bandas (3, 4 y 6, que
  * exige el art. 58.4.1.2.2.2 de la EHE-08). Callarlo dejaría un plano pidiendo
- * menos acero del comprobado, así que se añaden dos líneas de texto bajo la
- * tabla, en su capa y su estilo. Son las ÚNICAS entidades nuevas del fichero.
+ * menos acero del comprobado, así que se añade una línea de texto bajo la
+ * tabla, en su capa y su estilo y al cuerpo de los rótulos del plano (0,78 de
+ * la letra de la tabla, que en los cuatro tipos es 0,2). Una y no dos porque
+ * bajo la tabla del tipo de 3 sólo hay 0,6 unidades hasta el marco, y dos
+ * líneas legibles no caben; lo que la nota ya no dice —qué es As1, As3…— lo
+ * sabe el estudio, que es quien dibujó la tabla.
+ *
+ * **Lo que no cabe en una celda se parte en dos líneas dentro de ella.** Las
+ * casillas de armadura miden 5,2 alturas de letra y «Ø12c/10» mide 5,9 con la
+ * fuente del plano (ver `anchoTexto`): se escribe «Ø12» encima y «c/10»
+ * debajo, centradas en la celda, a 1,5 alturas de paso. Lo mismo con «200/180»
+ * cuando el tipo de 4 lleva cotas distintas. La línea de arriba reutiliza la
+ * entidad de la plantilla y la de abajo es un clon con manejador nuevo.
  */
 
 import type { PileCapInputs } from '../../data/defaults';
@@ -173,6 +184,8 @@ interface Texto {
   cx: number;
   y: number;
   altura: number;
+  /** Todos sus grupos, en orden: para clonar la entidad entera. */
+  grupos: Par[];
 }
 
 function leerTextos(pares: Par[], desde: number, hasta: number): Texto[] {
@@ -191,6 +204,7 @@ function leerTextos(pares: Par[], desde: number, hasta: number): Texto[] {
       cx: alineado ? num(x11.valor) : num(primero(grupos, 10)?.valor),
       y: num(primero(grupos, 20)?.valor),
       altura: num(primero(grupos, 40)?.valor),
+      grupos,
     });
   });
   return textos;
@@ -199,26 +213,79 @@ function leerTextos(pares: Par[], desde: number, hasta: number): Texto[] {
 /** La celda de la fila de datos que le toca a cada cabecera de la tabla. */
 interface Celda {
   etiqueta: string;
-  /** Línea del array donde vive el valor. */
-  linea: number;
+  /** El TEXT de la plantilla que ocupa la celda. */
+  texto: Texto;
+  /** Ancho de la casilla, entre sus dos líneas verticales. */
+  ancho: number;
 }
 
-function celdasDeTabla(textos: Texto[], ancla: Texto): { celdas: Celda[]; yFila: number } {
+/**
+ * Las x de las líneas verticales de la tabla que cruzan la fila de datos, en
+ * orden: entre dos consecutivas está cada casilla. Si el plano no las tuviera
+ * como LINE, se vuelve al paso entre cabeceras, que es casi lo mismo.
+ */
+function bordesVerticales(pares: Par[], desde: number, hasta: number, yFila: number): number[] {
+  const xs: number[] = [];
+  recorrerEntidades(pares, desde, hasta, (tipo, grupos) => {
+    if (tipo !== 'LINE') return;
+    const x1 = num(primero(grupos, 10)?.valor), y1 = num(primero(grupos, 20)?.valor);
+    const x2 = num(primero(grupos, 11)?.valor), y2 = num(primero(grupos, 21)?.valor);
+    if (Math.abs(x1 - x2) > 1e-6) return;
+    if (Math.min(y1, y2) > yFila || Math.max(y1, y2) < yFila) return;
+    xs.push(x1);
+  });
+  return xs.sort((a, b) => a - b);
+}
+
+function celdasDeTabla(
+  pares: Par[],
+  desde: number,
+  hasta: number,
+  textos: Texto[],
+  ancla: Texto,
+): { celdas: Celda[]; yFila: number } {
   const h = ancla.altura;
   const mismaLetra = (t: Texto) => Math.abs(t.altura - h) < 0.01 * h;
-  const cabeceras = textos.filter((t) => mismaLetra(t) && Math.abs(t.y - ancla.y) < 0.2 * h);
+  const cabeceras = textos
+    .filter((t) => mismaLetra(t) && Math.abs(t.y - ancla.y) < 0.2 * h)
+    .sort((a, b) => a.cx - b.cx);
   const valores = textos.filter(
     (t) => mismaLetra(t) && t.y < ancla.y - 3.8 * h && t.y > ancla.y - 9 * h,
   );
+  const yFila = valores.length ? Math.min(...valores.map((v) => v.y)) : ancla.y;
+  const bordes = bordesVerticales(pares, desde, hasta, yFila);
+  const anchoDe = (cx: number): number => {
+    const izq = bordes.filter((x) => x < cx).pop();
+    const der = bordes.find((x) => x > cx);
+    if (izq !== undefined && der !== undefined) return der - izq;
+    // Sin líneas: el paso entre cabeceras vecinas.
+    let paso = Infinity;
+    for (let i = 1; i < cabeceras.length; i++) {
+      paso = Math.min(paso, cabeceras[i].cx - cabeceras[i - 1].cx);
+    }
+    return Number.isFinite(paso) ? paso : 10 * h;
+  };
   const celdas = valores.map((v) => {
     let mejor = cabeceras[0];
     for (const c of cabeceras) {
       if (Math.abs(c.cx - v.cx) < Math.abs(mejor.cx - v.cx)) mejor = c;
     }
-    return { etiqueta: mejor.texto, linea: v.linea };
+    return { etiqueta: mejor.texto, texto: v, ancho: anchoDe(v.cx) };
   });
-  const yFila = valores.length ? Math.min(...valores.map((v) => v.y)) : ancla.y;
   return { celdas, yFila };
+}
+
+/**
+ * Cómo partir en dos líneas un valor que no cabe en su casilla: «Ø12c/10» en
+ * «Ø12» y «c/10»; «200/180» en «200» y «180». Lo que no tenga por dónde
+ * partirse se escribe entero, y que se vea.
+ */
+function partir(v: string): [string, string] | null {
+  const c = v.indexOf('c/');
+  if (c > 0) return [v.slice(0, c), v.slice(c)];
+  const barra = v.indexOf('/');
+  if (barra > 0) return [v.slice(0, barra), v.slice(barra + 1)];
+  return null;
 }
 
 /** Un tramo horizontal del dibujo, venga de una LINE o de una polilínea. */
@@ -251,12 +318,15 @@ function tramosHorizontales(pares: Par[], desde: number, hasta: number): Tramo[]
   return tramos;
 }
 
-/** Dónde escribir las notas al pie y con qué cuerpo de letra. */
+/** Dónde va la nota al pie: la esquina inferior izquierda de la tabla y el sitio que hay. */
 interface ZonaNotas {
   x: number;
-  /** Borde inferior de la tabla: la primera línea va justo debajo. */
+  /** Borde inferior de la tabla. */
   y: number;
-  altura: number;
+  /** Hasta el primer trazo horizontal que hay debajo (el marco), en unidades. */
+  hueco: number;
+  /** Ancho de la tabla. */
+  ancho: number;
 }
 
 /**
@@ -268,11 +338,9 @@ interface ZonaNotas {
  * que acertaba sólo porque el marco del estudio es una polilínea; con un
  * marco de líneas las notas habrían salido debajo del marco.) El suelo es el
  * primer tramo horizontal que aparece por debajo del borde cruzando su misma
- * franja de x —en los cuatro planos, el marco—, y con eso se reparte el
- * hueco: cuerpo de letra 0,7 del de la tabla si cabe, y si no el que quepa,
- * con un mínimo por debajo del cual ya no se leería. Sin medir el suelo, en el
- * tipo de 3 micropilotes —el de tabla más baja— la segunda línea salía escrita
- * sobre el marco.
+ * franja de x —en los cuatro planos, el marco—. Sin medirlo, en el tipo de 3
+ * micropilotes —el de tabla más baja, a 0,6 del marco— la nota salía escrita
+ * sobre él.
  */
 function zonaDeNotas(
   pares: Par[],
@@ -294,8 +362,43 @@ function zonaDeNotas(
     if (t.x2 < pie.x1 - 0.5 * h || t.x1 > pie.x2 + 0.5 * h) continue;
     if (t.y > suelo) suelo = t.y;
   }
-  const altura = Math.min(0.7 * h, Math.max(0.4 * h, (pie.y - suelo) / 4));
-  return { x: pie.x1, y: pie.y, altura };
+  return { x: pie.x1, y: pie.y, hueco: pie.y - suelo, ancho: pie.x2 - pie.x1 };
+}
+
+// ── La fuente del plano ─────────────────────────────────────────────────────
+
+/**
+ * Avance de cada glifo, en alturas de letra, con la fuente del plano tipo.
+ *
+ * El estilo `Estructura` de los cuatro planos usa GOTHIC.TTF (Century Gothic),
+ * y AutoCAD toma la altura de un TEXT TrueType como altura de MAYÚSCULA, que en
+ * esa fuente es 0,706 em. La tabla son los avances medidos en la fuente y
+ * pasados a esa unidad, calibrados contra una captura del plano abierto en
+ * AutoCAD: «ENCEPADO 3 MICROPILOTES» mide 19,4 h en los dos. Es una fuente
+ * ancha —un dígito ocupa 0,79 h, la Ø 1,23 h—, y con Arial a ojo se iba un 40 %
+ * por debajo: así salió la primera versión con «Ø12c/10» pisando las líneas
+ * de la tabla.
+ */
+const ANCHO_GOTHIC: Record<string, number> = {
+  '0': 0.785, '1': 0.785, '2': 0.785, '3': 0.785, '4': 0.785, '5': 0.785, '6': 0.785,
+  '7': 0.785, '8': 0.785, '9': 0.785, 'Ø': 1.23,
+  A: 1.048, B: 0.813, C: 1.152, D: 1.054, E: 0.759, F: 0.687, G: 1.235, H: 0.968,
+  I: 0.32, J: 0.683, K: 0.837, L: 0.654, M: 1.302, N: 1.048, O: 1.231, P: 0.838,
+  Q: 1.234, R: 0.86, S: 0.705, T: 0.603, U: 0.927, V: 0.995, W: 1.36, X: 0.862,
+  Y: 0.838, Z: 0.68, Ñ: 1.048,
+  a: 0.968, b: 0.966, c: 0.916, d: 0.97, e: 0.921, f: 0.445, g: 0.953, h: 0.864,
+  i: 0.284, j: 0.288, k: 0.711, l: 0.284, m: 1.329, n: 0.864, o: 0.927, p: 0.966,
+  q: 0.966, r: 0.426, s: 0.55, t: 0.48, u: 0.861, v: 0.785, w: 1.177, x: 0.68,
+  y: 0.759, z: 0.602, ñ: 0.864, á: 0.968, é: 0.921, í: 0.284, ó: 0.927, ú: 0.861,
+  ' ': 0.392, '·': 0.472, '/': 0.619, '.': 0.392, ',': 0.392, ':': 0.392, ';': 0.392,
+  '-': 0.47, '(': 0.523, ')': 0.523, '=': 0.858, '%': 1.098,
+};
+
+/** Anchura del texto TAL COMO lo dibuja el CAD, para una altura de letra `h`. */
+export function anchoTexto(texto: string, h: number): number {
+  let w = 0;
+  for (const ch of texto.replace(/%%[cC]/g, 'Ø')) w += ANCHO_GOTHIC[ch] ?? 1.0;
+  return w * h;
 }
 
 // ── Lo que dice cada casilla ────────────────────────────────────────────────
@@ -311,7 +414,8 @@ function barras(n: number, phi: number): string {
   return `${n}%%C${phi}`;
 }
 
-/** Una cota, o «a/b» cuando el plano tiene una casilla y el cálculo dos valores. */
+/** Una cota, o «a/b» cuando el plano tiene una casilla y el cálculo dos valores
+ *  (si no cabe en la celda, el relleno la parte en dos líneas por la barra). */
 function unaODos(a: number, b: number): string {
   return Math.abs(a - b) < 5 ? cm(a) : `${cm(a)}/${cm(b)}`;
 }
@@ -377,31 +481,20 @@ function valoresDeTabla(inp: PileCapInputs, res: PileCapResult): Record<string, 
   };
 }
 
-/** Las dos líneas del pie: materiales y lo que la tabla no puede decir. */
-function notasAlPie(inp: PileCapInputs): string[] {
-  const datos = [
+/** La nota del pie: título, materiales, axil y la armadura que no tiene casilla. */
+function notaAlPie(inp: PileCapInputs): string {
+  const partes = [
     `HA-${inp.fck}`,
     `B${inp.fyk}S`,
-    `recubrimiento ${cm(inp.cover)} cm`,
-    `axil de cálculo ${dec(inp.N_Ed, 0)} kN`,
+    `rec. ${cm(inp.cover)} cm`,
+    `NEd = ${dec(inp.N_Ed, 0)} kN`,
+    inp.n === 2
+      ? `malla ${aSeparacion(inp.phi_g, inp.s_g)} en las dos caras`
+      : `cercos de banda ${aSeparacion(inp.phi_cv, inp.s_cv)} de ${inp.n_cv} ramas`,
   ];
   const titulo = inp.title.trim();
-  if (titulo) datos.unshift(titulo);
-  const armado =
-    inp.n === 2
-      ? [
-          'As1/As2 en banda sobre pilotes',
-          'As3 anillos de piel',
-          `As4 cercos de ${inp.n_cv} ramas`,
-          `malla ${aSeparacion(inp.phi_g, inp.s_g)} en las dos caras`,
-        ]
-      : [
-          'As1/As2 en banda sobre pilotes',
-          'As3/As5 malla de las dos caras',
-          'As4 anillos de piel',
-          `cercos de banda ${aSeparacion(inp.phi_cv, inp.s_cv)} de ${inp.n_cv} ramas`,
-        ];
-  return [datos.join(' · '), armado.join(' · ')];
+  if (titulo) partes.unshift(titulo);
+  return partes.join(' · ');
 }
 
 // ── Escritura ───────────────────────────────────────────────────────────────
@@ -430,6 +523,31 @@ function entidadTexto(
   par(l, 1, t.texto);
   par(l, 7, t.estilo);
   par(l, 100, 'AcDbText');
+  return l;
+}
+
+/**
+ * La segunda línea de una celda: la misma entidad de la plantilla, con otro
+ * manejador, otro texto y la y desplazada. Se copian todos sus grupos menos los
+ * que no deben duplicarse: reactores y diccionario propio (los bloques 102 y
+ * el 360) y los datos extendidos (≥ 1000).
+ */
+function clonTexto(grupos: Par[], manejador: string, texto: string, dy: number): string[] {
+  const l: string[] = [];
+  par(l, 0, 'TEXT');
+  let dentro102 = false;
+  for (const g of grupos) {
+    if (g.codigo === 102) {
+      dentro102 = g.valor.startsWith('{');
+      continue;
+    }
+    if (dentro102 || g.codigo === 360 || g.codigo >= 1000) continue;
+    let v = g.valor;
+    if (g.codigo === 5) v = manejador;
+    else if (g.codigo === 1) v = texto;
+    else if (g.codigo === 20 || g.codigo === 21) v = (num(g.valor) + dy).toFixed(6);
+    par(l, g.codigo, v);
+  }
   return l;
 }
 
@@ -474,47 +592,67 @@ export function rellenarEncepado(
   const ancla = textos.find((t) => t.texto === 'MICROPILOTE' && t.altura > 0);
   if (!ancla) throw new ErrorPlantilla('No se encuentra la tabla de la plantilla');
 
-  // 1. Las cifras de la tabla, celda a celda y sin tocar nada más.
-  const { celdas, yFila } = celdasDeTabla(textos, ancla);
+  const h = ancla.altura;
+  const { celdas, yFila } = celdasDeTabla(pares, desde, hasta, textos, ancla);
   if (!celdas.length) throw new ErrorPlantilla('La tabla de la plantilla no tiene fila de datos');
+
+  // Manejadores para lo que se añade: las segundas líneas de celda y la nota.
+  const iSemilla = pares.findIndex((p, i) => p.codigo === 5 && pares[i - 1]?.valor === '$HANDSEED');
+  const semilla = iSemilla >= 0 ? pares[iSemilla] : null;
+  let manejador = primerManejadorLibre(pares, semilla?.valor ?? '0');
+  const siguiente = () => (manejador++).toString(16).toUpperCase();
+  const nuevas: string[] = [];
+
+  // 1. Las cifras de la tabla, celda a celda. Lo que cabe en su casilla con la
+  //    fuente del plano se escribe en su línea; lo que no, en dos líneas a 1,5
+  //    alturas de paso, centradas en la celda como estaba la original.
   const valores = valoresDeTabla(inp, res);
+  const medio = 0.75 * h;
   for (const c of celdas) {
     const v = valores[c.etiqueta];
-    if (v !== undefined) lineas[c.linea] = v;
+    if (v === undefined) continue;
+    const dos = anchoTexto(v, h) > 0.88 * c.ancho ? partir(v) : null;
+    if (!dos) {
+      lineas[c.texto.linea] = v;
+      continue;
+    }
+    lineas[c.texto.linea] = dos[0];
+    for (const g of c.texto.grupos) {
+      if (g.codigo === 20 || g.codigo === 21) lineas[g.linea] = (num(g.valor) + medio).toFixed(6);
+    }
+    nuevas.push(...clonTexto(c.texto.grupos, siguiente(), dos[1], -medio));
   }
 
-  // 2. Las dos notas al pie, en la capa y el estilo de la propia tabla. Se
-  //    insertan al final de las entidades, así que va DESPUÉS del paso 1: el
-  //    splice corre los índices de las celdas.
-  const zona = zonaDeNotas(pares, desde, hasta, ancla.altura, yFila);
+  // 2. La nota al pie, en la capa y el estilo de la propia tabla, al cuerpo de
+  //    los rótulos del plano si cabe en el hueco y en el ancho de la tabla.
+  const zona = zonaDeNotas(pares, desde, hasta, h, yFila);
   if (zona) {
-    const iSemilla = pares.findIndex((p, i) => p.codigo === 5 && pares[i - 1]?.valor === '$HANDSEED');
-    const semilla = iSemilla >= 0 ? pares[iSemilla] : null;
-    let manejador = primerManejadorLibre(pares, semilla?.valor ?? '0');
-    const altura = zona.altura;
-    const nuevas: string[] = [];
-    notasAlPie(inp).forEach((texto, i) => {
-      nuevas.push(
-        ...entidadTexto(
-          {
-            x: zona.x,
-            y: zona.y - altura * (1.3 + 1.8 * i),
-            altura,
-            texto,
-            capa: ancla.capa,
-            estilo: ancla.estilo,
-            dueno: ancla.dueno,
-          },
-          manejador.toString(16).toUpperCase(),
-        ),
-      );
-      manejador += 1;
-    });
-    // El HANDSEED vive en la cabecera, muy por delante: el splice no lo mueve.
-    if (semilla) lineas[semilla.linea] = manejador.toString(16).toUpperCase();
-    // `pares[hasta]` es el ENDSEC de las entidades; su código, una línea antes.
-    lineas.splice(pares[hasta].linea - 1, 0, ...nuevas);
+    const texto = notaAlPie(inp);
+    const altura = Math.max(
+      0.5 * h,
+      Math.min(0.78 * h, zona.hueco / 2.3, (0.95 * zona.ancho) / anchoTexto(texto, 1)),
+    );
+    nuevas.push(
+      ...entidadTexto(
+        {
+          x: zona.x,
+          y: zona.y - 1.8 * altura,
+          altura,
+          texto,
+          capa: ancla.capa,
+          estilo: ancla.estilo,
+          dueno: ancla.dueno,
+        },
+        siguiente(),
+      ),
+    );
   }
+
+  // Todo lo nuevo va al final de las entidades, DESPUÉS de tocar las celdas:
+  // el splice corre los índices de lo que hay detrás. El HANDSEED vive en la
+  // cabecera, muy por delante, y no se mueve.
+  if (semilla) lineas[semilla.linea] = manejador.toString(16).toUpperCase();
+  if (nuevas.length) lineas.splice(pares[hasta].linea - 1, 0, ...nuevas);
 
   return lineas.join('\r\n');
 }

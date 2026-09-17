@@ -28,6 +28,7 @@ import { pileCapDefaults, type PileCapInputs } from '../../data/defaults';
 import { calcPileCap } from '../../lib/calculations/pileCap';
 import {
   ErrorPlantilla,
+  anchoTexto,
   exportarEncepadoDxf,
   rellenarEncepado,
   rutaPlantilla,
@@ -70,23 +71,36 @@ function textos(dxf: string): { texto: string; x: number; y: number; h: number }
   return out;
 }
 
-/** La fila de datos del DXF generado, etiquetada con las columnas medidas. */
+/**
+ * La fila de datos del DXF generado, etiquetada con las columnas medidas. Una
+ * celda partida en dos líneas (la de arriba a +0,19 y la de abajo a −0,19 de
+ * la cota de la fila) se devuelve como «arriba abajo», con un espacio.
+ */
 function filaDeDatos(dxf: string, n: number): Record<string, string> {
   const { y, columnas } = TABLA[n];
-  const celdas = textos(dxf)
-    .filter((t) => Math.abs(t.y - y) < 0.01 && Math.abs(t.h - 0.256) < 0.001)
-    .sort((a, b) => a.x - b.x);
-  expect(celdas.map((c) => c.texto).length).toBe(columnas.length);
-  return Object.fromEntries(columnas.map((c, i) => [c, celdas[i].texto]));
+  const enFila = textos(dxf).filter((t) => Math.abs(t.y - y) < 0.3 && Math.abs(t.h - 0.256) < 0.001);
+  const porColumna = new Map<string, typeof enFila>();
+  for (const t of enFila) {
+    const k = t.x.toFixed(4);
+    porColumna.set(k, [...(porColumna.get(k) ?? []), t]);
+  }
+  const celdas = [...porColumna.entries()]
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([, ts]) => ts.sort((a, b) => b.y - a.y).map((t) => t.texto).join(' '));
+  expect(celdas.length).toBe(columnas.length);
+  return Object.fromEntries(columnas.map((c, i) => [c, celdas[i]]));
 }
 
 /** Las notas al pie: los textos de cuerpo menor que la tabla, de abajo del todo. */
 function notas(dxf: string): string[] {
   return textos(dxf)
-    .filter((t) => t.h < 0.2 && t.y < 1)
+    .filter((t) => t.h < 0.25 && t.y < 1)
     .sort((a, b) => b.y - a.y)
     .map((t) => t.texto);
 }
+
+/** Ancho de casilla de las columnas de armadura, medido en los cuatro planos. */
+const CASILLA_AS = 1.345;
 
 function rellenar(inp: PileCapInputs) {
   return rellenarEncepado(leerPlantilla(inp.n), inp, calcPileCap(inp));
@@ -118,15 +132,16 @@ describe('DXF de encepados — la tabla del plano tipo', () => {
     // anillo horizontal de piel y el cerco vertical, no la malla.
     expect(fila.As1).toBe(`${res.n_bars_x}%%C12`);
     expect(fila.As2).toBe('2%%C12');
-    expect(fila.As3).toBe('%%C12c/10');
-    expect(fila.As4).toBe('%%C12c/10');
+    // «Ø12c/10» mide 5,9 alturas y la casilla 5,2: va en dos líneas.
+    expect(fila.As3).toBe('%%C12 c/10');
+    expect(fila.As4).toBe('%%C12 c/10');
   });
 
   it('2 micropilotes: la malla, que no tiene casilla, va en la nota', () => {
     const dxf = rellenar(base(2, { phi_g: 16, s_g: 250, phi_ch: 10, s_ch: 150 }));
     const fila = filaDeDatos(dxf, 2);
-    expect(fila.As3).toBe('%%C10c/15'); // anillos de piel
-    expect(notas(dxf)[1]).toContain('malla %%C16c/25 en las dos caras');
+    expect(fila.As3).toBe('%%C10 c/15'); // anillos de piel
+    expect(notas(dxf)[0]).toContain('malla %%C16c/25 en las dos caras');
   });
 
   it('3 micropilotes: B es la altura del triángulo y hay tres reparticiones', () => {
@@ -137,9 +152,9 @@ describe('DXF de encepados — la tabla del plano tipo', () => {
     expect(fila.B).toBe('103,9'); // 1200·√3/2 = 1039,2 mm
     expect(fila.D).toBe(`${(res.e_borde / 10).toFixed(0)}`);
     expect(fila.As1).toBe(`${res.n_bars_x}%%C12`);
-    expect(fila.As3).toBe('%%C12c/10'); // malla inferior
-    expect(fila.As4).toBe('%%C12c/10'); // anillos de piel
-    expect(fila.As5).toBe(fila.As3);    // la malla es la misma arriba y abajo
+    expect(fila.As3).toBe('%%C12 c/10'); // malla inferior
+    expect(fila.As4).toBe('%%C12 c/10'); // anillos de piel
+    expect(fila.As5).toBe(fila.As3);     // la malla es la misma arriba y abajo
   });
 
   it('D es la distancia al borde en el sentido de la cota, no la menor de las dos', () => {
@@ -151,7 +166,7 @@ describe('DXF de encepados — la tabla del plano tipo', () => {
     // 6 pilotes con cotas manuales distintas por sentido: se escriben las dos.
     const desigual = base(6, { dims_auto: false, L_x: 3100, L_y: 3200 });
     const fila = filaDeDatos(rellenar(desigual), 6);
-    expect(fila.D).toBe('35/40'); // (3100 − 2400)/2 y (3200 − 2·1200)/2
+    expect(fila.D).toBe('35/40'); // (3100 − 2400)/2 y (3200 − 2·1200)/2; cabe en una línea
     expect(fila.L1).toBe('310');
     expect(fila.L2).toBe('320');
   });
@@ -159,7 +174,8 @@ describe('DXF de encepados — la tabla del plano tipo', () => {
   it('4 micropilotes: una sola casilla de lado, y las dos cuando no son iguales', () => {
     expect(filaDeDatos(rellenar(base(4)), 4).L).toBe('195');
     const rectangular = base(4, { dims_auto: false, L_x: 2000, L_y: 1800 });
-    expect(filaDeDatos(rellenar(rectangular), 4).L).toBe('200/180');
+    // «200/180» no cabe en la casilla: una cota encima de la otra.
+    expect(filaDeDatos(rellenar(rectangular), 4).L).toBe('200 180');
   });
 
   it('6 micropilotes: A entre columnas y B entre filas', () => {
@@ -180,17 +196,31 @@ describe('DXF de encepados — la tabla del plano tipo', () => {
     expect(esperado).toBeGreaterThanOrEqual(res.n_bars_x);
   });
 
+  for (const n of [2, 3, 4, 6]) {
+    it(`${n} micropilotes: ningún texto de la fila de datos se sale de su casilla`, () => {
+      const dxf = rellenar(base(n, { title: 'Encepado P-5' }));
+      const { y } = TABLA[n];
+      const enFila = textos(dxf).filter(
+        (t) => Math.abs(t.y - y) < 0.3 && Math.abs(t.h - 0.256) < 0.001 && t.x > 5,
+      );
+      expect(enFila.length).toBeGreaterThan(5);
+      for (const t of enFila) {
+        expect(anchoTexto(t.texto, t.h), t.texto).toBeLessThanOrEqual(0.9 * CASILLA_AS);
+      }
+    });
+  }
+
   it('sin armadura superior la casilla lo dice, no queda en blanco', () => {
     expect(filaDeDatos(rellenar(base(4, { n_top: 0 })), 4).As2).toBe('-');
   });
 });
 
-describe('DXF de encepados — las notas al pie', () => {
-  it('materiales, recubrimiento, axil y el título del elemento', () => {
+describe('DXF de encepados — la nota al pie', () => {
+  it('título, materiales, recubrimiento, axil y la armadura sin casilla, en una línea', () => {
     const dxf = rellenar(base(4, { title: 'Encepado P-5', fck: 30, N_Ed: 750 }));
-    expect(notas(dxf)[0]).toBe(
-      'Encepado P-5 · HA-30 · B500S · recubrimiento 6 cm · axil de cálculo 750 kN',
-    );
+    expect(notas(dxf)).toEqual([
+      'Encepado P-5 · HA-30 · B500S · rec. 6 cm · NEd = 750 kN · cercos de banda %%C12c/10 de 2 ramas',
+    ]);
   });
 
   it('sin título, la nota empieza por el hormigón', () => {
@@ -199,39 +229,54 @@ describe('DXF de encepados — las notas al pie', () => {
 
   it('con 3 o más pilotes la nota lleva los cercos de banda, que no tienen casilla', () => {
     for (const n of [3, 4, 6]) {
-      const nota = notas(rellenar(base(n, { phi_cv: 10, s_cv: 200, n_cv: 4 })))[1];
+      const nota = notas(rellenar(base(n, { phi_cv: 10, s_cv: 200, n_cv: 4 })))[0];
       expect(nota).toContain('cercos de banda %%C10c/20 de 4 ramas');
     }
   });
 });
 
-describe('DXF de encepados — las notas caben entre la tabla y el marco', () => {
-  /** Cota del borde inferior del marco de cada plano tipo, medida en el .dxf. */
+describe('DXF de encepados — la nota cabe entre la tabla y el marco, y en el ancho de la tabla', () => {
+  /** Medidos en los .dxf del estudio: borde inferior de la tabla, su borde derecho y el marco. */
+  const PIE: Record<number, number> = { 2: 1.11, 3: 0.835, 4: 1.125, 6: 0.999 };
+  const DERECHA: Record<number, number> = { 2: 15.98, 3: 16.77, 4: 17.43, 6: 18.36 };
   const MARCO: Record<number, number> = { 2: 0.142, 3: 0.228, 4: 0.158, 6: 0.031 };
   for (const n of [2, 3, 4, 6]) {
-    it(`${n} micropilotes: las dos líneas quedan por encima del marco`, () => {
-      const dxf = rellenar(base(n));
-      const [l1, l2] = textos(dxf).filter((t) => t.h < 0.2 && t.y < 1).sort((a, b) => b.y - a.y);
-      expect(l1.y).toBeGreaterThan(l2.y);
-      // Línea base de la segunda a más de media altura de letra del marco:
-      // el descendente de una «p» baja 0,2 alturas, y queda aire. (Cuando el
-      // hueco manda, el reparto deja 0,9 alturas; con el cuerpo pleno, más.)
-      expect(l2.y - MARCO[n]).toBeGreaterThan(0.5 * l2.h);
-      // Y por debajo del borde de la tabla, que está entre 0,83 y 1,13.
-      expect(l1.y).toBeLessThan(1.13);
+    it(`${n} micropilotes: al cuerpo de los rótulos del plano y sin tocar nada`, () => {
+      const dxf = rellenar(base(n, { title: 'Encepado pilar P-12' }));
+      const [nota, ...resto] = textos(dxf).filter((t) => t.h < 0.25 && t.y < 1);
+      expect(resto).toEqual([]); // una sola línea
+      // 0,78 de la letra de la tabla = 0,2, el cuerpo de «As4», «Hormigón de limpieza»…
+      expect(nota.h).toBeCloseTo(0.2, 2);
+      // Aire por arriba (la mayúscula no toca la tabla) y por abajo (el marco).
+      expect(nota.y + nota.h).toBeLessThan(PIE[n] - 0.1);
+      expect(nota.y - MARCO[n]).toBeGreaterThan(nota.h);
+      // Y no se sale de la tabla por la derecha, con la fuente del plano.
+      expect(nota.x + anchoTexto(nota.texto, nota.h)).toBeLessThan(DERECHA[n]);
     });
   }
+
+  it('con un título muy largo la nota se encoge lo justo para no salirse de la tabla', () => {
+    const largo = 'Encepado del pilar P-12 del sótano segundo, junto al muro pantalla';
+    const dxf = rellenar(base(2, { title: largo }));
+    const [nota] = textos(dxf).filter((t) => t.h < 0.25 && t.y < 1);
+    expect(nota.h).toBeLessThan(0.2);
+    expect(nota.h).toBeGreaterThanOrEqual(0.128); // nunca por debajo de media letra de tabla
+    expect(nota.x + anchoTexto(nota.texto, nota.h)).toBeLessThan(DERECHA[2]);
+  });
 });
 
 describe('DXF de encepados — el fichero', () => {
   for (const n of [2, 3, 4, 6]) {
-    it(`${n} micropilotes: sólo cambian las celdas, el HANDSEED y las dos notas`, () => {
+    it(`${n} micropilotes: sólo cambian las celdas, el HANDSEED, la nota y las segundas líneas`, () => {
       const plantilla = leerPlantilla(n);
       const salida = rellenar(base(n));
       const antes = plantilla.split(/\r\n|\n/);
       const despues = salida.split(/\r\n|\n/);
-      // Dos TEXT nuevos de 13 pares cada uno.
-      expect(despues.length).toBe(antes.length + 2 * 26);
+      // Con los valores por defecto se parten las casillas de reparto (As3 y
+      // As4 con 2 pilotes; As3, As4 y As5 con más): cada una es un TEXT nuevo
+      // clonado de la celda, y la nota otro TEXT de 13 pares.
+      const partidas = n === 2 ? 2 : 3;
+      expect(despues.length).toBeGreaterThan(antes.length + 26);
       // Ninguna línea de la plantilla desaparece salvo las celdas y el
       // HANDSEED. Se cuenta como multiconjunto y no por posición porque las
       // notas se insertan en medio y corren todo lo que va detrás.
@@ -244,10 +289,14 @@ describe('DXF de encepados — el fichero', () => {
         return false;
       });
       expect(perdidas.length).toBeGreaterThan(0);
-      expect(perdidas.length).toBeLessThanOrEqual(TABLA[n].columnas.length + 1);
-      // Y no se pierde ninguna entidad: los TEXT son los de antes más las notas.
+      // Cada celda partida cambia además sus dos cotas y (grupos 20 y 21).
+      expect(perdidas.length).toBeLessThanOrEqual(TABLA[n].columnas.length + 1 + 2 * partidas);
+      // Y no se pierde ninguna entidad: los TEXT son los de antes más los nuevos.
       const cuenta = (t: string, txt: string) => txt.split(`\r\n${t}\r\n`).length - 1;
-      expect(cuenta('TEXT', salida)).toBe(cuenta('TEXT', plantilla.replace(/\r?\n/g, '\r\n')) + 2);
+      expect(cuenta('TEXT', salida)).toBe(cuenta('TEXT', plantilla.replace(/\r?\n/g, '\r\n')) + 1 + partidas);
+      for (const t of ['LINE', 'LWPOLYLINE', 'CIRCLE', 'DIMENSION', 'MTEXT']) {
+        expect(cuenta(t, salida)).toBe(cuenta(t, plantilla.replace(/\r?\n/g, '\r\n')));
+      }
       // Las secciones siguen ahí.
       for (const s of ['HEADER', 'CLASSES', 'TABLES', 'BLOCKS', 'ENTITIES', 'OBJECTS']) {
         expect(salida).toContain(`\r\n${s}\r\n`);
