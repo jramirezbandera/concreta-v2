@@ -25,3 +25,33 @@ export function bytesDe(blob: Blob): Promise<ArrayBuffer> {
     lector.readAsArrayBuffer(blob);
   });
 }
+
+// ── base64, para los PDF que viajan dentro del .concreta ─────────────────────
+//
+// En trozos: `String.fromCharCode(...bytes)` con un PDF de 300 KB pasa 300.000
+// argumentos de golpe y revienta la pila del intérprete. 8 KB por vuelta es de
+// sobra rápido y no se acerca a ningún límite.
+
+const TROZO = 8192;
+
+export function base64De(bytes: ArrayBuffer): string {
+  const vista = new Uint8Array(bytes);
+  let texto = '';
+  for (let i = 0; i < vista.length; i += TROZO) {
+    texto += String.fromCharCode(...vista.subarray(i, i + TROZO));
+  }
+  return btoa(texto);
+}
+
+/** El `Blob` de un base64, o `null` si el texto no lo es. Lo que entra viene de un fichero ajeno. */
+export function blobDeBase64(b64: string, tipo = 'application/pdf'): Blob | null {
+  let binario: string;
+  try {
+    binario = atob(b64);
+  } catch {
+    return null;
+  }
+  const bytes = new Uint8Array(binario.length);
+  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+  return new Blob([bytes], { type: tipo });
+}

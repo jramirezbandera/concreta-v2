@@ -73,6 +73,12 @@ function mensajeDeFallo(r: ResultadoCambio): string {
   }
 }
 
+/** «1,2 MB» o «680 KB»: lo que pesan los PDF que se lleva el fichero. */
+function megas(bytes: number): string {
+  const mb = bytes / 1024 / 1024;
+  return mb >= 1 ? `${mb.toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 function fecha(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
@@ -288,10 +294,17 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
   const exportar = () => {
     cerrar();
     if (pestanaDesfasada()) return avisarDesfasada();
-    const bajar = (p: ProyectoFile | null) => {
+    // El fichero se lleva los PDF del anejo dentro, y eso se dice: explica por
+    // qué pesa lo que pesa, y es la promesa de que al reimportarla el anejo
+    // vuelve entero.
+    const bajar = async (p: ProyectoFile | null) => {
       if (!p) return avisarGuardado(null);
-      descargarProyecto(p);
-      showToast(`Exportada: ${nombreDeFichero(p)}`, { autoDismiss: 4000 });
+      const viaje = await descargarProyecto(p);
+      const cola = viaje.cuantos > 0 ? ` · ${viaje.cuantos} PDF del anejo (${megas(viaje.bytes)})` : '';
+      // Los que no caben se dicen: al importarla saldrán en rojo, y ahí el
+      // anejo ofrece rehacerlos. Callarlo sería una sorpresa en la otra punta.
+      const resto = viaje.fuera > 0 ? ` · ${viaje.fuera} no caben y se reconstruyen desde el anejo` : '';
+      showToast(`Exportada: ${nombreDeFichero(p)}${cola}${resto}`, { autoDismiss: viaje.fuera > 0 ? 7000 : 4000 });
     };
     if (proyectoActivo() === null) {
       setDialogo({
@@ -301,12 +314,12 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
         confirmar: 'Guardar y exportar',
         alConfirmar: (n) => {
           cerrarDialogo();
-          bajar(guardarComoNueva(n));
+          void bajar(guardarComoNueva(n));
         },
       });
       return;
     }
-    bajar(guardarActual());
+    void bajar(guardarActual());
   };
 
   const importar = () => {

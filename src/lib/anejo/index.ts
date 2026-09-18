@@ -45,7 +45,8 @@ export type { FalloRepintado } from './titulo';
 import type { FalloRepintado } from './titulo';
 
 export const MODULO_ANEJO = 'concreta-anejo';
-const CLAVE_ANEJO = 'concreta-anejo';
+/** La clave de proyecto donde vive el índice. La lee también el fichero .concreta. */
+export const CLAVE_ANEJO = 'concreta-anejo';
 const CLAVE_ANEJO_VERSION = 'concreta-anejo-version';
 /** La pantalla del anejo (F6). */
 export const RUTA_ANEJO = '/proyecto/anejo';
@@ -94,6 +95,11 @@ function registroDeTextos(v: unknown): Record<string, string> | null {
 }
 
 /** Las piezas que hay dentro de un valor crudo de `concreta-anejo`; `[]` si no se entiende. */
+/** Los `blobId` que referencia un índice en crudo: el de otra obra, o el de un `.concreta`. */
+export function blobIdsDeIndice(raw: string | null): string[] {
+  return piezasDe(raw).map((p) => p.blobId);
+}
+
 function piezasDe(raw: string | null): Pieza[] {
   if (raw === null) return [];
   try {
