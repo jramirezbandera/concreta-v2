@@ -12,6 +12,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { steelBeamsAdapter, summarizeSteelBeamResults } from '../../lib/ai/modules/steelBeams';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -99,7 +100,10 @@ export function SteelBeamsModule() {
   // Resumen de resultados para el prompt del chat IA (Fase 2, T3.2)
   const aiResults = useMemo(() => summarizeSteelBeamResults(result), [result]);
 
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportSteelBeamsPDF(effectiveInputs, result, system, title),
       valid: true,
@@ -154,8 +158,7 @@ export function SteelBeamsModule() {
       <Topbar
         moduleLabel="Vigas"
         moduleGroup="Acero"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -301,10 +304,13 @@ export function SteelBeamsModule() {
           initialTitle={state.title}
           fallbackFilename={steelBeamsFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

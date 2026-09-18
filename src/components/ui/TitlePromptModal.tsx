@@ -25,7 +25,12 @@ interface TitlePromptModalProps {
    */
   titulo?: string;
   confirmar?: string;
-  lineaDestino?: ReactNode;
+  /**
+   * Puede ser una función del título que se está tecleando: guardar en el
+   * anejo actualiza el capítulo abierto o estrena uno SEGÚN EL NOMBRE, y aquí
+   * es donde el nombre se decide, así que la línea lo dice tecla a tecla.
+   */
+  lineaDestino?: ReactNode | ((title: string) => ReactNode);
 }
 
 /**
@@ -44,7 +49,7 @@ interface TitlePromptModalProps {
  * a11y: autofocus + seleccionar-todo al abrir (una tecla sobrescribe el
  * pre-relleno), Enter = confirmar, Escape / X / Cancelar = cerrar. El clic en el
  * backdrop NO cierra (a propósito: evita perder el título escrito por un clic
- * accidental fuera). Devuelve el foco al disparador (botón "Exportar PDF") al
+ * accidental fuera). Devuelve el foco al disparador (el menú "Exportar") al
  * cerrar. Sin focus trap completo — se iguala el nivel del PdfPreviewModal
  * existente (deuda a11y común: TODO WCAG AA).
  */
@@ -64,7 +69,7 @@ export function TitlePromptModal({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Bloquear scroll del body + devolver el foco al disparador al cerrar.
-  // El activeElement al montar es el botón "Exportar PDF" que abrió el modal
+  // El activeElement al montar es el disparador de "Exportar" que abrió el modal
   // (se captura antes de que el autofocus mueva el foco al input, más abajo).
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -94,6 +99,7 @@ export function TitlePromptModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel, exporting]);
 
+  const destino = typeof lineaDestino === 'function' ? lineaDestino(title) : lineaDestino;
   const filename = titledFilename(title, fallbackFilename, extension);
   const isFallback = slugTitle(title) === '';
 
@@ -173,8 +179,8 @@ export function TitlePromptModal({
               Ponle nombre: es el que llevará arriba el documento y con el que entrará en el anejo.
             </p>
           )}
-          {lineaDestino ? (
-            <p className="mt-2.5 text-xs text-text-secondary">{lineaDestino}</p>
+          {destino ? (
+            <p className="mt-2.5 text-xs text-text-secondary">{destino}</p>
           ) : (
             !sinNombre && (
               <p className="mt-2.5 text-xs text-text-secondary">

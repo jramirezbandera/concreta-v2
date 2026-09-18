@@ -17,6 +17,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { showToast } from '../../components/ui/Toast';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
@@ -209,7 +210,10 @@ export function Fem2DModule(): JSX.Element {
   // PDF export: gated on a fully-solved model so a degenerate model never
   // produces a plausible-looking but wrong document.
   const pdfValid = result.ok && !!result.checks;
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: async (title) => {
         await nextFrame(); // let the hidden pdf clones paint the current model
@@ -299,8 +303,7 @@ export function Fem2DModule(): JSX.Element {
       <Topbar
         moduleLabel="FEM 2D"
         moduleGroup="Análisis"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onCopyLink={handleShare}
         onMenuOpen={openDrawer}
         onOpenAssistant={() => setAiOpen(true)}
@@ -554,10 +557,13 @@ export function Fem2DModule(): JSX.Element {
           initialTitle={docTitle}
           fallbackFilename={fem2dFallbackFilename(model.templateId)}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

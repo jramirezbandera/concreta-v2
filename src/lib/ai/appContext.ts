@@ -39,7 +39,7 @@ Cualquier cálculo que no esté en esta lista NO existe todavía en la aplicaci�
 
 Qué puede hacer el usuario en la interfaz:
 - Panel de datos (izquierda): contiene los campos de entrada; al pie está "Restablecer valores".
-- Barra superior: el botón "Asistente IA" abre este chat; hay una "Calculadora" auxiliar; "Exportar PDF" genera la memoria de cálculo justificativa; y el menú "Ajustes" recoge "Mi estudio" (el perfil del despacho: programa de cálculo, límites de flecha, niveles de control y las redacciones fijas del método, que se rellenan una vez y los hereda cada obra), el conmutador de unidades (SI ↔ técnico: N/mm² ↔ kg/cm², kN ↔ t), el tema claro/oscuro y "Copiar enlace" (comparte el cálculo por URL).
+- Barra superior: el botón "Asistente IA" abre este chat; hay una "Calculadora" auxiliar; el desplegable "Exportar" tiene los destinos del documento ("PDF" genera la memoria de cálculo justificativa y "Guardar en el anejo" la mete como capítulo del anejo de cálculo de la obra); y el menú "Ajustes" recoge "Mi estudio" (el perfil del despacho: programa de cálculo, límites de flecha, niveles de control y las redacciones fijas del método, que se rellenan una vez y los hereda cada obra), el conmutador de unidades (SI ↔ técnico: N/mm² ↔ kg/cm², kN ↔ t), el tema claro/oscuro y "Copiar enlace" (comparte el cálculo por URL).
 - Los resultados se ven a la derecha (en móvil, en la pestaña "Resultados") y se recalculan solos al cambiar cualquier dato.
 
 Hechos técnicos:

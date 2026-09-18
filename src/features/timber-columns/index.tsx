@@ -10,6 +10,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { timberColumnsAdapter, summarizeTimberColumnResults } from '../../lib/ai/modules/timberColumns';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
@@ -52,7 +53,10 @@ export function TimberColumnsModule() {
   // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
   const aiResults = useMemo(() => summarizeTimberColumnResults(result), [result]);
 
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportTimberColumnsPDF(state as never, result, system, title),
       valid: true,
@@ -72,8 +76,7 @@ export function TimberColumnsModule() {
       <Topbar
         moduleLabel="Pilares de madera"
         moduleGroup="Madera"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -164,10 +167,13 @@ export function TimberColumnsModule() {
           initialTitle={state.title}
           fallbackFilename={timberColumnsFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

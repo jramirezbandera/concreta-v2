@@ -12,21 +12,17 @@ import { useNombreObra } from '../../lib/proyecto/useProyectoActivo';
 interface TopbarProps {
   moduleLabel: string;
   moduleGroup: string;
-  onExportPdf?: () => void;
-  pdfExporting?: boolean;
   /**
-   * Etiqueta del botón de exportar. Por defecto «Exportar PDF»: los 21 módulos
-   * que no la pasan siguen exactamente igual. Viento y nieve la cambia con la
-   * pestaña (Word o Excel). Cuando una vista tiene VARIAS salidas a la vez, el
-   * botón se sustituye por `exportMenu`.
-   */
-  exportLabel?: string;
-  /**
-   * Desplegable de formatos que ocupa el sitio del botón de exportar, para las
-   * vistas con más de una salida. Lo estrena el cuadro de materiales, con
-   * cuatro (Word y PDF del cuadro de memoria, Excel y DXF del de plano): el
-   * módulo compone el `ExportarMenu` —él sabe qué formatos tiene y qué hacer
-   * con cada uno— y la barra sólo lo coloca. Excluyente con `onExportPdf`.
+   * La salida del módulo: un desplegable con sus destinos, que la barra sólo
+   * coloca. Lo compone el módulo —él sabe qué produce y qué hacer con cada
+   * cosa—: los de un solo documento con `ExportarPdfMenu` (el PDF y el anejo)
+   * y los de varios con `ExportarMenu` y sus grupos.
+   *
+   * Aquí hubo un botón «Exportar PDF» que disparaba la exportación directa.
+   * Murió cuando guardar en el anejo dejó de ser el epílogo de una descarga y
+   * pasó a ser un destino: con dos destinos ya no hay un solo gesto que
+   * ofrecer, y tener las dos formas convivía mal —la mitad de los módulos
+   * enseñaba un botón y la otra mitad un menú para lo mismo—.
    */
   exportMenu?: ReactNode;
   onMenuOpen?: () => void;
@@ -44,7 +40,7 @@ interface TopbarProps {
   onOpenAssistant?: () => void;
 }
 
-export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, onMenuOpen, onCopyLink, onOpenAssistant, exportLabel = 'Exportar PDF', exportMenu }: TopbarProps) {
+export function Topbar({ moduleLabel, moduleGroup, onMenuOpen, onCopyLink, onOpenAssistant, exportMenu }: TopbarProps) {
   const { open: openCalc } = useCalculator();
   const { openDrawer } = useDrawer();
   const nombreObra = useNombreObra();
@@ -132,31 +128,8 @@ export function Topbar({ moduleLabel, moduleGroup, onExportPdf, pdfExporting, on
         <span className="hidden sm:block w-px h-5 bg-border-main mx-1" />
         {/* Ajustes: recoge Unidades, Tema y Copiar enlace. */}
         <AjustesMenu onCopyLink={handleCopyUrl} />
-        {/* Salida del módulo — resaltado sutil (accent-outline). Con varias
-            salidas, el módulo pasa su desplegable y ocupa el mismo sitio. */}
+        {/* Salida del módulo: el desplegable que trae el propio módulo. */}
         {exportMenu}
-        {!exportMenu && onExportPdf && (
-          <button
-            onClick={onExportPdf}
-            disabled={pdfExporting}
-            title={exportLabel}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] text-accent disabled:opacity-40 transition-all"
-            style={{
-              border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
-              background: 'color-mix(in srgb, var(--color-accent) 6%, transparent)',
-            }}
-            aria-label={exportLabel}
-          >
-            {pdfExporting ? (
-              <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" aria-hidden="true" />
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
-                <path d="M4 2h5l3 3v9H4zM9 2v3h3"/>
-              </svg>
-            )}
-            <span className="hidden lg:inline">{exportLabel}</span>
-          </button>
-        )}
       </div>
     </header>
   );

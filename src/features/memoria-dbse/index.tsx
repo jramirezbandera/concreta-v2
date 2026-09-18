@@ -447,7 +447,7 @@ export function MemoriaDBSEModule() {
 
       {anejo.dialogo}
       {titleOpen && (
-        <TitlePromptModal initialTitle={tituloInicial} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO.capitulo) : {})} onConfirm={confirmTitle} onCancel={closeTitle} />
+        <TitlePromptModal initialTitle={tituloInicial} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO) : {})} onConfirm={confirmTitle} onCancel={closeTitle} />
       )}
     </div>
   );

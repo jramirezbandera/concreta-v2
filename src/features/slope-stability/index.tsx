@@ -5,6 +5,7 @@ import { useDocTitle } from "../../hooks/useDocTitle";
 import { useDrawer } from "../../components/layout/AppShell";
 import { useUnitSystem } from "../../lib/units/useUnitSystem";
 import { Topbar } from "../../components/layout/Topbar";
+import { ExportarPdfMenu } from "../../components/layout/ExportarPdfMenu";
 import { showToast } from "../../components/ui/Toast";
 import { PdfPreviewModal } from "../../components/ui/PdfPreviewModal";
 import { TitlePromptModal } from "../../components/ui/TitlePromptModal";
@@ -110,7 +111,10 @@ export function SlopeStabilityModule() {
   // `validation.valid` gatea el export igual que gatea Calcular: con datos
   // inválidos el motor extendería estratos / ignoraría el NF en silencio y el
   // PDF saldría con sello de trazabilidad sobre datos que la app declara malos.
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: async (title) => {
         const res = await solver.ensureResult();
@@ -167,8 +171,7 @@ export function SlopeStabilityModule() {
       <Topbar
         moduleLabel="Taludes"
         moduleGroup="Geotecnia"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onCopyLink={handleShare}
         onMenuOpen={openDrawer}
         onOpenAssistant={() => setAiOpen(true)}
@@ -283,10 +286,13 @@ export function SlopeStabilityModule() {
           initialTitle={docTitle}
           fallbackFilename={slopeStabilityFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

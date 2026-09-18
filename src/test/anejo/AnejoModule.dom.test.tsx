@@ -134,7 +134,7 @@ describe('Anejo de cálculo', () => {
     expect(screen.getByRole('heading', { name: 'Cálculos de pieza' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'cuadro de materiales' })).toHaveAttribute('href', '/memorias/materiales');
     expect(screen.getByRole('link', { name: 'sismo' })).toHaveAttribute('href', '/analisis/sismo');
-    expect(screen.getByText(/Los cálculos entran con el botón «Guardar en el anejo»/)).toBeInTheDocument();
+    expect(screen.getByText(/Los cálculos entran desde el módulo donde los haces/)).toBeInTheDocument();
     expect(botonGenerar()).toBeDisabled();
     expect(within(panel()).getByText('0 piezas · nada que generar')).toBeInTheDocument();
     // La obra abierta, y la denominación en la previsualización de la portada.

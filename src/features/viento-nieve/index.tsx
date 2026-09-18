@@ -450,7 +450,7 @@ export function VientoNieveModule() {
         />
       )}
       {titleOpen && (
-        <TitlePromptModal initialTitle={docTitle} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO.capitulo) : {})} onConfirm={confirmTitle} onCancel={closeTitle} />
+        <TitlePromptModal initialTitle={docTitle} fallbackFilename={formato.fallback} exporting={exportando} formatLabel={formato.etiqueta} extension={formato.extension} {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO) : {})} onConfirm={confirmTitle} onCancel={closeTitle} />
       )}
     </div>
   );

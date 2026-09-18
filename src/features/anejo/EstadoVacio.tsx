@@ -36,8 +36,8 @@ export function VacioMemoria() {
 export function VacioPiezas() {
   return (
     <p className={TEXTO}>
-      Los cálculos entran con el botón «Guardar en el anejo», desde el módulo donde los haces: exporta el PDF de la viga, el pilar o
-      la zapata y, en la previsualización, guárdalo aquí. Cada vez que guardas se añade una pieza.
+      Los cálculos entran desde el módulo donde los haces: abre la viga, el pilar o la zapata y, en «Exportar», elige «Guardar en
+      el anejo». Cada vez que guardas se añade una pieza.
     </p>
   );
 }
@@ -52,7 +52,7 @@ export function AnadirCalculo() {
     <details className="mt-2 px-3 py-2">
       <summary className="cursor-pointer list-none text-[12.5px] text-accent hover:text-accent-hover">+ Añadir un cálculo guardado…</summary>
       <p className="m-0 mt-2 text-[12px] leading-relaxed text-text-secondary">
-        Abre el módulo, exporta su PDF y pulsa «Guardar en el anejo». La pieza aparece aquí, al final de su sección.
+        Abre el módulo y, en «Exportar», elige «Guardar en el anejo». La pieza aparece aquí, al final de su sección.
       </p>
       <ul className="m-0 mt-2 grid list-none grid-cols-1 gap-x-4 gap-y-0.5 p-0 sm:grid-cols-2">
         {grupos.flatMap((g) =>

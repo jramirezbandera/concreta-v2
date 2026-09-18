@@ -10,6 +10,7 @@ import { calcCompositeSection } from '../../lib/calculations/compositeSection';
 import { exportCompositeSectionPDF, compositeSectionFallbackFilename } from '../../lib/pdf/compositeSection';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -134,7 +135,10 @@ export function CompositeSectionModule() {
     );
   };
 
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportCompositeSectionPDF(inputs, result, system, title),
       valid: true,
@@ -155,8 +159,7 @@ export function CompositeSectionModule() {
       <Topbar
         moduleLabel="Sección compuesta"
         moduleGroup="Acero"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -255,10 +258,13 @@ export function CompositeSectionModule() {
           initialTitle={inputs.title}
           fallbackFilename={compositeSectionFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

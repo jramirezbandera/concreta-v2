@@ -11,6 +11,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { steelColumnsAdapter, summarizeSteelColumnResults } from '../../lib/ai/modules/steelColumns';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
@@ -68,7 +69,10 @@ export function SteelColumnsModule() {
   // PDF export stays available even when the result is invalid (e.g. Class 4,
   // overall INCUMPLE) — the user may want a PDF to document that a profile
   // doesn't meet EC3. Only require a result object.
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportSteelColumnsPDF(effectiveInputs, result, system, title),
       valid: true,
@@ -103,8 +107,7 @@ export function SteelColumnsModule() {
       <Topbar
         moduleLabel="Pilares"
         moduleGroup="Acero"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -226,10 +229,13 @@ export function SteelColumnsModule() {
           initialTitle={state.title}
           fallbackFilename={steelColumnsFallbackFilename(effectiveInputs)}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

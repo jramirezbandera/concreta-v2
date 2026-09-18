@@ -823,10 +823,20 @@ describe('persistencia y enlace', () => {
   });
 });
 
+/**
+ * El desplegable «Exportar» de la barra: abrirlo y elegir un destino. Desde
+ * que guardar en el anejo es un destino más, el botón de la barra abre menú en
+ * vez de disparar el PDF.
+ */
+function exportar(destino: RegExp = /^PDF/) {
+  fireEvent.click(screen.getByLabelText('Exportar'));
+  fireEvent.click(screen.getByRole('menuitem', { name: destino }));
+}
+
 describe('exportación a PDF', () => {
-  it('el botón está en la barra y abre el modal de título', async () => {
+  it('el desplegable está en la barra y «PDF» abre el modal de título', async () => {
     montar();
-    fireEvent.click(screen.getByLabelText('Exportar PDF'));
+    exportar();
     const dialogo = await screen.findByRole('dialog');
     expect(dialogo.getAttribute('aria-labelledby')).toBe('title-prompt-heading');
     // Sin nombre no se exporta: un PDF sin banda de título no se puede
@@ -844,7 +854,7 @@ describe('exportación a PDF', () => {
     const fila = screen.getByText('Regularidad geométrica').closest('div.flex.items-start');
     fireEvent.click(within(fila as HTMLElement).getByText('—'));
 
-    fireEvent.click(screen.getByLabelText('Exportar PDF'));
+    exportar();
 
     // Un PDF con la puerta sin resolver parecería una justificación sin serlo.
     await waitFor(() => {
@@ -859,7 +869,7 @@ describe('exportación a PDF', () => {
     await waitFor(() => {
       expect(document.body.textContent).toContain('no es de aplicación obligatoria');
     });
-    fireEvent.click(screen.getByLabelText('Exportar PDF'));
+    exportar();
     expect(await screen.findByRole('dialog')).toBeTruthy();
   });
 

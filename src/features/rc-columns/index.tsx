@@ -10,6 +10,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { rcColumnsAdapter, summarizeRCColumnResults } from '../../lib/ai/modules/rcColumns';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -60,7 +61,10 @@ export function RCColumnsModule() {
 
   // PDF export stays available even when result is invalid — engineers may
   // need a PDF to document a failing/non-conforming section (memory note).
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportRCColumnsPDF(state, result, system, title),
       valid: true,
@@ -99,8 +103,7 @@ export function RCColumnsModule() {
       <Topbar
         moduleLabel="Pilares"
         moduleGroup="Hormigón Armado"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -232,10 +235,13 @@ export function RCColumnsModule() {
           initialTitle={state.title}
           fallbackFilename={rcColumnsFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

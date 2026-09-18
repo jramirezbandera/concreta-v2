@@ -15,6 +15,7 @@ import { exportMicropilesPDF, micropilesFallbackFilename } from '../../lib/pdf/m
 import { micropiloteFallbackDxf } from '../../lib/export/filename';
 import { Topbar } from '../../components/layout/Topbar';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
+import { GRUPO_ANEJO_CALCULO, type IdAnejo } from '../../components/layout/opcionAnejo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -42,7 +43,7 @@ const VIEW_TABS: { id: MicropilesView; num: string; label: string; color: string
  * el detalle tipo del estudio con su tabla rellena, para insertarlo en el plano
  * de cimentación. El detalle no comprueba nada: dice qué hay que ejecutar.
  */
-type FormatoId = 'pdf' | 'dxf';
+type FormatoId = 'pdf' | 'dxf' | IdAnejo;
 
 const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
   {
@@ -53,6 +54,7 @@ const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
     titulo: 'Detalle de plano',
     opciones: [{ id: 'dxf', etiqueta: 'DXF', detalle: 'el detalle tipo acotado, para insertar en el CAD' }],
   },
+  GRUPO_ANEJO_CALCULO,
 ];
 
 function ViewTabButton({
@@ -191,7 +193,10 @@ export function MicropilesModule() {
     );
   };
 
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportMicropilesPDF(state, soil, result, title),
       valid: true,
@@ -264,7 +269,7 @@ export function MicropilesModule() {
         exportMenu={
           <ExportarMenu
             grupos={GRUPOS_EXPORTAR}
-            onElegir={(f) => (f === 'pdf' ? openExport() : dxf.openExport())}
+            onElegir={(f) => (f === 'dxf' ? dxf.openExport() : openExport(f))}
             exportando={pdfExporting || dxf.exportando}
           />
         }
@@ -409,10 +414,14 @@ export function MicropilesModule() {
           initialTitle={state.title}
           fallbackFilename={micropilesFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {dxf.titleOpen && (
         <TitlePromptModal

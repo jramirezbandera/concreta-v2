@@ -1,7 +1,9 @@
 /**
- * Desplegable «Exportar» de la topbar, para las vistas que tienen MÁS DE UNA
- * salida. Lo estrena el cuadro de materiales, con cuatro: Word y PDF del cuadro
- * de memoria, Excel y DXF del de plano.
+ * Desplegable «Exportar» de la topbar: la salida del módulo, con un destino
+ * por opción. Lo estrenó el cuadro de materiales, con cuatro (Word y PDF del
+ * cuadro de memoria, Excel y DXF del de plano), y hoy lo usan todos: los
+ * módulos de un solo documento a través de `ExportarPdfMenu`, que compone con
+ * él las dos entradas de siempre (el PDF y el anejo).
  *
  * Sustituye al par de botones que cambiaba de rótulo con la pestaña (Word+PDF
  * en Datos y Memoria, Excel+DXF en Plano). Aquello entregaba «lo que se estaba
@@ -12,10 +14,10 @@
  * entregan y dice para qué sirve cada una. Lo que se baja lo decide la opción,
  * no la vista abierta.
  *
- * El disparador lleva el mismo outline sutil que el botón «Exportar PDF» de los
- * demás módulos (ver `Topbar`), más el chevron de `AjustesMenu`: es la misma
- * acción con un paso más, no otra distinta. El módulo lo compone y la topbar
- * sólo lo coloca donde iría el botón (prop `exportMenu`).
+ * El disparador lleva el outline sutil que llevaba el botón «Exportar PDF» al
+ * que sustituyó, más el chevron de `AjustesMenu`: es la misma acción con un
+ * paso más, no otra distinta. El módulo lo compone y la topbar sólo lo coloca
+ * (prop `exportMenu`).
  *
  * A11y: cierra con Escape y con clic fuera; el disparador expone aria-expanded;
  * cada grupo es un `group` con nombre, y las opciones son `menuitem`. Al elegir
@@ -36,8 +38,17 @@ export interface OpcionExportar<Id extends string> {
 }
 
 export interface GrupoExportar<Id extends string> {
-  /** El cuadro que entregan las opciones del grupo: «Cuadro de memoria». */
-  titulo: string;
+  /**
+   * El cuadro que entregan las opciones del grupo: «Cuadro de memoria».
+   *
+   * Se puede omitir. Un menú de dos entradas —el PDF del cálculo y el anejo,
+   * que es el de los veintiún módulos de pieza— no necesita que le pongan
+   * nombre a cada una: el rótulo de la opción ya lo dice, y dos cabeceras de
+   * un renglón sobre dos opciones de un renglón son ruido. La raya entre
+   * grupos se queda, que es lo que separa «esto baja al disco» de «esto entra
+   * en el anejo».
+   */
+  titulo?: string;
   opciones: OpcionExportar<Id>[];
 }
 
@@ -132,27 +143,31 @@ export function ExportarMenu<Id extends string>({
         >
           {grupos.map((grupo, i) => (
             <div
-              key={grupo.titulo}
-              role="group"
-              aria-label={grupo.titulo}
+              key={grupo.titulo ?? `grupo-${i}`}
+              {...(grupo.titulo ? { role: 'group', 'aria-label': grupo.titulo } : {})}
               className={i > 0 ? 'border-t border-border-sub pb-1' : 'pb-1'}
             >
               {/* El nombre del grupo ya va en aria-label: la cabecera visible
-                  se oculta al lector para no leerla dos veces. */}
-              <div
-                aria-hidden="true"
-                className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase text-text-disabled"
-                style={{ letterSpacing: '0.06em' }}
-              >
-                {grupo.titulo}
-              </div>
+                  se oculta al lector para no leerla dos veces. Sin nombre no
+                  hay cabecera ni grupo: las opciones cuelgan del menú. */}
+              {grupo.titulo && (
+                <div
+                  aria-hidden="true"
+                  className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase text-text-disabled"
+                  style={{ letterSpacing: '0.06em' }}
+                >
+                  {grupo.titulo}
+                </div>
+              )}
               {grupo.opciones.map((o) => (
                 <button
                   key={o.id}
                   type="button"
                   role="menuitem"
                   onClick={() => elegir(o.id)}
-                  className="w-full px-3 py-1.5 text-left hover:bg-bg-elevated transition-colors"
+                  className={`w-full px-3 py-1.5 text-left hover:bg-bg-elevated transition-colors ${
+                    grupo.titulo ? '' : 'first:pt-2'
+                  }`}
                 >
                   <span className="block text-[12.5px] text-text-primary">{o.etiqueta}</span>
                   <span className="block text-[11px] leading-snug text-text-disabled">

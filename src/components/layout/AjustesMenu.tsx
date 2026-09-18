@@ -1,7 +1,7 @@
 // Menú "Ajustes" de la topbar (rediseño 2026-07-17). Descongestiona la barra
 // recogiendo los controles ocasionales — Mi estudio, Unidades, Tema y Copiar
 // enlace — tras un desplegable de engranaje, de modo que la barra queda con
-// las acciones primarias (Asistente IA, Calculadora, Exportar PDF).
+// las acciones primarias (Asistente IA, Calculadora, Exportar).
 //
 // «Mi estudio» entró aquí el 2026-09-13 (F6): es el único ajuste con pantalla
 // propia, y estaba en el grupo PROYECTO del sidebar diciendo «AJUSTES / Mi

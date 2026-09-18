@@ -559,7 +559,7 @@ export function CargasPlantaModule() {
           exporting={exportando}
           formatLabel={formato.etiqueta}
           extension={formato.extension}
-          {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO.capitulo) : {})}
+          {...(formatoElegido === 'anejo' ? propsTituloAnejo(ANEJO) : {})}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />

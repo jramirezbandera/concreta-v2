@@ -22,14 +22,16 @@ export type ResultadoGuardarEnAnejo =
   | { ok: false; donde: 'obra'; motivo: 'desfasada' | 'cancelado' | 'cuota' };
 
 /**
- * «Guardar en el anejo», el gesto entero: el PDF que el usuario acaba de ver
- * pasa al anejo de la obra, con sus toasts, y si todavía no hay obra se pide
- * UNA cosa —su nombre— y se crea (la creación perezosa del design doc).
+ * «Guardar en el anejo», el gesto entero: el PDF pasa al anejo de la obra, con
+ * sus toasts, y si todavía no hay obra se pide UNA cosa —su nombre— y se crea
+ * (la creación perezosa del design doc).
  *
  * El hook no genera nada: recibe el blob del exportador de siempre. Lo usan el
- * modal de previsualización (veinte módulos, sin que ninguno lo sepa) y los
- * cuatro módulos de memoria desde su desplegable «Exportar». Quien lo usa
- * tiene que renderizar `dialogo`, que es el diálogo del nombre cuando toca.
+ * desplegable «Exportar» de todos los módulos —a través de
+ * `useTitledPdfExport` en los de pieza y directamente en los de memoria— y el
+ * botón del modal de previsualización, para quien ya tiene el PDF delante.
+ * Quien lo usa tiene que renderizar `dialogo`, que es el diálogo del nombre
+ * cuando toca.
  */
 export function useGuardarEnAnejo() {
   const [guardando, setGuardando] = useState(false);

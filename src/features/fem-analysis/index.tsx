@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { Plus, Redo2, Undo2 } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ViewTabs, type ViewTab } from '../../components/ui/ViewTabs';
 import { AiChatModal } from '../../components/ai/AiChatModal';
@@ -369,7 +370,10 @@ export function FemAnalysisModule() {
   // recomputar el solver ni alterar el hash al teclearlo.
   const [docTitle, setDocTitle] = useDocTitle('concreta-fem-title');
 
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: async (title) => {
         const solver = await ensureSolver();
@@ -419,8 +423,7 @@ export function FemAnalysisModule() {
         moduleLabel="FEM 1D"
         moduleGroup="Análisis"
         onMenuOpen={openDrawer}
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onCopyLink={handleShare}
         onOpenAssistant={() => setAiOpen(true)}
       />
@@ -638,10 +641,13 @@ export function FemAnalysisModule() {
           initialTitle={docTitle}
           fallbackFilename={femAnalysisFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

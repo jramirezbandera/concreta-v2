@@ -10,6 +10,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { timberBeamsAdapter, summarizeTimberBeamResults } from '../../lib/ai/modules/timberBeams';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
@@ -53,7 +54,10 @@ export function TimberBeamsModule() {
   // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
   const aiResults = useMemo(() => summarizeTimberBeamResults(result), [result]);
 
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportTimberBeamsPDF(state as never, result, system, title),
       valid: true,
@@ -73,8 +77,7 @@ export function TimberBeamsModule() {
       <Topbar
         moduleLabel="Vigas de madera"
         moduleGroup="Madera"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -165,10 +168,13 @@ export function TimberBeamsModule() {
           initialTitle={state.title}
           fallbackFilename={timberBeamsFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

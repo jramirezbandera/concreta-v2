@@ -5,7 +5,7 @@
 //
 // Estilo (dir. B "outline fuerte"): NO usa relleno plano; lidera con el lenguaje
 // de controles de la propia barra —tinte accent + borde accent + texto accent—
-// pero en su versión MÁS marcada (tinte/borde más fuertes que "Exportar PDF"),
+// pero en su versión MÁS marcada (tinte/borde más fuertes que "Exportar"),
 // de modo que sigue siendo el botón más destacado sin leer como CTA de SaaS.
 // Encaja con la tesis "instrumento de precisión, no dashboard".
 import { useEffect } from 'react';

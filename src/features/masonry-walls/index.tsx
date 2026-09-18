@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
@@ -208,7 +209,10 @@ export function MasonryWallsModule() {
   const [docTitle, setDocTitle] = useDocTitle('concreta-masonry-title');
 
   // PDF export — invalid disables the button (toast en su lugar).
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportMasonryWallsPDF({ state, plantasCalc, critico, overall, invalid, system, title }),
       valid: !invalid,
@@ -384,8 +388,7 @@ export function MasonryWallsModule() {
       <Topbar
         moduleLabel="Muros de fábrica"
         moduleGroup="Rehabilitación"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={handleCopyLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -604,10 +607,13 @@ export function MasonryWallsModule() {
           initialTitle={docTitle}
           fallbackFilename={masonryWallsFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

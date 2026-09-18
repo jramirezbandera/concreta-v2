@@ -13,6 +13,7 @@ import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { pileCapAdapter, summarizePileCapResults } from '../../lib/ai/modules/pileCap';
 import { Topbar } from '../../components/layout/Topbar';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
+import { GRUPO_ANEJO_CALCULO, type IdAnejo } from '../../components/layout/opcionAnejo';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
@@ -38,7 +39,7 @@ const VIEW_TABS: { id: PileCapView; num: string; label: string; color: string }[
  * El detalle no comprueba nada ni lleva las utilizaciones: dice qué hay que
  * poner en obra.
  */
-type FormatoId = 'pdf' | 'dxf';
+type FormatoId = 'pdf' | 'dxf' | IdAnejo;
 
 const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
   {
@@ -49,6 +50,7 @@ const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
     titulo: 'Detalle de plano',
     opciones: [{ id: 'dxf', etiqueta: 'DXF', detalle: 'el plano tipo acotado, para insertar en el CAD' }],
   },
+  GRUPO_ANEJO_CALCULO,
 ];
 
 function ViewTabButton({
@@ -120,7 +122,10 @@ export function PileCapModule() {
   // Resumen de resultados para el prompt del chat IA (bucle de dimensionado)
   const aiResults = useMemo(() => summarizePileCapResults(result), [result]);
 
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportPileCapPDF(state, result, system, title),
       valid: true,
@@ -173,7 +178,7 @@ export function PileCapModule() {
         exportMenu={
           <ExportarMenu
             grupos={GRUPOS_EXPORTAR}
-            onElegir={(f) => (f === 'pdf' ? openExport() : dxf.openExport())}
+            onElegir={(f) => (f === 'dxf' ? dxf.openExport() : openExport(f))}
             exportando={pdfExporting || dxf.exportando}
           />
         }
@@ -311,10 +316,14 @@ export function PileCapModule() {
           initialTitle={state.title}
           fallbackFilename={pileCapFallbackFilename(state)}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {dxf.titleOpen && (
         <TitlePromptModal

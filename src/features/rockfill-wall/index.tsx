@@ -11,6 +11,7 @@ import { dec, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { rockfillWallAdapter, summarizeRockfillWallResults } from '../../lib/ai/modules/rockfillWall';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
@@ -135,7 +136,10 @@ export function RockfillWallModule() {
 
   const aiResults = useMemo(() => summarizeRockfillWallResults(result), [result]);
 
-  const { pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview, titleOpen, openExport, confirmTitle, closeTitle } =
+  const {
+    pdfExporting, pdfPreview, handleDownloadPdf, closePdfPreview,
+    titleOpen, openExport, confirmTitle, closeTitle, propsTitulo, anejoDialogo,
+  } =
     useTitledPdfExport({
       exportFn: (title) => exportRockfillWallPDF(state, result, system, title),
       valid: true,
@@ -169,8 +173,7 @@ export function RockfillWallModule() {
       <Topbar
         moduleLabel="Escollera"
         moduleGroup="Geotecnia"
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -306,10 +309,13 @@ export function RockfillWallModule() {
           initialTitle={state.title}
           fallbackFilename={rockfillWallFallbackFilename()}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

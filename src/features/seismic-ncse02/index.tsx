@@ -8,6 +8,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { Topbar } from '../../components/layout/Topbar';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
+import { DETALLE_ANEJO_MEMORIA } from '../../components/layout/opcionAnejo';
 import { SelectorDireccion } from '../../components/ui/SelectorDireccion';
 import { ViewTabs } from '../../components/ui/ViewTabs';
 import { useDrawer } from '../../components/layout/AppShell';
@@ -315,6 +317,8 @@ export function SeismicNCSE02Module() {
     openExport,
     confirmTitle,
     closeTitle,
+    propsTitulo,
+    anejoDialogo,
   } = useTitledPdfExport({
     exportFn: (title) =>
       exportSeismicNCSE02PDF({ state, evaluacion, title, system, programa }),
@@ -361,8 +365,14 @@ export function SeismicNCSE02Module() {
         moduleGroup="NCSE-02"
         onMenuOpen={openDrawer}
         onCopyLink={copiarEnlace}
-        onExportPdf={openExport}
-        pdfExporting={pdfExporting}
+        exportMenu={
+          <ExportarPdfMenu
+            onElegir={openExport}
+            exportando={pdfExporting}
+            detallePdf="la memoria de la acción sísmica, para enviar o imprimir"
+            detalleAnejo={DETALLE_ANEJO_MEMORIA}
+          />
+        }
         onOpenAssistant={() => setAiOpen(true)}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
@@ -560,10 +570,13 @@ export function SeismicNCSE02Module() {
           initialTitle={docTitle}
           fallbackFilename={seismicNCSE02FallbackFilename(state)}
           exporting={pdfExporting}
+          {...propsTitulo}
           onConfirm={confirmTitle}
           onCancel={closeTitle}
         />
       )}
+      {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
+      {anejoDialogo}
 
       {pdfPreview && (
         <PdfPreviewModal

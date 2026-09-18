@@ -23,30 +23,45 @@ export function usePdfPreview(
     if (liveUrl.current) URL.revokeObjectURL(liveUrl.current);
   }, []);
 
-  // `title` opcional: los módulos con TitlePromptModal lo pasan al confirmar; el
-  // resto llama sin argumento y su exportFn lo ignora (retrocompatible).
-  const handleExportPdf = useCallback(async (title?: string) => {
+  /**
+   * Genera el PDF —con el gate de validez, el spinner y el toast de error— y
+   * lo DEVUELVE, sin decidir qué se hace con él. `null` si no se generó.
+   *
+   * Está suelto porque el PDF ya no tiene un solo destino: previsualizarlo es
+   * uno, y «Guardar en el anejo» desde el desplegable es otro que no pasa por
+   * el visor (`useTitledPdfExport`). Quien llama se queda con el `blobUrl` y
+   * es responsable de revocarlo; el del visor lo revoca el propio hook.
+   */
+  const generarPdf = useCallback(async (title?: string): Promise<PdfResult | null> => {
     if (!valid) {
       showToast('Los datos de entrada no son válidos', { autoDismiss: 3000 });
-      return;
+      return null;
     }
     setPdfExporting(true);
     try {
-      const result = await exportFn(title);
-      if (window.innerWidth < 768) {
-        // Mobile: direct download, no preview
-        triggerDownload(result.blobUrl, result.filename);
-        setTimeout(() => URL.revokeObjectURL(result.blobUrl), REVOKE_DELAY_MS);
-      } else {
-        setPdfPreview(result);
-      }
+      return await exportFn(title);
     } catch (e) {
       console.error('PDF export failed:', e);
       showToast('Error al generar el PDF', { autoDismiss: 4000 });
+      return null;
     } finally {
       setPdfExporting(false);
     }
   }, [exportFn, valid]);
+
+  // `title` opcional: los módulos con TitlePromptModal lo pasan al confirmar; el
+  // resto llama sin argumento y su exportFn lo ignora (retrocompatible).
+  const handleExportPdf = useCallback(async (title?: string) => {
+    const result = await generarPdf(title);
+    if (!result) return;
+    if (window.innerWidth < 768) {
+      // Mobile: direct download, no preview
+      triggerDownload(result.blobUrl, result.filename);
+      setTimeout(() => URL.revokeObjectURL(result.blobUrl), REVOKE_DELAY_MS);
+    } else {
+      setPdfPreview(result);
+    }
+  }, [generarPdf]);
 
   const handleDownloadPdf = useCallback(() => {
     if (!pdfPreview) return;
@@ -61,5 +76,5 @@ export function usePdfPreview(
     setPdfPreview(null);
   }, [pdfPreview]);
 
-  return { pdfExporting, pdfPreview, handleExportPdf, handleDownloadPdf, closePdfPreview };
+  return { pdfExporting, pdfPreview, generarPdf, handleExportPdf, handleDownloadPdf, closePdfPreview };
 }
