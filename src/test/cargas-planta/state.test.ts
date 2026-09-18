@@ -236,6 +236,28 @@ describe('la nieve del sobre de Viento y nieve', () => {
     expect(planta(ev.resultado.plantas, CUBIERTA).zonas[0].nieve).toBeNull();
   });
 
+  it('una terraza declarada a la intemperie por la casilla la toma igual, sin dejar de ser A1', () => {
+    publicarMadrid();
+    const pub = leerNievePublicada()!;
+    const s = sevilla();
+    // La terraza de la vivienda: al aire libre, pero se queda en A1 con sus
+    // 2 kN/m². La casilla es lo único que la pone bajo la nieve.
+    const baja = planta(s.plantas, BAJA);
+    baja.zonas = [baja.zonas[0], { ...nuevaZona(false, 'Terraza'), aLaIntemperie: true }];
+
+    const plantas = adoptarNievePublicada(s.plantas, pub);
+    expect(planta(plantas, BAJA).nieve).toMatchObject({ modo: 'publicada', valor: pub.qnMax });
+
+    const ev = evaluar({ ...s, plantas }, pub);
+    const [vivienda, terraza] = planta(ev.resultado.plantas, BAJA).zonas;
+    expect(vivienda.nieve).toBeNull();
+    expect(terraza.nieve).toBeCloseTo(pub.qnMax, 12);
+    expect(terraza.uso.qk).toBe(2);
+    // Y viaja al motor sólo cuando está dicha: la vivienda de al lado no la lleva.
+    const e = entradaMotor({ ...s, plantas });
+    expect(planta(e.plantas, BAJA).zonas.map((z) => z.aLaIntemperie)).toEqual([undefined, true]);
+  });
+
   it('la tomada sola sigue al sobre; no cuenta como obra configurada', () => {
     publicarMadrid();
     const s = sevilla();
@@ -340,6 +362,19 @@ describe('persistencia y lectura defensiva', () => {
     guardarEstado(s);
     expect(localStorage.getItem(SCHEMA_VERSION_KEY)).toBe('1');
     expect(cargarEstado()).toEqual(s);
+  });
+
+  it('la marca de intemperie sólo se guarda dicha: un estado anterior a ella carga sin inventarla', () => {
+    const s = sevilla();
+    planta(s.plantas, BAJA).zonas[0].aLaIntemperie = true;
+    guardarEstado(s);
+    expect(planta(cargarEstado()!.plantas, BAJA).zonas[0].aLaIntemperie).toBe(true);
+    // Lo guardado antes del 18-09-2026 no trae el campo: es «no dicho», no `false`.
+    const viejo = normalizar({ plantas: [{ nombre: 'A', zonas: [{}] }] });
+    expect('aLaIntemperie' in viejo.plantas[0].zonas[0]).toBe(false);
+    // Y un `false` explícito tampoco se queda guardado.
+    expect('aLaIntemperie' in normalizar({ plantas: [{ nombre: 'A', zonas: [{ aLaIntemperie: false }] }] }).plantas[0].zonas[0]).toBe(false);
+    expect(normalizar({ plantas: [{ nombre: 'A', zonas: [{ aLaIntemperie: 'sí' }] }] }).plantas[0].zonas[0].aLaIntemperie).toBeUndefined();
   });
 
   it('las cargas libres guardadas sin id de columna lo reciben: por nombre, y sin nombre cada una el suyo', () => {

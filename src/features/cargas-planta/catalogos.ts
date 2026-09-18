@@ -193,7 +193,7 @@ export const TIPO_PLANTA_OPCIONES: Opcion<TipoPlanta>[] = [
   {
     id: 'cubierta',
     etiqueta: 'Cubierta',
-    ayuda: 'Toda la planta está a la intemperie: lleva nieve y la sobrecarga de conservación. Puede haber más de una: un cuerpo bajo, un ático retranqueado. Una planta normal con una terraza no es esto: se declara la terraza como zona de uso F y la nieve se pide allí.',
+    ayuda: 'Toda la planta está a la intemperie: lleva nieve y la sobrecarga de conservación. Puede haber más de una: un cuerpo bajo, un ático retranqueado. Una planta normal con una terraza no es esto: la terraza va como una zona más, con el uso F o con el que se le quiera dejar marcando «Está a la intemperie» en su ficha, y la nieve se pide allí.',
   },
   { id: 'planta', etiqueta: 'Planta', ayuda: 'Sobre rasante. Recibe viento y cuenta para la altura de evacuación.' },
   {

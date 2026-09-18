@@ -133,6 +133,17 @@ export interface ZonaUI {
   forjado: { tipo: TipoForjado; canto: number; ppManual: number | null };
   permanentes: PermanenteUI[];
   uso: UsoUI;
+  /**
+   * El usuario dice que esta zona está al aire libre aunque su uso no lo diga:
+   * la terraza que quiere dejar en A1 con sus 2 kN/m², el vaso de una piscina
+   * descubierta, un aparcamiento en cubierta. Es lo único que hace: abrir la
+   * nieve de la planta a esta zona. La sobrecarga de uso y sus ψ no se tocan.
+   *
+   * Opcional en lo guardado: un estado anterior al 18-09-2026 no lo trae y se
+   * lee como «no dicho», que es lo que era; las terrazas declaradas con uso F
+   * siguen llevando su nieve sin necesitar la casilla.
+   */
+  aLaIntemperie?: boolean;
 }
 
 export interface PlantaUI {
@@ -179,10 +190,23 @@ export function cambioDeTipo(tipo: TipoPlanta): Pick<PlantaUI, 'esCubierta' | 'b
  * cubierta sólo para conservación, y F, terraza transitable— más la planta
  * entera declarada cubierta, que es como se venía diciendo y sigue valiendo.
  *
+ * Y, porque dónde está una zona y para qué se usa son dos cosas distintas, por
+ * la casilla de la ficha: una terraza de vivienda que se deja en A1 con sus
+ * 2 kN/m² —en vez de bajarla a los 1,0 de la F— también está al aire libre.
+ *
  * El valor, en cambio, es de la PLANTA: a la misma altura cae la misma nieve.
  */
 export function zonaALaIntemperie(planta: Pick<PlantaUI, 'esCubierta'>, zona: ZonaUI): boolean {
-  return planta.esCubierta || zona.uso.categoria === 'G' || zona.uso.categoria === 'F';
+  return planta.esCubierta || zona.uso.categoria === 'G' || zona.uso.categoria === 'F' || zona.aLaIntemperie === true;
+}
+
+/**
+ * ¿Le hace falta a esta zona la casilla de la ficha? Sólo cuando no está ya al
+ * aire libre por lo que es: en una cubierta entera, o en un uso F o G, la
+ * casilla no decidiría nada y no se enseña.
+ */
+export function cabeDeclararIntemperie(planta: Pick<PlantaUI, 'esCubierta'>, zona: ZonaUI): boolean {
+  return !planta.esCubierta && zona.uso.categoria !== 'G' && zona.uso.categoria !== 'F';
 }
 
 /** ¿Tiene esta planta algo a la intemperie? Entonces se le puede declarar nieve. */
@@ -482,6 +506,8 @@ function normalizarZona(bruto: unknown, esCubierta: boolean): ZonaUI {
       accesoDesde: uno(u.accesoDesde, CATEGORIAS_USO, 'A1'),
       psiComo: uno(u.psiComo, FAMILIAS, 'A'),
     },
+    // Sólo se guarda dicha: lo que no viene es «no dicho», no `false`.
+    ...(bool(bruto.aLaIntemperie, false) ? { aLaIntemperie: true } : {}),
   };
 }
 
@@ -670,7 +696,8 @@ export function entradaMotor(state: CargasState): CargasInput {
       bajoRasante: p.bajoRasante,
       altura: p.altura,
       // La nieve viaja siempre que esté declarada: el motor decide a qué zonas
-      // les llega (las de uso G y F, y todas si la planta es cubierta).
+      // les llega (las de uso G y F, las que lo declaran, y todas si la planta
+      // es cubierta).
       ...(p.nieve.modo !== 'ninguna' ? { nieve: p.nieve.valor } : {}),
       zonas: p.zonas.map((z) => ({
         id: z.id,
@@ -689,6 +716,7 @@ export function entradaMotor(state: CargasState): CargasInput {
           escalera: z.uso.escalera,
           balcon: z.uso.balcon,
         },
+        ...(z.aLaIntemperie ? { aLaIntemperie: true } : {}),
       })),
     })),
     lineales: state.lineales.map((l) => ({

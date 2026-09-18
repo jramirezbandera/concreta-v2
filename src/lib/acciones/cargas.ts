@@ -80,6 +80,15 @@ export interface ZonaCargas {
   forjado: ForjadoCargas;
   permanentes: PermanenteCargas[];
   uso: UsoCargas;
+  /**
+   * Declarada al aire libre aunque su uso no lo diga: la terraza de una
+   * vivienda que se deja en su categoría A1, el vaso de una piscina
+   * descubierta, un aparcamiento en cubierta (E). Los usos F y G ya están al
+   * aire libre por lo que son y no la necesitan; tampoco las zonas de una
+   * planta declarada cubierta entera. Sólo decide si a esta zona le llega la
+   * nieve: no cambia la sobrecarga de uso ni sus ψ.
+   */
+  aLaIntemperie?: boolean;
 }
 
 export interface PlantaCargas {
@@ -94,8 +103,9 @@ export interface PlantaCargas {
    * Carga de nieve en proyección horizontal, kN/m². Se declara una vez por
    * planta —a la misma altura cae la misma nieve— y cae sobre las zonas A LA
    * INTEMPERIE: todas si la planta es cubierta, y si no, las de uso G (cubierta
-   * sólo para conservación) y F (terraza transitable). Así una planta baja con
-   * terraza lleva su nieve sin que le llegue a la vivienda de al lado.
+   * sólo para conservación) y F (terraza transitable) más las que lo digan con
+   * `aLaIntemperie`. Así una planta baja con terraza lleva su nieve sin que le
+   * llegue a la vivienda de al lado.
    */
   nieve?: number;
   zonas: ZonaCargas[];
@@ -438,11 +448,13 @@ export function calcularCargas(input: CargasInput): CargasResultado {
     const nombrePlanta = planta.nombre.trim() || 'Planta';
     if (planta.nieve !== undefined && planta.nieve < 0) errores.push(`«${nombrePlanta}»: la carga de nieve no puede ser negativa.`);
     /**
-     * A la intemperie: la planta declarada cubierta entera, o la zona cuyo uso
+     * A la intemperie: la planta declarada cubierta entera, la zona cuyo uso
      * ya dice que está al aire libre —G, cubierta sólo para conservación, y F,
-     * terraza transitable—. Es lo que decide a qué zonas les llega la nieve.
+     * terraza transitable—, y la que lo declara aparte conservando su uso (una
+     * terraza de vivienda en A1). Es lo que decide a qué zonas les llega la
+     * nieve.
      */
-    const aLaIntemperie = (z: ZonaCargas) => planta.esCubierta || z.uso.categoria === 'G' || z.uso.categoria === 'F';
+    const aLaIntemperie = (z: ZonaCargas) => planta.esCubierta || z.uso.categoria === 'G' || z.uso.categoria === 'F' || z.aLaIntemperie === true;
     // La nieve declarada en una planta que no tiene nada al aire libre no cae
     // en ninguna parte: la planta se resuelve sin nieve.
     const nieve = planta.nieve !== undefined && planta.zonas.some(aLaIntemperie) ? planta.nieve : null;

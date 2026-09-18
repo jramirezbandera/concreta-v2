@@ -153,7 +153,7 @@ export const CARGAS_PAYLOAD_SCHEMA: Record<string, unknown> = {
         required: [
           'planta', 'es_cubierta', 'bajo_rasante', 'altura_m', 'zona', 'forjado', 'canto_cm', 'pp_kNm2', 'encima',
           'uso', 'qk_propio_kNm2', 'psi_como', 'inclinacion_grados', 'ligera',
-          'acceso_desde', 'escalera', 'balcon', 'nieve_kNm2',
+          'acceso_desde', 'escalera', 'balcon', 'a_la_intemperie', 'nieve_kNm2',
         ],
         properties: {
           planta: {
@@ -162,7 +162,7 @@ export const CARGAS_PAYLOAD_SCHEMA: Record<string, unknown> = {
           },
           es_cubierta: {
             type: 'boolean',
-            description: 'true si TODA la planta está a la intemperie (la cubierta del edificio, un cuerpo bajo, un ático retranqueado). Todas las filas de la misma planta deben decir lo mismo. Una planta normal con una terraza NO es una cubierta: la terraza va como una fila más de esa planta con uso F, y también admite nieve.',
+            description: 'true si TODA la planta está a la intemperie (la cubierta del edificio, un cuerpo bajo, un ático retranqueado). Todas las filas de la misma planta deben decir lo mismo. Una planta normal con una terraza NO es una cubierta: la terraza va como una fila más de esa planta, con uso F o con el uso que le corresponda y a_la_intemperie = true, y así admite nieve.',
           },
           bajo_rasante: {
             type: 'boolean',
@@ -254,9 +254,13 @@ export const CARGAS_PAYLOAD_SCHEMA: Record<string, unknown> = {
             type: 'boolean',
             description: 'true si la zona es un balcón volado: además de la sobrecarga de la zona, la tabla 3.1 pide una carga lineal en el borde (nota 6).',
           },
+          a_la_intemperie: {
+            type: 'boolean',
+            description: 'true si la zona está AL AIRE LIBRE conservando su uso: una terraza o un patio que se deja en "A1" con sus 2 kN/m² en vez de bajarlo a los 1,0 de la "F", el vaso de una piscina descubierta, un aparcamiento en cubierta ("E"). Sólo abre la nieve sobre esa fila; la sobrecarga de uso no cambia. false cuando la zona está bajo techo y también cuando ya está al aire libre por lo que es (uso "F" o "G", o una planta con es_cubierta = true): ahí no decide nada.',
+          },
           nieve_kNm2: {
             type: 'number',
-            description: 'Carga de nieve en PROYECCIÓN HORIZONTAL, kN/m². Sólo cuenta en lo que está a la intemperie: una planta con es_cubierta = true, o una fila de uso F o G. Es la misma para toda la planta. Pon 0 para que no lleve nieve. Si esta cubierta ya toma su nieve del módulo Viento y nieve, la aplicación RECHAZARÁ tu valor: ese número viene de un cálculo publicado y no se pisa desde aquí.',
+            description: 'Carga de nieve en PROYECCIÓN HORIZONTAL, kN/m². Sólo cuenta en lo que está a la intemperie: una planta con es_cubierta = true, una fila de uso F o G, o una fila con a_la_intemperie = true. Es la misma para toda la planta. Pon 0 para que no lleve nieve. Si esta cubierta ya toma su nieve del módulo Viento y nieve, la aplicación RECHAZARÁ tu valor: ese número viene de un cálculo publicado y no se pisa desde aquí.',
           },
         },
       },
@@ -366,6 +370,7 @@ export interface FilaAi {
   acceso_desde: CategoriaUso;
   escalera: boolean;
   balcon: boolean;
+  a_la_intemperie: boolean;
   nieve_kNm2: number;
 }
 
@@ -431,6 +436,7 @@ function parseFila(raw: Record<string, unknown>): FilaAi {
     acceso_desde: unoDe(raw.acceso_desde, CATEGORIAS_USO, 'A1'),
     escalera: boolO(raw.escalera, false),
     balcon: boolO(raw.balcon, false),
+    a_la_intemperie: boolO(raw.a_la_intemperie, false),
     nieve_kNm2: numeroO(raw.nieve_kNm2, 0),
   };
 }
@@ -501,6 +507,10 @@ function filaDeZona(p: PlantaUI, z: ZonaUI): FilaAi {
     acceso_desde: z.uso.accesoDesde,
     escalera: z.uso.escalera,
     balcon: z.uso.balcon,
+    // Lo DECLARADO, no lo derivado: si aquí fuese `zonaALaIntemperie`, una fila
+    // de cubierta volvería con true y dejaría la zona marcada para siempre,
+    // también después de que esa planta dejara de ser cubierta.
+    a_la_intemperie: z.aLaIntemperie === true,
     // La nieve es de la planta pero sólo cae sobre las zonas a la intemperie:
     // una terraza (uso F) en una planta baja la lleva, y la vivienda de al lado no.
     nieve_kNm2: p.nieve.modo !== 'ninguna' && zonaALaIntemperie(p, z) ? p.nieve.valor : 0,
@@ -579,7 +589,7 @@ function permanenteDePropuesta(e: EncimaAi, previa: PermanenteUI | undefined): P
 }
 
 /** Una fila propuesta → ZonaUI, apoyada en la zona que ocupaba su sitio. */
-function zonaDePropuesta(f: FilaAi, base: ZonaUI | undefined): ZonaUI {
+function zonaDePropuesta(f: FilaAi, base: ZonaUI | undefined, esCubierta: boolean): ZonaUI {
   const uso = usoPorDefecto(f.uso);
   return {
     id: base?.id ?? nuevoId('z'),
@@ -600,6 +610,10 @@ function zonaDePropuesta(f: FilaAi, base: ZonaUI | undefined): ZonaUI {
       escalera: f.escalera,
       balcon: f.balcon,
     },
+    // Sólo se guarda donde decide algo: en una cubierta entera o en un uso F o
+    // G la zona ya está al aire libre, y dejar la marca puesta la volvería a la
+    // intemperie a solas el día que la planta o el uso cambien.
+    ...(f.a_la_intemperie && !esCubierta && f.uso !== 'F' && f.uso !== 'G' ? { aLaIntemperie: true } : {}),
   };
 }
 
@@ -628,12 +642,13 @@ function plantasDePropuesta(
 
     /**
      * La nieve es de la PLANTA y cae sobre sus zonas a la intemperie: la
-     * cubierta entera, o una terraza (uso F) en una planta que por lo demás
-     * está bajo techo. Por eso vale cualquiera de sus filas, no sólo la
-     * primera: la que trae la nieve puede ser la terraza y no la vivienda.
+     * cubierta entera, o una terraza —de uso F, o de cualquier uso con
+     * `a_la_intemperie`— en una planta que por lo demás está bajo techo. Por
+     * eso vale cualquiera de sus filas, no sólo la primera: la que trae la
+     * nieve puede ser la terraza y no la vivienda.
      */
     const filasPlanta = filas.slice(i, fin);
-    const aLaIntemperie = esCubierta || filasPlanta.some((f) => f.uso === 'G' || f.uso === 'F');
+    const aLaIntemperie = esCubierta || filasPlanta.some((f) => f.uso === 'G' || f.uso === 'F' || f.a_la_intemperie);
     const nieveDicha = Math.max(0, ...filasPlanta.map((f) => f.nieve_kNm2));
     let nieve = base && base.nombre.trim() === nombre ? { ...base.nieve } : nievePorDefecto();
     if (!aLaIntemperie) {
@@ -661,7 +676,7 @@ function plantasDePropuesta(
       // Una altura negativa no es una altura: sin decir.
       altura: cabecera.altura_m !== null && cabecera.altura_m >= 0 ? cabecera.altura_m : null,
       nieve,
-      zonas: filas.slice(i, fin).map((f, k) => zonaDePropuesta(f, origenes[i + k]?.zona)),
+      zonas: filas.slice(i, fin).map((f, k) => zonaDePropuesta(f, origenes[i + k]?.zona, esCubierta)),
     });
     i = fin;
   }

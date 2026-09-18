@@ -31,7 +31,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CATALOGO_PERMANENTES, FAMILIA_PSI_OPCIONES, NIEVE_MODO_OPCIONES, USO_OPCIONES, type NieveModo } from './catalogos';
 import { BOTON_MENOR, INPUT_ANCHO } from './estilos';
 import type { NievePublicada } from './nievePub';
-import { rotuloDeZona, zonaALaIntemperie, type PlantaUI, type UsoUI, type ZonaUI } from './state';
+import { cabeDeclararIntemperie, rotuloDeZona, zonaALaIntemperie, type PlantaUI, type UsoUI, type ZonaUI } from './state';
 
 const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
 
@@ -130,6 +130,16 @@ export function Ficha({ planta, z, r, quien, unica, puedeBorrar, ayuda, nievePub
           Tiene balcones volados <span className="text-text-disabled">({mostrarQ(2, 'linearLoad')} {uL} en el borde)</span>
         </Casilla>
 
+        {/* Dónde está la zona no es lo mismo que para qué se usa: una terraza
+            que se deja en el uso de la vivienda también está al aire libre. La
+            casilla sólo abre la nieve; la sobrecarga de uso no se toca. En una
+            cubierta entera, o en un uso F o G, no decidiría nada y no sale. */}
+        {cabeDeclararIntemperie(planta, z) && (
+          <Casilla on={z.aLaIntemperie === true} onCambiar={(v) => onZona({ aLaIntemperie: v })} ariaLabel={`${quien} a la intemperie`}>
+            Está a la intemperie <span className="text-text-disabled">(una terraza o un patio: le cae la nieve de la planta)</span>
+          </Casilla>
+        )}
+
         {z.uso.categoria === 'G' && (
           <>
             <label className="flex items-center gap-2">
@@ -175,9 +185,10 @@ export function Ficha({ planta, z, r, quien, unica, puedeBorrar, ayuda, nievePub
         )}
 
         {/* La nieve se pide donde hay algo a la intemperie: la cubierta entera,
-            o una terraza (uso F) en una planta que por lo demás está bajo
-            techo. El valor es de la PLANTA —a la misma altura, la misma
-            nieve— y cae sobre todas sus zonas al aire libre. */}
+            o una terraza —de uso F, o de cualquier uso con la casilla de
+            arriba— en una planta que por lo demás está bajo techo. El valor es
+            de la PLANTA —a la misma altura, la misma nieve— y cae sobre todas
+            sus zonas al aire libre. */}
         {intemperie && (
           <div className="flex flex-col gap-1.5 border-t border-border-sub pt-2">
             <span className="text-[11px] text-text-secondary">{planta.esCubierta ? 'Nieve sobre la cubierta' : 'Nieve sobre esta zona a la intemperie'}</span>

@@ -406,7 +406,10 @@ export function FilaZona({
           vivienda de al lado pone «—». */}
       <td className={TD_NUM + ' align-top ' + SEP}>
         {!intemperie ? (
-          <span className={LINEA_DER + ' font-mono text-[11px] text-text-disabled'} title="Bajo techo: no le llega la nieve">
+          // El «—» no es un callejón sin salida: pulsar la fila abre la ficha,
+          // donde una terraza de cualquier uso se declara a la intemperie. El
+          // título lo dice, porque desde la tabla no se ve.
+          <span className={LINEA_DER + ' font-mono text-[11px] text-text-disabled'} title="Bajo techo: no le llega la nieve. Si está a la intemperie —una terraza, un patio—, dígalo en la ficha de la fila: pulse la fila y marque «Está a la intemperie».">
             —
           </span>
         ) : planta.nieve.modo === 'ninguna' ? (

@@ -378,6 +378,53 @@ describe('calcularCargas — composición, avisos y errores', () => {
     expect(terraza.Q).toBeCloseTo(1.9, 12);
   });
 
+  it('una terraza declarada a la intemperie lleva nieve sin renunciar a su uso', () => {
+    const r = calcularCargas({
+      altitud: 660,
+      plantas: [
+        {
+          nombre: 'Planta Baja',
+          esCubierta: false,
+          nieve: 1,
+          zonas: [
+            { ...zonaBase(), nombre: 'Vivienda' },
+            // La terraza de la vivienda: al aire libre, pero el proyectista la
+            // deja en A1 con sus 2 kN/m² en vez de bajarla a los 1,0 de la F.
+            { ...zonaBase(), nombre: 'Terraza', aLaIntemperie: true },
+          ],
+        },
+      ],
+      lineales: [],
+    });
+    const [vivienda, terraza] = r.plantas[0].zonas;
+    expect(vivienda.nieve).toBeNull();
+    expect(terraza.nieve).toBe(1);
+    // La casilla NO toca la sobrecarga de uso: sigue siendo la de A1.
+    expect(terraza.uso.qUso).toBe(2);
+    // Manda el uso más ψ0 por la nieve: 2 + 0,5 · 1 = 2,5, contra 1 + 0,7 · 2 = 2,4.
+    expect(terraza).toMatchObject({ hipotesis: 'uso+nieve' });
+    expect(terraza.Q).toBeCloseTo(2.5, 12);
+    expect(r.psiPresentes.map((p) => p.clave)).toEqual(['A', 'nieveBaja']);
+  });
+
+  it('la marca de intemperie no vale en un uso que ya está al aire libre ni cambia nada bajo techo', () => {
+    // Sin nieve declarada en la planta, la marca no inventa ninguna.
+    const sinNieve = calcularCargas({
+      plantas: [{ nombre: 'Planta Baja', esCubierta: false, zonas: [{ ...zonaBase(), aLaIntemperie: true }] }],
+      lineales: [],
+    });
+    expect(sinNieve.plantas[0].nieve).toBeNull();
+    expect(sinNieve.plantas[0].zonas[0]).toMatchObject({ nieve: null, hipotesis: 'uso', Q: 2 });
+    // Y en una G sigue mandando la regla de la G: nieve y conservación no son
+    // concomitantes (nota 7), marca o no marca.
+    const conG = calcularCargas({
+      altitud: 660,
+      plantas: [{ nombre: 'Cubierta', esCubierta: true, nieve: 1.4, zonas: [{ ...zonaBase(), uso: { categoria: 'G' }, aLaIntemperie: true }] }],
+      lineales: [],
+    });
+    expect(conG.plantas[0].zonas[0]).toMatchObject({ nieve: 1.4, hipotesis: 'nieve', Q: 1.4 });
+  });
+
   it('el canto fuera de la C.5 es un error, no un aviso; avisos de escaleras fuera de A/B y tabiquería pesada', () => {
     const r = calcularCargas({
       plantas: [

@@ -51,6 +51,7 @@ function fila(over: Partial<FilaAi> = {}): FilaAi {
     acceso_desde: 'A1',
     escalera: false,
     balcon: false,
+    a_la_intemperie: false,
     nieve_kNm2: 0,
     ...over,
   };
@@ -287,6 +288,29 @@ describe('la nieve', () => {
     const current = edificioReal();
     const p = plan(payload({ zonas: [fila({ planta: 'Cubierta', es_cubierta: false, uso: 'A1', nieve_kNm2: 0.6 })] }), current);
     expect(p.fields.plantas![0].nieve.modo).toBe('ninguna');
+  });
+
+  it('una terraza con a_la_intemperie abre la nieve de su planta sin tocarle el uso', () => {
+    const current = edificioReal();
+    const p = plan(payload({ zonas: [
+      fila({ planta: 'Planta Baja', zona: 'Vivienda', uso: 'A1' }),
+      fila({ planta: 'Planta Baja', zona: 'Terraza', uso: 'A1', a_la_intemperie: true, nieve_kNm2: 0.6 }),
+    ] }), current);
+    const baja = p.fields.plantas![0];
+    expect(baja.nieve).toMatchObject({ modo: 'manual', valor: 0.6, elegida: true });
+    expect(baja.zonas.map((z) => z.aLaIntemperie)).toEqual([undefined, true]);
+    // La terraza sigue siendo A1: la marca no es un cambio de uso.
+    expect(baja.zonas[1].uso.categoria).toBe('A1');
+  });
+
+  it('la marca no se guarda donde no decide nada: cubierta entera, uso F o uso G', () => {
+    const current = edificioReal();
+    const p = plan(payload({ zonas: [
+      fila({ planta: 'Cubierta', es_cubierta: true, uso: 'G', a_la_intemperie: true, nieve_kNm2: 0.6 }),
+      fila({ planta: 'Ático', zona: 'Terraza', uso: 'F', a_la_intemperie: true }),
+    ] }), current);
+    expect(p.fields.plantas![0].zonas[0].aLaIntemperie).toBeUndefined();
+    expect(p.fields.plantas![1].zonas[0].aLaIntemperie).toBeUndefined();
   });
 });
 

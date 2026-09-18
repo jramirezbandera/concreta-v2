@@ -141,7 +141,8 @@ export function Tabla({
           dice la norma en ella. Diga también qué es cada planta —cubierta, planta o sótano— y cuánto mide de forjado
           a forjado: los sótanos se dibujan bajo la rasante, la cota sale sola y Viento y nieve lee de aquí las plantas
           del edificio (incendio todavía las pide aparte). La nieve se pide en lo que está a la intemperie: una
-          cubierta, o una terraza suelta en una planta que por lo demás está bajo techo.
+          cubierta, o una terraza suelta en una planta que por lo demás está bajo techo —si la terraza conserva el
+          uso de la vivienda, márquela «a la intemperie» en su ficha—.
         </p>
       )}
 

@@ -273,7 +273,28 @@ describe('Cargas por planta — la ficha de la fila', () => {
 
     expect(within(filaDe('Planta Baja')).getByTitle(/Carga de nieve/)).toHaveTextContent('0,60');
     // La planta de al lado sigue bajo techo: su celda de nieve es un guion.
-    expect(within(filaDe('Planta Primera')).getByTitle('Bajo techo: no le llega la nieve')).toBeInTheDocument();
+    expect(within(filaDe('Planta Primera')).getByTitle(/^Bajo techo: no le llega la nieve/)).toBeInTheDocument();
+  });
+
+  it('una terraza que conserva su uso lleva nieve marcando la casilla de su ficha', () => {
+    publicarMadrid();
+    montar();
+    // Sin tocar el uso: la planta baja sigue siendo de viviendas y no lleva nieve…
+    expect(within(filaDe('Planta Baja')).getByTitle(/^Bajo techo/)).toBeInTheDocument();
+
+    // …hasta que se dice que está al aire libre, que es lo que el guión de la
+    // celda manda hacer: abrir la ficha y marcar la casilla.
+    abrirFicha('Planta Baja');
+    fireEvent.click(screen.getByLabelText('Planta Baja a la intemperie'));
+
+    expect(within(filaDe('Planta Baja')).getByTitle(/Carga de nieve/)).toHaveTextContent('0,60');
+    // Y la sobrecarga de uso no se ha movido: sigue siendo la de A1, con sus
+    // 2 kN/m² —que es lo que la casilla añade frente a pasar la zona a uso F—.
+    expect(screen.getByLabelText('Uso de Planta Baja')).toHaveValue('A1');
+    expect(within(filaDe('Planta Baja')).getByTitle(/^A1 —/)).toHaveTextContent('2,00');
+    // La casilla no sale donde no decide nada: en la cubierta no hay tal cosa.
+    abrirFicha('Cubierta');
+    expect(screen.queryByLabelText('Cubierta a la intemperie')).not.toBeInTheDocument();
   });
 });
 
