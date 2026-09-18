@@ -138,6 +138,19 @@ export async function exportPileCapPDF(
       ? `As,y = ${result.n_bars_y} ph${phi_tie} (${result.As_prov_y?.toFixed(0)} mm^2)`
       : '',
   );
+  if (n === 2) {
+    // Con 2 pilotes el tirante barre todo el ancho y comparte capa con la malla
+    // inferior: el As,min de seccion lo cubren las dos, y la separacion que
+    // manda es la de la capa completa.
+    twoCol(
+      `Malla inf. x = ${result.As_g_x_inf.toFixed(0)} mm^2`,
+      `Total inf. x = ${result.As_bot_tot_x.toFixed(0)} mm^2`,
+    );
+    twoCol(
+      `As,min sec. = ${result.As_min_x.toFixed(0)} mm^2`,
+      `s capa inf. = ${result.s_layer_x.toFixed(0)} mm`,
+    );
+  }
   twoCol(`s_bar,x = ${result.s_bar_x.toFixed(0)} mm`, `s_max = ${result.s_max.toFixed(0)} mm`);
   twoCol(`lb,req = ${result.lb_net.toFixed(0)} mm`, `lb,disp = ${result.lb_avail.toFixed(0)} mm`);
   gap();

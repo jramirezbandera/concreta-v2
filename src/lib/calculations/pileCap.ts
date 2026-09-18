@@ -162,6 +162,10 @@ export interface PileCapResult {
   As_tie_y: number | null;
   As_min_x: number;
   As_min_y: number | null;
+  As_g_x_inf: number;    // n=2: malla ∥ x de la cara inferior que cuenta para As,min [mm²]; n≥3: 0
+  As_min_net_x: number;  // As,min que deben cubrir las barras del tirante = max(As_min_x − As_g_x_inf, 0)
+  As_bot_tot_x: number;  // acero inferior ∥ x total dispuesto = As_prov_x + As_g_x_inf [mm²]
+  s_layer_x: number;     // separación real entre barras de la capa inferior ∥ x [mm]
   As_adopted_x: number;
   As_adopted_y: number | null;
   n_bars_x: number;
@@ -197,6 +201,7 @@ const EMPTY: PileCapResult = {
   fyd: 0,
   As_tie_x: 0, As_tie_y: null,
   As_min_x: 0, As_min_y: null,
+  As_g_x_inf: 0, As_min_net_x: 0, As_bot_tot_x: 0, s_layer_x: 0,
   As_adopted_x: 0, As_adopted_y: null,
   n_bars_x: 0, n_bars_y: null,
   As_prov_x: 0, As_prov_y: null,
@@ -715,12 +720,39 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   // entero a cada banda y con 6 pilotes salían 50Ø12 por banda.
   const nb_min_x = n === 6 ? 3 : n === 4 ? 2 : 1;
   const nb_min_y = n === 6 || n === 4 ? 2 : 1;
+  // Malla ∥ x de la CARA INFERIOR contabilizada para el mínimo de sección
+  // (sólo n = 2, decisión del usuario 2026-09-18). Con dos pilotes el tirante
+  // no va en banda: barre todo el ancho como el armado de una viga, y las
+  // barras ∥ x de la malla inferior están en esa MISMA capa, continuas de
+  // extremo a extremo. Son acero de tracción de la cara inferior y cuentan
+  // para el As,min del §9.2.1.1, que es un mínimo DE LA SECCIÓN.
+  // No cuentan, en cambio, para la fuerza del tirante (§6.5.3): ésa exige
+  // barras ancladas más allá del nodo con la patilla, y la malla no la lleva.
+  // Es lo que dibuja el plano tipo del estudio, donde con la malla puesta
+  // bastan 4Ø20 a lo ancho en vez de los 7-10 redondos que salían antes.
+  // Se cuentan las barras que caben entre recubrimientos, que son exactamente
+  // las que dibuja la sección transversal (PileCapRebarSVG, gridXs).
+  // Con n ≥ 3 el tirante va en banda sobre los pilotes y la malla va ENTRE
+  // bandas: no comparten capa y no se descuenta nada.
+  const n_g_x = n === 2 ? Math.floor(Math.max(L_y - 2 * cover, 0) / s_g) + 1 : 0;
+  const As_g_x_inf = n_g_x * getBarArea(phi_g);
+
   const As_tie_x = Ft_x * 1000 / fyd;
   const As_min_x = calcAsMin(fctm, fyk, b_x, d_eff) / nb_min_x;
-  const As_adopted_x = Math.max(As_tie_x, As_min_x);
-  const n_bars_x = Math.ceil(As_adopted_x / A_phi);
+  const As_min_net_x = Math.max(As_min_x - As_g_x_inf, 0);
+  // max(1, …): con la malla cubriendo el mínimo, el nº de barras lo fija sólo
+  // el tirante y podría degenerar a 0 si R_max ≤ 0 (NaN aguas abajo).
+  const As_adopted_x = Math.max(As_tie_x, As_min_net_x);
+  const n_bars_x = Math.max(1, Math.ceil(As_adopted_x / A_phi));
   const As_prov_x = n_bars_x * A_phi;
+  const As_bot_tot_x = As_prov_x + As_g_x_inf;
   const s_bar_x = n_bars_x > 1 ? w_band / (n_bars_x - 1) : 999;  // single bar: flag as warn
+  // Separación REAL de la capa inferior ∥ x: con n = 2 la malla se intercala
+  // entre las barras del tirante, así que el mayor hueco entre dos barras
+  // consecutivas no pasa de s_g. Es lo que hay que comprobar contra s_max —
+  // si no, al bajar el nº de barras del tirante la separación salía como si
+  // la malla que está a su lado no existiera.
+  const s_layer_x = n === 2 ? Math.min(s_bar_x, s_g) : s_bar_x;
 
   let As_tie_y: number | null = null;
   let As_min_y: number | null = null;
@@ -787,7 +819,9 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   let As_cv_tot_prov = 0;
   let L_bands = 0;
   if (n === 2) {
-    As_top_req = 0.1 * As_prov_x;
+    // «1/10 de la capacidad mecánica de la armadura inferior»: la inferior es
+    // ahora el tirante MÁS la malla de esa cara, que es el acero que hay.
+    As_top_req = 0.1 * As_bot_tot_x;
     As_cv_req  = 0.004 * b_ref * 1000;
     As_ch_req  = 0.004 * b_ref * 1000;
   } else {
@@ -833,11 +867,14 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   // ese sentido.
   const nbx = n === 6 ? 3 : n === 4 ? 2 : 1;   // bandas ∥ x
   const nby = n === 4 || n === 6 ? 2 : 0;      // bandas ∥ y
-  // Con n=2 la inferior ya barre todo el ancho (armado de viga): la malla sólo
-  // suma en la cara superior. Con n ≥ 3 suma en las dos caras, en el ancho que
-  // dejan libre las bandas de ese sentido.
+  // Con n=2 la malla ∥ x suma en las DOS caras y en todo el ancho: la inferior
+  // comparte capa con el tirante pero es acero distinto y adicional, y así se
+  // contabiliza ya en el As,min (As_g_x_inf). Antes se contaba una sola cara
+  // para no duplicar el tirante; ahora los dos aportes están separados y
+  // contarla dos veces sería el error contrario. Con n ≥ 3, las dos caras en
+  // el ancho que dejan libre las bandas de ese sentido.
   const grid_x = n === 2
-    ? As_g_prov * L_y / 1000
+    ? 2 * As_g_prov * L_y / 1000
     : 2 * As_g_prov * Math.max(L_y - nbx * w_band, 0) / 1000;
   const grid_y = 2 * As_g_prov * Math.max(L_x - nby * w_band, 0) / 1000;
   let As_dir_x: number;
@@ -1000,12 +1037,15 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     });
   }
 
-  // 8. Tie reinforcement x
+  // 8. Tie reinforcement x — DOS filas, porque son dos criterios distintos y
+  //    hasta ahora sólo se veía uno. El nº de barras sale del mayor de los dos
+  //    y en armados poco solicitados manda casi siempre el MÍNIMO de sección:
+  //    al enseñar sólo la demanda del tirante, la tabla parecía decir que
+  //    sobraba armadura sin explicar de dónde salía. Se marca cuál manda.
+  //    (La fila del tirante sigue siendo la demanda As_tie, fix auditoría #82;
+  //    la del mínimo se añade al lado, no en su lugar.)
   {
-    // Utilización = demanda del tirante vs acero dispuesto (fix auditoría #82:
-    // antes comparaba As_min vs As_prov, siempre verde por construcción y sin
-    // que As_tie apareciera en ningún check). As_min sigue garantizado porque
-    // n_bars sale de max(As_tie, As_min).
+    const mandaMin = As_min_net_x > As_tie_x;
     const checkId = n === 3 ? 'tie-steel-3p' : 'tie-steel-x';
     const checkDesc = n === 3
       ? 'Armadura tirante por lado (n=3)'
@@ -1014,30 +1054,53 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
         : 'Armadura tirante dirección x (banda)';
     checks.push(makeCheck(
       checkId,
-      checkDesc,
+      checkDesc + (mandaMin ? '' : ' — manda'),
       As_tie_x, As_prov_x,
       `${As_tie_x.toFixed(0)} mm²`,
       `${As_prov_x.toFixed(0)} mm²`,
       'CE Anejo 19 §6.5.3 / art. 9.1',
     ));
+    checks.push(makeCheck(
+      'tie-steel-min-x',
+      (n === 2
+        ? 'Armadura mínima de sección, inferior (tirante + malla)'
+        : 'Armadura mínima de sección, banda x') + (mandaMin ? ' — manda' : ''),
+      As_min_x, As_bot_tot_x,
+      `${As_min_x.toFixed(0)} mm²`,
+      `${As_bot_tot_x.toFixed(0)} mm²`,
+      'CE Anejo 19 §9.2.1.1',
+    ));
   }
 
   // 9. Tie reinforcement y (retículas: n=4 y n=6)
   if (As_tie_y !== null && As_prov_y !== null) {
+    const mandaMinY = As_min_y !== null && As_min_y > As_tie_y;
     checks.push(makeCheck(
       'tie-steel-y',
-      'Armadura tirante dirección y (banda)',
+      'Armadura tirante dirección y (banda)' + (mandaMinY ? '' : ' — manda'),
       As_tie_y, As_prov_y,
       `${As_tie_y.toFixed(0)} mm²`,
       `${As_prov_y.toFixed(0)} mm²`,
       'CE Anejo 19 §6.5.3 / art. 9.1',
     ));
+    if (As_min_y !== null) {
+      checks.push(makeCheck(
+        'tie-steel-min-y',
+        'Armadura mínima de sección, banda y' + (mandaMinY ? ' — manda' : ''),
+        As_min_y, As_prov_y,
+        `${As_min_y.toFixed(0)} mm²`,
+        `${As_prov_y.toFixed(0)} mm²`,
+        'CE Anejo 19 §9.2.1.1',
+      ));
+    }
   }
 
   // 10. Bar spacing — máxima y MÍNIMA (congestión, fix auditoría #82), peor
   //    dirección cuando n=4.
   {
-    const s_bar_worst = s_bar_y !== null ? Math.min(s_bar_x, s_bar_y) : s_bar_x;
+    // s_layer_x, no s_bar_x: con n = 2 la malla se intercala en la misma capa
+    // y el hueco real entre barras consecutivas no pasa de s_g.
+    const s_bar_worst = s_bar_y !== null ? Math.min(s_layer_x, s_bar_y) : s_layer_x;
     if (n_bars_x === 1) {
       checks.push({
         id: 'bar-spacing',
@@ -1051,7 +1114,9 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     } else {
       checks.push(makeCheck(
         'bar-spacing',
-        n === 2 ? 'Separación barras tirante s_bar (todo el ancho)' : 'Separación barras tirante s_bar (banda)',
+        n === 2
+          ? 'Separación barras cara inferior (todo el ancho, malla incluida)'
+          : 'Separación barras tirante s_bar (banda)',
         s_bar_worst, s_max,
         `${s_bar_worst.toFixed(0)} mm`,
         `${s_max.toFixed(0)} mm`,
@@ -1216,6 +1281,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     fyd,
     As_tie_x, As_tie_y,
     As_min_x, As_min_y,
+    As_g_x_inf, As_min_net_x, As_bot_tot_x, s_layer_x,
     As_adopted_x, As_adopted_y,
     n_bars_x, n_bars_y,
     As_prov_x, As_prov_y,

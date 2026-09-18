@@ -15,8 +15,12 @@
 //   Fs = 180.27/sin51.3° = 231.0 kN ; A_node = π·110² = 38013 mm²
 //   σ_strut = 6.08 MPa vs σ_Rd = 0.6·0.9·16.7 = 9.02 MPa
 //   Ft = 180.27·500/623.9 = 144.5 kN → As_tie = 361.2 mm² (fyd = 400)
-//   As_min = 0.26·(2.56/500)·1150·734 = 1123.7 mm² → 10Ø12 = 1131 mm²
-//   lb = 3·400/2.688 = 446.4 ; lb,req = 0.7·446.4·(1123.7/1131) = 310.5 mm
+//   As_min = 0.26·(2.56/500)·1150·734 = 1123.7 mm² de SECCIÓN, y con n = 2 la
+//     cubre también la malla ∥ x de la cara inferior, que está en la misma capa
+//     que el tirante: 11Ø12 c/100 en 1030 mm = 1244.1 mm² > 1123.7 → el mínimo
+//     neto que deben dar las barras del tirante es 0 y manda As_tie:
+//     4Ø12 = 452.4 mm² (decisión 2026-09-18; antes 10Ø12 = 1131 mm²)
+//   lb = 3·400/2.688 = 446.4 ; lb,req = 0.7·446.4·(361.2/452.4) = 249.5 mm
 //   lb,disp = (375−60) + (800−60−40) = 1015 mm
 
 import { describe, expect, it } from 'vitest';
@@ -74,18 +78,38 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(r.checks.find((c) => c.id === 'node-column')!.status).toBe('ok');
   });
 
-  it('tirante: Ft ≈ 144.5 kN, As_tie ≈ 361 mm² (fyd = 400), 10Ø12 = 1131 mm²', () => {
+  it('tirante: Ft ≈ 144.5 kN, As_tie ≈ 361 mm² (fyd = 400), 4Ø12 = 452 mm²', () => {
     expect(r.Ft_x).toBeCloseTo(144.47, 1);
     expect(r.As_tie_x).toBeCloseTo(361.2, 1);
     expect(r.As_min_x).toBeCloseTo(1123.7, 0);
-    expect(r.n_bars_x).toBe(10);
-    expect(r.As_prov_x).toBeCloseTo(1131, 0);
+    // La malla Ø12 c/100 de la cara inferior cubre el mínimo de sección entera
+    expect(r.As_g_x_inf).toBeCloseTo(11 * 113.1, 0);
+    expect(r.As_min_net_x).toBe(0);
+    expect(r.As_adopted_x).toBeCloseTo(361.2, 1);
+    expect(r.n_bars_x).toBe(4);
+    expect(r.As_prov_x).toBeCloseTo(452.4, 0);
+    expect(r.As_bot_tot_x).toBeCloseTo(452.4 + 11 * 113.1, 0);
   });
 
   it('check de tirante usa la DEMANDA As_tie, no As_min (fix #82)', () => {
     const c = r.checks.find((ch) => ch.id === 'tie-steel-x')!;
-    expect(c.utilization).toBeCloseTo(361.2 / 1131, 2);
+    expect(c.utilization).toBeCloseTo(361.2 / 452.4, 2);
     expect(c.status).toBe('ok');
+  });
+
+  // El nº de barras sale del mayor de dos criterios y hasta ahora sólo se veía
+  // uno: la tabla enseñaba 361/1131 = 32 % y parecía que sobraba armadura sin
+  // decir de dónde salía. Ahora el mínimo tiene fila propia y se marca «manda».
+  it('el mínimo de sección tiene fila propia y se marca cuál manda', () => {
+    const tie = r.checks.find((c) => c.id === 'tie-steel-x')!;
+    const min = r.checks.find((c) => c.id === 'tie-steel-min-x')!;
+    expect(min.article).toBe('CE Anejo 19 §9.2.1.1');
+    // aquí manda el tirante (la malla cubre el mínimo de sobra)
+    expect(tie.description).toMatch(/manda$/);
+    expect(min.description).not.toMatch(/manda$/);
+    // el mínimo se compara contra tirante + malla, no contra el tirante solo
+    expect(min.utilization).toBeCloseTo(r.As_min_x / r.As_bot_tot_x, 6);
+    expect(min.status).toBe('ok');
   });
 
   // Dónde se reparte la armadura principal. La EHE-08 lo dice distinto según el
@@ -96,9 +120,21 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
   // ancho de la sección).
   it('n=2: la inferior se reparte en TODO el ancho (L_y − 2·c = 1030 mm), no en banda', () => {
     expect(r.w_band).toBe(1150 - 2 * 60);
-    expect(r.s_bar_x).toBeCloseTo(1030 / 9, 1);
+    expect(r.s_bar_x).toBeCloseTo(1030 / 3, 1);      // 4 barras del tirante
     expect(r.checks.find((c) => c.id === 'bar-spacing')!.description).toMatch(/todo el ancho/);
     expect(r.checks.find((c) => c.id === 'tie-steel-x')!.description).toMatch(/todo el ancho/);
+  });
+
+  // La malla de la cara inferior se intercala entre las barras del tirante:
+  // el mayor hueco entre dos barras consecutivas de esa capa es s_g, no la
+  // separación del tirante solo. Sin esto, al bajar el nº de barras el check
+  // de separación máxima suspendía como si la malla de al lado no existiera.
+  it('n=2: la separación que se comprueba es la de la CAPA (malla incluida)', () => {
+    expect(r.s_layer_x).toBe(100);                    // s_g, menor que 343 mm
+    const row = r.checks.find((c) => c.id === 'bar-spacing')!;
+    expect(row.value).toBe('100 mm');
+    expect(row.description).toMatch(/malla incluida/);
+    expect(row.status).toBe('ok');
   });
 
   it('n ≥ 3: banda sobre los pilotes, w_band = d_p + 2·cover = 340 mm (fix #86)', () => {
@@ -108,9 +144,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     expect(calcPileCap({ ...base, n: 4 }).s_bar_x).toBeCloseTo(340 / (calcPileCap({ ...base, n: 4 }).n_bars_x - 1), 1);
   });
 
-  it('anclaje: lb ≈ 446.4 (fctd con 0.7, fyd = 400), lb,req ≈ 310.5, lb,disp = 1015 (fix #75)', () => {
+  it('anclaje: lb ≈ 446.4 (fctd con 0.7, fyd = 400), lb,req ≈ 249.5, lb,disp = 1015 (fix #75)', () => {
     expect(r.lb).toBeCloseTo(446.4, 1);
-    expect(r.lb_net).toBeCloseTo(310.5, 1);
+    expect(r.lb_net).toBeCloseTo(249.5, 1);
     expect(r.lb_avail).toBe(1015);
   });
 
@@ -125,7 +161,9 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
     // a su dirección, será, como mínimo, del 4‰. Si el ancho supera a la mitad
     // del canto, la sección de referencia se toma con un ancho igual a la mitad
     // del canto.»
-    expect(r.As_top_req).toBeCloseTo(0.1 * r.As_prov_x, 3);     // 113.1 mm²
+    // «1/10 de la capacidad mecánica de la armadura inferior»: la inferior es
+    // el tirante MÁS la malla de esa cara, que es el acero que hay puesto.
+    expect(r.As_top_req).toBeCloseTo(0.1 * r.As_bot_tot_x, 3);   // 169.6 mm²
     expect(r.As_top_prov).toBeCloseTo(2 * 113.1, 0);             // 2Ø12
     expect(r.b_ref).toBe(400);                                   // min(1950, 1150, 800/2)
     expect(r.As_cv_req).toBeCloseTo(1600, 6);                    // 0,004·400·1000 por metro
@@ -200,7 +238,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
   it('lista completa de checks', () => {
     const ids = r.checks.map((c) => c.id);
     for (const id of ['spacing', 'edge-distance', 'cap-depth', 'pile-react-max', 'strut-angle',
-      'strut-capacity', 'tie-steel-x', 'bar-spacing', 'bar-spacing-min',
+      'strut-capacity', 'tie-steel-x', 'tie-steel-min-x', 'bar-spacing', 'bar-spacing-min',
       'anchorage', 'node-column', 'rigidity', 'top-steel', 'stirrups-v', 'face-steel-h',
       'min-ratio', 'face-spacing']) {
       expect(ids).toContain(id);
@@ -572,9 +610,10 @@ describe('Cuantía geométrica mínima (EHE-08 42.3.5 + 58.8.2)', () => {
     const A12 = 113.1;
     const lat = A12 * (800 - 60 - 40) / 100;               // Ø12 c/100 en 700 mm de altura, por cara
     const n_cercos = Math.floor((1950 - 120) / 100) + 1;   // 19
-    // Malla Ø12 c/100: en el sentido x la inferior ya barre todo el ancho (armado
-    // de viga), así que sólo suma la cara superior; en y, las dos caras enteras.
-    const grid_x = r.As_g_prov * 1150 / 1000;
+    // Malla Ø12 c/100: las dos caras enteras en los dos sentidos. La inferior
+    // ∥ x comparte capa con el tirante pero es acero distinto y adicional —
+    // ya descontado aparte en el As,min de sección (As_g_x_inf).
+    const grid_x = 2 * r.As_g_prov * 1150 / 1000;
     const grid_y = 2 * r.As_g_prov * 1950 / 1000;          // sin bandas ∥ y con 2 pilotes
     expect(r.As_dir_x).toBeCloseTo(r.As_prov_x + r.As_top_prov + grid_x + 2 * lat, 0);
     expect(r.As_dir_y).toBeCloseTo(n_cercos * 2 * A12 + grid_y + 2 * lat, 0);
@@ -760,6 +799,109 @@ describe('Validación', () => {
 
   it('canto incompatible con recubrimiento → invalid', () => {
     expect(calcPileCap({ ...base, h_enc: 50, cover: 60 }).valid).toBe(false);
+  });
+});
+
+// ── La malla de la cara inferior en el As,min (n = 2) ──────────────────────
+// Decisión del usuario 2026-09-18. Con dos pilotes el tirante no va en banda:
+// barre todo el ancho como el armado de una viga (58.4.1.2.1.1), y las barras
+// ∥ x de la malla de la cara inferior están en ESA MISMA capa, continuas de
+// extremo a extremo. Son acero de tracción de la cara inferior, así que
+// cuentan para el As,min del §9.2.1.1 —un mínimo DE LA SECCIÓN— pero NO para
+// la fuerza del tirante del §6.5.3, que exige barras ancladas más allá del
+// nodo con la patilla. Es lo que dibuja el plano tipo del estudio: con la
+// malla puesta bastan 4Ø20 a lo ancho.
+describe('Malla inferior en el As,min (n = 2)', () => {
+  it('sólo con n = 2: con bandas (n ≥ 3) la malla va ENTRE ellas y no descuenta', () => {
+    for (const n of [3, 4, 6]) {
+      const r = calcPileCap({ ...base, n });
+      expect(r.As_g_x_inf).toBe(0);
+      expect(r.As_min_net_x).toBeCloseTo(r.As_min_x, 6);
+      expect(r.As_bot_tot_x).toBeCloseTo(r.As_prov_x, 6);
+      expect(r.s_layer_x).toBeCloseTo(r.s_bar_x, 6);
+    }
+  });
+
+  it('cuenta las barras que CABEN entre recubrimientos, las que dibuja la sección', () => {
+    // L_y − 2c = 1030 mm con c/100 → 11 barras, no 11,5 (L_y/s_g)
+    expect(calcPileCap(base).As_g_x_inf).toBeCloseTo(11 * 113.1, 0);
+    // c/200 → 6 barras en 1030 mm
+    expect(calcPileCap({ ...base, s_g: 200 }).As_g_x_inf).toBeCloseTo(6 * 113.1, 0);
+    // malla más gruesa, mismo reparto
+    expect(calcPileCap({ ...base, s_g: 200, phi_g: 16 }).As_g_x_inf).toBeCloseTo(6 * 201.1, 0);
+  });
+
+  it('la malla NO alimenta la fuerza del tirante (§6.5.3 exige patilla)', () => {
+    const r = calcPileCap(base);
+    const tie = r.checks.find((c) => c.id === 'tie-steel-x')!;
+    expect(tie.limit).toBe(`${r.As_prov_x.toFixed(0)} mm²`);   // sin la malla
+    expect(r.As_adopted_x).toBeGreaterThanOrEqual(r.As_tie_x);
+  });
+
+  // Caso real del usuario (Villa Montemayor, 2026-09-18): antes salían 7Ø16
+  // para una demanda de tirante de 476 mm² y la tabla no decía por qué.
+  it('caso de obra: 2 micros, Ø16, c=70, h=900 → el mínimo manda y salen 4Ø16', () => {
+    const r = calcPileCap({
+      ...base,
+      n: 2, d_p: 220, s: 1000, h_enc: 900,
+      dims_auto: false, L_x: 1700, L_y: 1000,
+      b_col: 300, h_col: 300, fck: 30, fyk: 500, cover: 70, phi_tie: 16,
+      N_Ed: 575, Mx_Ed: 0, My_Ed: 0, R_adm: 422,
+      phi_top: 16, n_top: 2, phi_cv: 12, s_cv: 110, n_cv: 2,
+      phi_ch: 16, s_ch: 200, phi_g: 12, s_g: 200,
+    });
+    expect(r.R_max).toBeCloseTo(313.32, 1);
+    expect(r.As_tie_x).toBeCloseTo(476.5, 1);
+    expect(r.As_min_x).toBeCloseTo(1239.6, 1);
+    expect(r.As_g_x_inf).toBeCloseTo(5 * 113.1, 0);       // 1000 − 140 = 860 → 5 barras c/200
+    expect(r.As_min_net_x).toBeCloseTo(674.1, 1);
+    expect(r.As_adopted_x).toBeCloseTo(674.1, 1);          // manda el mínimo neto
+    expect(r.n_bars_x).toBe(4);                            // antes 7
+    expect(r.As_prov_x).toBeCloseTo(804.4, 0);
+    expect(r.As_bot_tot_x).toBeCloseTo(1369.9, 0);
+    expect(r.As_bot_tot_x).toBeGreaterThan(r.As_min_x);    // el mínimo, cubierto
+
+    // la fila del mínimo manda y lo dice
+    const tie = r.checks.find((c) => c.id === 'tie-steel-x')!;
+    const min = r.checks.find((c) => c.id === 'tie-steel-min-x')!;
+    expect(min.description).toMatch(/manda$/);
+    expect(tie.description).not.toMatch(/manda$/);
+    expect(min.utilization).toBeCloseTo(1239.6 / 1369.9, 3);
+
+    // separación: 4 barras dejan 287 mm, pero la malla c/200 se intercala
+    expect(r.s_bar_x).toBeCloseTo(860 / 3, 1);
+    expect(r.s_layer_x).toBe(200);
+    expect(r.s_max).toBe(240);                             // min(250, 15·16)
+    expect(r.checks.find((c) => c.id === 'bar-spacing')!.status).toBe('ok');
+
+    // la superior se mide contra TODA la inferior, malla incluida
+    expect(r.As_top_req).toBeCloseTo(0.1 * r.As_bot_tot_x, 3);
+  });
+
+  it('sin malla que descuente (s_g enorme) se vuelve al mínimo entero', () => {
+    const r = calcPileCap({ ...base, s_g: 3000 });   // 1 sola barra en el ancho
+    expect(r.As_g_x_inf).toBeCloseTo(113.1, 0);
+    expect(r.As_min_net_x).toBeCloseTo(r.As_min_x - 113.1, 0);
+    expect(r.As_adopted_x).toBeCloseTo(r.As_min_net_x, 6);
+    expect(r.checks.find((c) => c.id === 'tie-steel-min-x')!.description).toMatch(/manda$/);
+  });
+
+  // Con la malla cubriendo el mínimo, el nº de barras lo fija sólo el tirante
+  // y puede llegar a 1 (antes el mínimo entero garantizaba varias): ni 0 barras
+  // —que dejaría As_prov = 0 y NaN en el anclaje— ni el aviso perdido.
+  it('nunca 0 barras: con el tirante casi descargado quedan 1 barra y su aviso', () => {
+    const r = calcPileCap({ ...base, N_Ed: 1 });
+    expect(r.valid).toBe(true);
+    expect(r.As_min_net_x).toBe(0);
+    expect(r.n_bars_x).toBe(1);
+    expect(r.As_prov_x).toBeGreaterThan(0);
+    expect(Number.isFinite(r.lb_net)).toBe(true);
+    const row = r.checks.find((c) => c.id === 'bar-spacing')!;
+    expect(row.status).toBe('warn');
+    expect(row.description).toMatch(/1 barra insuficiente/);
+    r.checks.filter((c) => !c.neutral).forEach((c) => {
+      expect(Number.isNaN(c.utilization)).toBe(false);
+    });
   });
 });
 

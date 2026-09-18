@@ -88,13 +88,28 @@ export function PileCapResults({ inp, result }: Props) {
       <GroupHeader label="Armadura de tirantes" />
       <ValueRow label={resultLabel('As_req_x')}     value={`${result.As_tie_x.toFixed(0)} mm²`} />
       <ValueRow label={resultLabel('As_min_x')}     value={`${result.As_min_x.toFixed(0)} mm²`} />
-      <ValueRow label={resultLabel('As_adopted_x')} value={`${result.As_adopted_x.toFixed(0)} mm²`} />
+      {n === 2 && (
+        <ValueRow
+          label="Malla inferior ∥ x — misma capa, se descuenta"
+          value={`− ${result.As_g_x_inf.toFixed(0)} mm²`}
+        />
+      )}
+      <ValueRow
+        label={n === 2 ? 'Adoptada para las barras del tirante' : resultLabel('As_adopted_x')}
+        value={`${result.As_adopted_x.toFixed(0)} mm²`}
+      />
       <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
         <span className="text-[12px] text-text-secondary">Barras x</span>
         <span className="text-[11px] font-mono text-accent tabular-nums font-semibold">
           {`${result.n_bars_x} Ø${phi_tie} → ${result.As_prov_x.toFixed(0)} mm²`}
         </span>
       </div>
+      {n === 2 && (
+        <ValueRow
+          label="Total cara inferior ∥ x (tirante + malla)"
+          value={`${result.As_bot_tot_x.toFixed(0)} mm²`}
+        />
+      )}
 
       {n >= 4 && result.n_bars_y !== null && result.As_min_y !== null &&
         result.As_adopted_y !== null && result.As_prov_y !== null && (
@@ -113,6 +128,12 @@ export function PileCapResults({ inp, result }: Props) {
 
       <ValueRow label="sep_max" value={`${result.s_max.toFixed(0)} mm`} />
       <ValueRow label="s_bar,x" value={`${result.s_bar_x.toFixed(0)} mm`} />
+      {n === 2 && (
+        <ValueRow
+          label="s capa inferior ∥ x (con la malla intercalada)"
+          value={`${result.s_layer_x.toFixed(0)} mm`}
+        />
+      )}
       {result.s_bar_y !== null && (
         <ValueRow label="s_bar,y" value={`${result.s_bar_y.toFixed(0)} mm`} />
       )}
