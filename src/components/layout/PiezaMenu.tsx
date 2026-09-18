@@ -28,12 +28,12 @@ import { showToast } from '../ui/Toast';
 import {
   hayTrabajoSinGuardar,
   nuevoCalculo,
-  piezaAbierta,
+  piezaAbiertaDe,
   restaurarPieza,
   type Pieza,
 } from '../../lib/anejo';
 import { pedirRemonte } from '../../lib/anejo/remonte';
-import { useAnejo } from '../../lib/anejo/useAnejo';
+import { useAnejo, useVinculo } from '../../lib/anejo/useAnejo';
 import { useModuloEnPantalla } from '../../lib/anejo/useModuloEnPantalla';
 
 const OPCION =
@@ -42,6 +42,12 @@ const OPCION =
 export function PiezaMenu() {
   const adaptador = useModuloEnPantalla();
   const anejo = useAnejo();
+  // El índice dice qué piezas hay y el vínculo cuál de ellas es la de este
+  // módulo: guardar cambia los dos, y de los dos hay que enterarse. El valor
+  // se DERIVA de lo que traen los hooks (`piezaAbiertaDe`) en vez de leer el
+  // almacén a mitad de render: así el compilador de React no puede congelarlo,
+  // que es lo que dejaba la miga en «Sin guardar» justo después de guardar.
+  const vinculo = useVinculo();
   const [abierto, setAbierto] = useState(false);
   const [confirmando, setConfirmando] = useState<{ hacer: () => void } | null>(null);
   // Dónde cae el panel. La miga de pan trunca con `overflow-hidden`, que se
@@ -79,7 +85,7 @@ export function PiezaMenu() {
   if (!adaptador) return null;
   const modulo = adaptador.modulo;
   const propias = anejo.piezas.filter((p) => p.modulo === modulo);
-  const abiertaAhora = piezaAbierta(modulo);
+  const abiertaAhora = piezaAbiertaDe(anejo, vinculo, modulo);
   if (propias.length === 0 && abiertaAhora === null) return null;
 
   /** Con trabajo sin guardar pregunta antes; si no, va. */

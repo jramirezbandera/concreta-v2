@@ -34,7 +34,7 @@ import {
 import { blobDePdf, contarPaginas } from './concatenar';
 import { numerosDeCapitulo } from './maqueta';
 import { adaptadorDe, buscarAdaptador } from './modules';
-import { fijarVinculo, leerVinculo, soltarVinculo } from './vinculo';
+import { CLAVE_VINCULO, fijarVinculo, soltarVinculo, vinculoDe } from './vinculo';
 import type { AdaptadorAnejo, AnejoFile, Pieza } from './types';
 
 export type { AdaptadorAnejo, AnejoFile, Pieza, SeccionAnejo } from './types';
@@ -384,9 +384,19 @@ export function adoptarDatosDeModulos(): number {
  * que tenía ya no está en el anejo (la quitaste, o cambiaste de obra).
  */
 export function piezaAbierta(modulo: string): Pieza | null {
-  const v = leerVinculo();
+  return piezaAbiertaDe(leerAnejo(), leerClave(CLAVE_VINCULO), modulo);
+}
+
+/**
+ * Lo mismo, a partir del índice y del vínculo YA LEÍDOS. Es la versión para
+ * React: los dos almacenes llegan por sus hooks (`useAnejo`, `useVinculo`) y
+ * esto es una función pura de ellos, así que al cambiar cualquiera de los dos
+ * el componente se vuelve a pintar con el valor nuevo.
+ */
+export function piezaAbiertaDe(anejo: AnejoFile, rawVinculo: string | null, modulo: string): Pieza | null {
+  const v = vinculoDe(rawVinculo);
   if (v === null || v.modulo !== modulo) return null;
-  return piezaPorId(v.piezaId) ?? null;
+  return anejo.piezas.find((p) => p.id === v.piezaId) ?? null;
 }
 
 export type DestinoGuardado =
