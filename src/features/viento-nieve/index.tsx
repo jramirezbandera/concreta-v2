@@ -28,6 +28,7 @@ import { ViewTabs } from '../../components/ui/ViewTabs';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
 import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
+import { useReconstruirCapitulo } from '../../hooks/useReconstruirCapitulo';
 import { FORMATO_ANEJO, GRUPO_ANEJO, propsTituloAnejo, type IdAnejo } from '../../components/layout/opcionAnejo';
 import { adaptadorDe } from '../../lib/anejo/modules';
 import { getUnitLabel } from '../../lib/units/format';
@@ -252,6 +253,28 @@ export function VientoNieveModule() {
   // «Guardar en el anejo» (design doc, F5): el mismo PDF de la memoria,
   // guardado como capítulo del anejo de la obra en vez de bajar al disco.
   const anejo = useGuardarEnAnejo();
+  /**
+   * «Reconstruir el PDF» desde el anejo: su capítulo perdió el papel (obra
+   * traída de otra máquina) y se rehace sin preguntar nada. Un capítulo de
+   * memoria es uno por obra, así que esto SUSTITUYE el suyo, como cualquier
+   * otra exportación al anejo desde aquí.
+   */
+  useReconstruirCapitulo({
+    modulo: ANEJO.modulo,
+    listo: evaluacion.listo,
+    rehacer: async (encargo) => {
+      // Los bloques se componen al exportar, igual que en `exportFn`: aquí no
+      // hay pestaña que los tenga pintados.
+      const bloques: Block[] = [];
+      if (evaluacion.viento) bloques.push(...cuadroVientoMemoria(evaluacion.viento, emplazamientoCuadro));
+      if (evaluacion.nieve) bloques.push(...cuadroNieveMemoria(evaluacion.nieve, emplazamientoCuadro));
+      const { exportarVientoNievePdf } = await import('../../lib/pdf/vientoNieve');
+      const pdf = await exportarVientoNievePdf(bloques, encargo.titulo);
+      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob }, { callado: true });
+      return r.ok;
+    },
+  });
+
   const entregarAlAnejo = async (r: ResultadoExport, titulo: string) => {
     await anejo.guardar({ modulo: ANEJO.modulo, titulo, blob: r.blob });
   };

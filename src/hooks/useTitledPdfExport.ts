@@ -6,6 +6,7 @@ import { useModuloEnPantalla } from '../lib/anejo/useModuloEnPantalla';
 import { volcarPendientes } from '../lib/storage/seguro';
 import { useGuardarEnAnejo } from './useGuardarEnAnejo';
 import { usePdfPreview } from './usePdfPreview';
+import { useReconstruirCapitulo } from './useReconstruirCapitulo';
 import type { PdfResult } from '../lib/pdf/utils';
 
 /** A dónde va el PDF que se está pidiendo: al disco (pasando por el visor) o al anejo. */
@@ -104,6 +105,27 @@ export function useTitledPdfExport({ exportFn, valid, onTitleChange, invalidMess
     },
     [onTitleChange, pdf, destino, adaptador, anejo],
   );
+
+  // «Reconstruir el PDF» desde el anejo: el mismo camino, sin preguntar el
+  // nombre —lo trae el encargo— y sin visor. Los módulos no se enteran.
+  useReconstruirCapitulo({
+    modulo: adaptador?.modulo,
+    listo: valid,
+    rehacer: async (encargo) => {
+      const resultado = await pdf.generarPdf(encargo.titulo);
+      if (!resultado) return false;
+      try {
+        const blob = await blobDeUrl(resultado.blobUrl);
+        const r = await anejo.guardar(
+          { modulo: encargo.modulo, titulo: encargo.titulo, blob, paginas: resultado.pageCount },
+          { callado: true },
+        );
+        return r.ok;
+      } finally {
+        URL.revokeObjectURL(resultado.blobUrl);
+      }
+    },
+  });
 
   const closeTitle = useCallback(() => setTitleOpen(false), []);
 

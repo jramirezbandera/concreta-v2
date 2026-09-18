@@ -282,13 +282,16 @@ describe('Anejo de cálculo', () => {
     expect(within(panel()).getByText('El índice ocupa 2 páginas y se habían previsto 1.')).toBeInTheDocument();
   });
 
-  it('una pieza sin PDF en esta máquina: fila roja con el motivo, el enlace al módulo y «Dejar fuera»', async () => {
+  it('una pieza sin PDF en esta máquina: fila roja con el motivo, rehacerla y «Dejar fuera»', async () => {
     const user = userEvent.setup();
     await conPiezas({ pdfDeMemoria: false });
     montar();
     const memoria = fila('Viento de la nave');
     expect(await within(memoria).findByText(/Falta el PDF guardado/)).toBeInTheDocument();
-    expect(within(memoria).getByRole('link', { name: 'Ir a Viento y nieve' })).toHaveAttribute('href', '/acciones/viento-nieve');
+    // Se puede rehacer: la pieza se abre en su módulo y se exporta sobre su
+    // capítulo. El enlace suelto al módulo era lo que duplicaba capítulos.
+    expect(within(memoria).getByRole('button', { name: 'Reconstruir el PDF' })).toBeInTheDocument();
+    expect(within(memoria).queryByRole('link', { name: 'Ir a Viento y nieve' })).toBeNull();
     expect(within(fila('Viga V-1')).queryByText(/Falta el PDF/)).toBeNull();
     await user.click(within(memoria).getByRole('button', { name: 'Dejar fuera' }));
     expect(leerAnejo().piezas.find((p) => p.id === 'm1')?.incluida).toBe(false);

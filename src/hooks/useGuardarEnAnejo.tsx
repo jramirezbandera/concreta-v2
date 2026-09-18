@@ -43,7 +43,12 @@ export function useGuardarEnAnejo() {
 
   const pedirNombre = () => new Promise<string | null>((resolver) => setPeticionNombre({ resolver }));
 
-  const guardar = async (p: PeticionGuardarEnAnejo): Promise<ResultadoGuardarEnAnejo> => {
+  /**
+   * `callado` se lo pone la reconstrucción en tandas: cuatro capítulos son
+   * cuatro toasts apilados que dicen lo mismo, y el anejo ya cuenta el total
+   * al terminar. Los fallos SÍ se cuentan siempre: eso no es ruido.
+   */
+  const guardar = async (p: PeticionGuardarEnAnejo, { callado = false } = {}): Promise<ResultadoGuardarEnAnejo> => {
     if (pestanaDesfasada()) {
       showToast('Otra pestaña ha cambiado de obra. Recarga antes de guardar en el anejo.', { autoDismiss: 5000 });
       return { ok: false, donde: 'obra', motivo: 'desfasada' };
@@ -62,10 +67,12 @@ export function useGuardarEnAnejo() {
       // `guardarPieza` por dentro (`destinoDeGuardado`), que es donde vive la
       // regla. Aquí sólo se cuenta el desenlace.
       const r = await guardarPieza(p);
-      showToast(mensajeDe(r), {
-        autoDismiss: 6000,
-        action: r.ok && navegacion ? { label: 'Ver anejo', onClick: () => navegacion.navigator.push(RUTA_ANEJO) } : undefined,
-      });
+      if (!callado || !r.ok) {
+        showToast(mensajeDe(r), {
+          autoDismiss: 6000,
+          action: r.ok && navegacion ? { label: 'Ver anejo', onClick: () => navegacion.navigator.push(RUTA_ANEJO) } : undefined,
+        });
+      }
       return r;
     } finally {
       setGuardando(false);

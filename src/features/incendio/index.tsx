@@ -27,6 +27,7 @@ import { showToast } from '../../components/ui/Toast';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
+import { useReconstruirCapitulo } from '../../hooks/useReconstruirCapitulo';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
 import { incendioAdapter, summarizeIncendioResults } from '../../lib/ai/modules/incendio';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
@@ -248,6 +249,23 @@ export function IncendioModule() {
   const formato = FORMATOS[formatoElegido];
 
   const anejo = useGuardarEnAnejo();
+  /**
+   * «Reconstruir el PDF» desde el anejo: su capítulo perdió el papel (obra
+   * traída de otra máquina) y se rehace sin preguntar nada. Un capítulo de
+   * memoria es uno por obra, así que esto SUSTITUYE el suyo, como cualquier
+   * otra exportación al anejo desde aquí.
+   */
+  useReconstruirCapitulo({
+    modulo: ANEJO.modulo,
+    listo: evaluacion.listo,
+    rehacer: async (encargo) => {
+      const { exportarIncendioPdf } = await import('../../lib/pdf/incendio');
+      const pdf = await exportarIncendioPdf(bloques, encargo.titulo);
+      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob }, { callado: true });
+      return r.ok;
+    },
+  });
+
   const entregarAlAnejo = async (r: ResultadoExport, titulo: string) => {
     await anejo.guardar({ modulo: ANEJO.modulo, titulo, blob: r.blob });
   };

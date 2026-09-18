@@ -39,6 +39,8 @@ export interface ListaPiezasProps {
   avisar: (pieza: Pieza) => boolean;
   onAbrir: (pieza: Pieza) => void;
   onIrAlModulo: (pieza: Pieza) => void;
+  /** Rehacer su PDF: abre la pieza en su módulo, la vuelve a exportar y regresa. */
+  onReconstruir: (pieza: Pieza) => void;
   /** Mover la pieza a la posición (1 = la primera) dentro de su sección. */
   onMover: (pieza: Pieza, posicion: number) => void;
   onIncluir: (pieza: Pieza, incluida: boolean) => void;
@@ -110,6 +112,7 @@ export function ListaPiezas(props: ListaPiezasProps) {
                 onRenombrar={props.onRenombrar}
                 onAbrir={props.onAbrir}
                 onIrAlModulo={props.onIrAlModulo}
+                onReconstruir={props.onReconstruir}
                 onMover={props.onMover}
                 onIncluir={props.onIncluir}
                 onQuitar={props.onQuitar}
@@ -218,6 +221,8 @@ interface FilaPiezaProps {
   onAbrir: (pieza: Pieza) => void;
   /** Llevar al módulo SIN restaurar, para poder guardar lo que hay a medias. */
   onIrAlModulo: (pieza: Pieza) => void;
+  /** Rehacer su PDF sin salir a mano: la abre en su módulo y vuelve. */
+  onReconstruir: (pieza: Pieza) => void;
   onMover: (pieza: Pieza, posicion: number) => void;
   onIncluir: (pieza: Pieza, incluida: boolean) => void;
   onQuitar: (pieza: Pieza) => void;
@@ -312,13 +317,31 @@ function FilaPieza(f: FilaPiezaProps) {
           {fechaTexto && ` · ${fechaTexto}`}
         </div>
 
+        {/* Sin PDF: se puede REHACER —abrir la pieza en su módulo y volver a
+            exportarla sobre su mismo capítulo— salvo que la pieza no se pueda
+            abrir, y entonces lo único honrado es decirlo y dejar el enlace. */}
         {f.faltaPdf && (
           <p className="m-0 mt-1 flex flex-wrap items-center gap-2 text-[11.5px] text-state-fail">
-            <span>Falta el PDF guardado: vuelve a guardarla desde el módulo.</span>
-            {modulo && (
-              <Link to={modulo.route} className={ENLACE}>
-                Ir a {modulo.label}
-              </Link>
+            <span>
+              {f.noAbrible === null
+                ? 'Falta el PDF guardado: se puede rehacer con los datos de la pieza.'
+                : `Falta el PDF guardado, y no se puede rehacer: ${f.noAbrible}`}
+            </span>
+            {f.noAbrible === null ? (
+              <button
+                type="button"
+                className={BOTON_SALIDA}
+                title={`Abrir «${pieza.titulo}» en ${modulo?.label ?? 'su módulo'}, volver a exportarla sobre su capítulo y regresar aquí`}
+                onClick={() => f.onReconstruir(pieza)}
+              >
+                Reconstruir el PDF
+              </button>
+            ) : (
+              modulo && (
+                <Link to={modulo.route} className={ENLACE}>
+                  Ir a {modulo.label}
+                </Link>
+              )
             )}
             {pieza.incluida && (
               <button type="button" className={BOTON_SALIDA} onClick={() => f.onIncluir(pieza, false)}>
