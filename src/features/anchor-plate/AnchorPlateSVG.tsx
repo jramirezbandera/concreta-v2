@@ -85,6 +85,14 @@ const COLORS = {
   },
 };
 
+// DESIGN.md separa las dos voces del dibujo y el `Rotulo` compartido de
+// components/canvas lo dice igual: «sans por defecto, mono para los números».
+// La raíz del SVG forzaba mono a TODO, rótulos incluidos. `MONO` marca los
+// textos que llevan cifras —cotas, fjd, el ángulo del eje neutro, el ×N y la
+// designación del perfil—; el resto (Planta, Alzado, el convenio de signos y
+// la leyenda) hereda la sans de la raíz.
+const MONO = { fontFamily: 'var(--font-mono, monospace)' } as const;
+
 export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si' }: Props) {
   const C = COLORS[mode];
   const profile = makeISectionBySize(inp.sectionType, inp.sectionSize)?.profile;
@@ -202,7 +210,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-labelledby={`${titleId} ${descId}`}
-      style={{ fontFamily: 'var(--font-mono, monospace)' }}
+      style={{ fontFamily: 'var(--font-sans, system-ui, sans-serif)' }}
     >
       <title id={titleId}>Placa de anclaje — planta y alzado</title>
       <desc id={descId}>
@@ -308,7 +316,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                   textAnchor="middle"
                   dominantBaseline="middle"
                   opacity={0.95}
-                  style={{ paintOrder: 'stroke', stroke: mode === 'pdf' ? '#ffffff' : 'var(--color-bg-primary)', strokeWidth: 2 }}
+                  style={{ ...MONO, paintOrder: 'stroke', stroke: mode === 'pdf' ? '#ffffff' : 'var(--color-bg-primary)', strokeWidth: 2 }}
                 >
                   {fjdTexto}
                 </text>
@@ -418,6 +426,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                 fontSize={9}
                 textAnchor="middle"
                 dominantBaseline="middle"
+                style={MONO}
               >
                 {enTexto}
               </text>
@@ -507,12 +516,17 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
         </text>
         {/* M14 (Phase 4) — flecha de convención de signos Mx: indica el lado
             que tracciona bajo +Mx. Sin esto el usuario no sabe qué lado del
-            grupo se levanta al cambiar el signo. */}
-        <g opacity={0.75} fill={C.text}>
-          <line x1={width - 18} y1={panelH - 16} x2={width - 4} y2={panelH - 16}
-                stroke={C.text} strokeWidth={0.8} opacity={0.5} />
-          <path d={`M ${width - 4} ${panelH - 16} l -4 -2 l 0 4 z`} fill={C.text} opacity={0.5} />
-          <text x={width - 6} y={panelH - 4} fontSize={8} textAnchor="end" opacity={0.6}>
+            grupo se levanta al cambiar el signo.
+
+            design review 2026-09-21: estaba a 8 px, con opacidad 0.6 y pegado
+            al separador, en la esquina derecha del lienzo. Es el dato que no se
+            puede equivocar —invertir el signo invierte qué barras trabajan— y
+            era el texto menos visible del dibujo. Sube junto al rótulo de la
+            vista, al mismo cuerpo y la misma opacidad que «Planta». */}
+        <g fill={C.text} opacity={0.7}>
+          <line x1={72} y1={12} x2={86} y2={12} stroke={C.text} strokeWidth={1} />
+          <path d={`M ${86} ${12} l -4 -2.5 l 0 5 z`} fill={C.text} />
+          <text x={92} y={16} fontSize={10}>
             +Mx tracciona −x
           </text>
         </g>
@@ -525,7 +539,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
           <line x1={pCx + plateW / 2} y1={pCy - plateH / 2} x2={pCx + plateW / 2} y2={pCy - plateH / 2 - 10} />
           <line x1={pCx - plateW / 2} y1={pCy - plateH / 2 - 7} x2={pCx + plateW / 2} y2={pCy - plateH / 2 - 7} />
         </g>
-        <text x={pCx} y={pCy - plateH / 2 - 11} fill={C.dim} fontSize={9} textAnchor="middle">
+        <text x={pCx} y={pCy - plateH / 2 - 11} fill={C.dim} fontSize={9} textAnchor="middle" style={MONO}>
           a = {inp.plate_a}
         </text>
         {/* Cota b (paralela al eje y) */}
@@ -534,7 +548,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
           <line x1={pCx + plateW / 2} y1={pCy + plateH / 2} x2={pCx + plateW / 2 + 10} y2={pCy + plateH / 2} />
           <line x1={pCx + plateW / 2 + 7} y1={pCy - plateH / 2} x2={pCx + plateW / 2 + 7} y2={pCy + plateH / 2} />
         </g>
-        <text x={pCx + plateW / 2 + 11} y={pCy} fill={C.dim} fontSize={9} textAnchor="start" dominantBaseline="middle">
+        <text x={pCx + plateW / 2 + 11} y={pCy} fill={C.dim} fontSize={9} textAnchor="start" dominantBaseline="middle" style={MONO}>
           b = {inp.plate_b}
         </text>
       </g>
@@ -579,7 +593,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
               <rect x={colX + colW - colTf} y={colY} width={colTf} height={colHpx} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
               <rect x={aCx - colTw / 2} y={colY} width={colTw} height={colHpx} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
               {/* Profile label */}
-              <text x={aCx} y={colY - 4} fill={C.text} fontSize={9} textAnchor="middle" opacity={0.7}>
+              <text x={aCx} y={colY - 4} fill={C.text} fontSize={9} textAnchor="middle" opacity={0.7} style={MONO}>
                 {inp.sectionType} {inp.sectionSize}
               </text>
               {/* Unused but referenced to silence lint */}
@@ -759,6 +773,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                     fill={C.text}
                     fontSize={8}
                     opacity={0.7}
+                    style={MONO}
                   >
                     ×{count}
                   </text>
@@ -784,7 +799,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                 <line x1={aCx + pedestalAlzadoW / 2} y1={yBot} x2={dimX + 3} y2={yBot} />
                 <line x1={dimX} y1={yTop} x2={dimX} y2={yBot} />
               </g>
-              <text x={dimX + 4} y={(yTop + yBot) / 2} fill={C.dim} fontSize={9} textAnchor="start" dominantBaseline="middle">
+              <text x={dimX + 4} y={(yTop + yBot) / 2} fill={C.dim} fontSize={9} textAnchor="start" dominantBaseline="middle" style={MONO}>
                 hef = {inp.bar_hef}
               </text>
             </g>
@@ -802,7 +817,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                 <line x1={aCx - aPlateW / 2} y1={yBot} x2={dimX - 3} y2={yBot} />
                 <line x1={dimX} y1={yTop} x2={dimX} y2={yBot} />
               </g>
-              <text x={dimX - 4} y={(yTop + yBot) / 2} fill={C.dim} fontSize={9} textAnchor="end" dominantBaseline="middle">
+              <text x={dimX - 4} y={(yTop + yBot) / 2} fill={C.dim} fontSize={9} textAnchor="end" dominantBaseline="middle" style={MONO}>
                 t = {inp.plate_t}
               </text>
             </g>
