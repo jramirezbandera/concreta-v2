@@ -833,20 +833,47 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
       {(() => {
         const ly = height - 6;
         const r = 4;
-        const cuerpo = mode === 'pdf' ? 6 : 9;
-        const paso = mode === 'pdf' ? 108 : 150;
         const x0 = 12;
+        const sangria = 2 * r + 5;   // hueco entre la muestra y su texto
+        const separacion = 16;       // aire entre entradas
+        // Mismo criterio de ceder por pasos que los rótulos: el tercer texto es
+        // el largo, así que primero se acorta y luego se reduce el cuerpo. Con
+        // un paso fijo, en el lienzo de móvil (334 px) la tercera entrada se
+        // salía por la derecha.
+        const cuerpoBase = mode === 'pdf' ? 6 : 9;
+        const disponible = width - 2 * x0;
+        const componer = (tercero: string, cuerpo: number) => {
+          const textos = ['barra traccionada', 'comprimida', tercero];
+          const total = textos.reduce(
+            (acc, t) => acc + sangria + anchoEstimado(t, cuerpo) + separacion,
+            -separacion,
+          );
+          return { textos, cuerpo, total };
+        };
+        let l = componer('bloque comprimido de hormigón', cuerpoBase);
+        if (l.total > disponible) l = componer('bloque comprimido', cuerpoBase);
+        if (l.total > disponible) {
+          const encogido = Math.max(cuerpoBase * 0.7, (cuerpoBase * disponible) / l.total);
+          l = componer(l.textos[2], encogido);
+        }
+        // Offsets acumulados sin mutar nada: el compilador de React rechaza
+        // reasignar una variable dentro del map (react-hooks/immutability).
+        const pos = l.textos.map((_, i) =>
+          x0 + l.textos
+            .slice(0, i)
+            .reduce((acc, t) => acc + sangria + anchoEstimado(t, l.cuerpo) + separacion, 0),
+        );
         return (
-          <g fill={C.legend} fontSize={cuerpo}>
-            <circle cx={x0 + r} cy={ly - 3} r={r} fill={C.bolt_t} stroke={C.bolt_stroke} strokeWidth={1} />
-            <text x={x0 + 2 * r + 5} y={ly}>barra traccionada</text>
-            <circle cx={x0 + paso + r} cy={ly - 3} r={r} fill={C.bolt_c} stroke={C.bolt_stroke} strokeWidth={1} />
-            <text x={x0 + paso + 2 * r + 5} y={ly}>comprimida</text>
+          <g fill={C.legend} fontSize={l.cuerpo}>
+            <circle cx={pos[0] + r} cy={ly - 3} r={r} fill={C.bolt_t} stroke={C.bolt_stroke} strokeWidth={1} />
+            <text x={pos[0] + sangria} y={ly}>{l.textos[0]}</text>
+            <circle cx={pos[1] + r} cy={ly - 3} r={r} fill={C.bolt_c} stroke={C.bolt_stroke} strokeWidth={1} />
+            <text x={pos[1] + sangria} y={ly}>{l.textos[1]}</text>
             <rect
-              x={x0 + 2 * paso} y={ly - 7} width={2 * r} height={2 * r}
+              x={pos[2]} y={ly - 7} width={2 * r} height={2 * r}
               fill={C.compression} stroke={C.compression_stroke} strokeWidth={1} strokeDasharray="2 2"
             />
-            <text x={x0 + 2 * paso + 2 * r + 5} y={ly}>bloque comprimido de hormigón</text>
+            <text x={pos[2] + sangria} y={ly}>{l.textos[2]}</text>
           </g>
         );
       })()}
