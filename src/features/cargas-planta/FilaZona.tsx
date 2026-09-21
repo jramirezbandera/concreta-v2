@@ -33,7 +33,7 @@ const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
  * cosas, y en el chip sólo cabían dos.
  */
 const SELECT_TIPO =
-  'h-5 w-[80px] min-w-0 rounded border border-border-main bg-bg-primary px-1 py-0 text-[10.5px] text-text-primary focus:border-accent focus:outline-none';
+  'h-5 w-[80px] min-w-0 rounded border border-border-main bg-bg-primary px-1 py-0 text-[11px] text-text-primary focus:border-accent focus:outline-none';
 
 interface Props {
   planta: PlantaUI;
@@ -73,8 +73,8 @@ const rotuloCota = (c: number) => (c === 0 ? '±0,00' : `${c > 0 ? '+' : '−'}$
 function Derivado({ valor, titulo, sub, fuerte, fallo }: { valor: string; titulo: string; sub?: string; fuerte?: boolean; fallo?: boolean }) {
   return (
     <span title={titulo} className="flex flex-col items-end leading-tight">
-      <span className={[LINEA, 'font-mono text-[11.5px] tabular-nums', fallo ? 'text-state-fail' : 'text-accent', fuerte ? 'font-semibold' : ''].join(' ')}>{valor}</span>
-      {sub && <span className="font-mono text-[8.5px] text-text-disabled">{sub}</span>}
+      <span className={[LINEA, 'font-mono text-[12px] tabular-nums', fallo ? 'text-state-fail' : 'text-accent', fuerte ? 'font-semibold' : ''].join(' ')}>{valor}</span>
+      {sub && <span className="font-mono text-[10px] text-text-disabled">{sub}</span>}
     </span>
   );
 }
@@ -142,7 +142,7 @@ export function FilaZona({
             allowEmpty
             widthClass="w-10 max-lg:w-13"
           />
-          {p && <span className="font-mono text-[9px] text-accent">= {mostrar(p.valor)}</span>}
+          {p && <span className="font-mono text-[10px] text-accent">= {mostrar(p.valor)}</span>}
         </span>
       );
     }
@@ -251,7 +251,7 @@ export function FilaZona({
               </span>
             )}
             <span
-              className={'font-mono text-[9.5px] ' + (cota === null ? 'text-text-disabled' : 'text-accent')}
+              className={'font-mono text-[10px] ' + (cota === null ? 'text-text-disabled' : 'text-accent')}
               title={cota === null ? 'Sin cota: falta la altura de alguna planta de debajo' : 'Cota del forjado sobre la rasante, m: sale de las alturas de las plantas de debajo'}
             >
               {cota === null ? 'cota —' : rotuloCota(cota)}
@@ -337,21 +337,21 @@ export function FilaZona({
           />
           {z.forjado.ppManual !== null ? (
             sinCanto ? (
-              <span className="font-mono text-[8.5px] text-text-disabled">tecleado</span>
+              <span className="font-mono text-[10px] text-text-disabled">tecleado</span>
             ) : (
               <button
                 type="button"
                 onClick={() => onZona({ forjado: { ...z.forjado, ppManual: null } })}
                 aria-label={`Usar el peso propio de la norma en ${quien}`}
                 title="usar el de la norma"
-                className="font-mono text-[8.5px] text-text-disabled underline decoration-dotted hover:text-text-secondary"
+                className="font-mono text-[10px] text-text-disabled underline decoration-dotted hover:text-text-secondary"
               >
                 ↺ norma
               </button>
             )
           ) : (
             <span
-              className="whitespace-nowrap font-mono text-[8.5px] text-accent"
+              className="whitespace-nowrap font-mono text-[10px] text-accent"
               title={
                 r?.forjado.ppOrigen === 'densidad'
                   ? 'Peso propio del forjado · 25 kN/m³ por el canto (tabla C.1)'
@@ -390,7 +390,7 @@ export function FilaZona({
               </option>
             ))}
           </select>
-          <span className="shrink-0 font-mono text-[9.5px] text-text-disabled" title={uso?.ayuda}>
+          <span className="shrink-0 font-mono text-[10px] text-text-disabled" title={uso?.ayuda}>
             {z.uso.categoria === 'otro' ? '—' : z.uso.categoria}
           </span>
         </div>

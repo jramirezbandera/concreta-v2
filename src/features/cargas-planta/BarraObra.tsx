@@ -31,7 +31,7 @@ export function BarraObra({ e, ayuda, obra, onCambiar, onUsarObra, onGuardarObra
 
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border-main bg-bg-surface px-3 py-1.5">
-      <span className="shrink-0 text-[11.5px] text-text-secondary">¿Dónde está la obra?</span>
+      <span className="shrink-0 text-[12px] text-text-secondary">¿Dónde está la obra?</span>
 
       <select
         value={e.provincia}
@@ -60,7 +60,7 @@ export function BarraObra({ e, ayuda, obra, onCambiar, onUsarObra, onGuardarObra
       {/* La altitud sin rótulo era una caja con un número suelto: nadie sabe qué
           se le pide. Y sin decirla la caja va VACÍA, no a cero: cero es el mar. */}
       <div className="flex shrink-0 items-center gap-1.5">
-        <label htmlFor="cargas-altitud" className="text-[11.5px] text-text-secondary">
+        <label htmlFor="cargas-altitud" className="text-[12px] text-text-secondary">
           Altitud
         </label>
         <RawNumberInput

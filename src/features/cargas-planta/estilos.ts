@@ -27,7 +27,7 @@ export const INPUT_SUELTO =
   'min-w-0 rounded border border-border-main bg-bg-primary px-2 py-1 text-[12px] text-text-primary focus:border-accent focus:outline-none';
 
 export const BOTON_MENOR =
-  'inline-flex items-center gap-1 rounded border border-border-main bg-bg-elevated px-2 py-0.5 text-[11.5px] text-text-secondary hover:text-text-primary';
+  'inline-flex items-center gap-1 rounded border border-border-main bg-bg-elevated px-2 py-0.5 text-[12px] text-text-secondary hover:text-text-primary';
 
 /**
  * Botón pequeño DENTRO de una celda. Lleva borde y fondo a propósito: sin
@@ -37,7 +37,7 @@ export const BOTON_CELDA =
   'inline-flex shrink-0 items-center whitespace-nowrap rounded border border-border-main bg-bg-elevated px-1.5 py-px text-[10px] leading-[1.5] text-text-secondary transition-colors hover:border-accent/50 hover:text-text-primary';
 
 /** Cabecera de columna. Las derivadas van en acento: es el código de color del módulo. */
-export const TH = 'border-b border-border-main px-1.5 pb-1 align-bottom text-left text-[9.5px] font-semibold uppercase text-text-disabled';
+export const TH = 'border-b border-border-main px-1.5 pb-1 align-bottom text-left text-[10px] font-semibold uppercase text-text-disabled';
 export const TH_NUM = `${TH} text-right`;
 export const TH_DER = `${TH} text-right text-accent`;
 
@@ -51,7 +51,7 @@ export const TH_DER = `${TH} text-right text-accent`;
  * que es lo que hacía que los tres niveles se confundieran entre sí.
  */
 export const TH_GRUPO =
-  'px-1.5 pb-0.5 pt-1 text-left align-bottom font-mono text-[9.5px] text-text-disabled border-l border-border-sub';
+  'px-1.5 pb-0.5 pt-1 text-left align-bottom font-mono text-[10px] text-text-disabled border-l border-border-sub';
 
 /**
  * La banda de arriba del todo: de qué es cada mitad de la mesa. A la izquierda
@@ -61,7 +61,7 @@ export const TH_GRUPO =
  * columnas y no como otra fila de cabeceras.
  */
 export const TH_BANDA =
-  'rounded-t bg-bg-elevated px-1.5 py-0.5 text-left font-mono text-[9px] uppercase tracking-[0.07em] text-text-secondary';
+  'rounded-t bg-bg-elevated px-1.5 py-0.5 text-left font-mono text-[10px] uppercase tracking-[0.07em] text-text-secondary';
 
 /** Celda del cuerpo: arriba, porque lo que alinea la fila es su primera línea (`LINEA`). */
 export const TD = 'border-b border-border-sub px-1.5 py-1 align-top';

@@ -396,7 +396,7 @@ export function CargasPlantaModule() {
         aria-pressed={state.ayuda}
         title="Muestra u oculta las explicaciones de cada campo"
         className={[
-          'rounded px-2.5 py-1 text-[11.5px] transition-colors',
+          'rounded px-2.5 py-1 text-[12px] transition-colors',
           state.ayuda ? 'border border-accent/40 bg-accent/15 text-accent' : 'border border-border-main bg-bg-elevated text-text-disabled hover:text-text-secondary',
         ].join(' ')}
       >
@@ -542,7 +542,7 @@ export function CargasPlantaModule() {
             >
               <ul className="flex list-disc flex-col gap-1.5 pb-2 pl-4">
                 {notas.map((n) => (
-                  <li key={n} className="max-w-[56ch] text-[11.5px] leading-snug text-text-secondary">
+                  <li key={n} className="max-w-[56ch] text-[12px] leading-snug text-text-secondary">
                     {n}
                   </li>
                 ))}

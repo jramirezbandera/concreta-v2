@@ -60,7 +60,7 @@ interface Props {
 function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-text-disabled">{titulo}</span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-text-disabled">{titulo}</span>
       <p className="text-[11px] leading-snug text-text-secondary">{children}</p>
     </div>
   );
@@ -68,13 +68,13 @@ function Bloque({ titulo, children }: { titulo: string; children: React.ReactNod
 
 /** Un número dentro de la explicación: mono y en el color del texto principal. */
 function N({ children }: { children: React.ReactNode }) {
-  return <b className="font-mono text-[10.5px] font-semibold text-text-primary">{children}</b>;
+  return <b className="font-mono text-[11px] font-semibold text-text-primary">{children}</b>;
 }
 
 /** Una casilla de caso raro, con su explicación al lado. */
 function Casilla({ on, onCambiar, ariaLabel, children }: { on: boolean; onCambiar: (v: boolean) => void; ariaLabel: string; children: React.ReactNode }) {
   return (
-    <label className="flex items-start gap-2 text-[11.5px] leading-snug text-text-secondary">
+    <label className="flex items-start gap-2 text-[12px] leading-snug text-text-secondary">
       <input type="checkbox" checked={on} aria-label={ariaLabel} onChange={(ev) => onCambiar(ev.target.checked)} className="mt-0.5 accent-[var(--color-accent)]" />
       <span>{children}</span>
     </label>
@@ -225,7 +225,7 @@ export function Ficha({ planta, z, r, quien, unica, puedeBorrar, ayuda, nievePub
               </select>
             )}
             {planta.nieve.modo === 'publicada' && (
-              <span className="font-mono text-[11.5px] text-accent">qn = {mostrar(planta.nieve.valor)} {uQ}</span>
+              <span className="font-mono text-[12px] text-accent">qn = {mostrar(planta.nieve.valor)} {uQ}</span>
             )}
             {nievePub && planta.nieve.modo !== 'manual' && (
               <button type="button" onClick={() => onUsarNieve(planta.nieve.faldon)} className={BOTON_MENOR + ' self-start'} title="Volver a tomar la nieve del sobre de Viento y nieve">
@@ -235,19 +235,19 @@ export function Ficha({ planta, z, r, quien, unica, puedeBorrar, ayuda, nievePub
             {/* Puesta sola: se dice, porque es un número que el usuario no ha
                 tecleado y que entra en qd. */}
             {planta.nieve.modo === 'publicada' && !planta.nieve.elegida && (
-              <span className="text-[10.5px] leading-snug text-text-disabled">
+              <span className="text-[11px] leading-snug text-text-disabled">
                 Puesta sola: es la que declara Viento y nieve. Cámbiela aquí si esta planta lleva otra.
               </span>
             )}
             {ayuda && !planta.esCubierta && (
-              <span className="text-[10.5px] leading-snug text-text-disabled">
+              <span className="text-[11px] leading-snug text-text-disabled">
                 Es la nieve de la planta: cae sobre sus zonas a la intemperie —terrazas y cubiertas—, no sobre las de dentro.
               </span>
             )}
           </div>
         )}
 
-        {ayuda && <p className="text-[10.5px] leading-snug text-text-disabled">Los casos raros de esta zona y, al lado, lo que dice la norma en ella. Vuelva a pulsar la fila para cerrarla.</p>}
+        {ayuda && <p className="text-[11px] leading-snug text-text-disabled">Los casos raros de esta zona y, al lado, lo que dice la norma en ella. Vuelva a pulsar la fila para cerrarla.</p>}
       </div>
 
       {/* Lo que dice la norma, con los números de esta zona. */}

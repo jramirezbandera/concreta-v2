@@ -34,7 +34,7 @@ const dec = (v: number, d: number) => v.toFixed(d).replace('.', ',');
 
 /** La caja del nombre de una columna libre: como una cabecera, pero se teclea. */
 const NOMBRE_COLUMNA =
-  'w-full min-w-0 rounded border border-border-main bg-bg-primary px-1 py-0.5 text-right text-[9.5px] font-semibold uppercase text-text-secondary placeholder:font-normal placeholder:normal-case placeholder:text-text-disabled focus:border-accent focus:outline-none';
+  'w-full min-w-0 rounded border border-border-main bg-bg-primary px-1 py-0.5 text-right text-[10px] font-semibold uppercase text-text-secondary placeholder:font-normal placeholder:normal-case placeholder:text-text-disabled focus:border-accent focus:outline-none';
 
 interface Props {
   plantas: PlantaUI[];
@@ -126,7 +126,7 @@ export function Tabla({
   return (
     <div className="flex min-w-0 flex-col">
       {ayuda && (
-        <p className="max-w-[56ch] px-1 pb-2 text-[11.5px] leading-snug text-text-disabled">
+        <p className="max-w-[56ch] px-1 pb-2 text-[12px] leading-snug text-text-disabled">
           Una fila por zona de carga. Diga qué forjado tiene, qué hay encima y para qué se usa: la norma pone en azul
           el peso propio, la sobrecarga y el valor de cálculo qd que se lleva al programa. Lo de la izquierda pesa
           siempre (carga permanente G); lo de la derecha va y viene (sobrecarga variable Q). Si una planta tiene partes
@@ -141,7 +141,7 @@ export function Tabla({
 
       {alReves && (
         <div className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded border border-state-warn/40 bg-state-warn/5 px-2 py-1.5">
-          <span className="text-[11.5px] leading-snug text-text-secondary">
+          <span className="text-[12px] leading-snug text-text-secondary">
             La cubierta está la última: la sección la dibuja abajo del todo, debajo de la planta baja.
           </span>
           <button type="button" onClick={onInvertirPlantas} className={BOTON_MENOR} title="Da la vuelta al orden de las plantas">
@@ -152,7 +152,7 @@ export function Tabla({
 
       {sotanoArriba && (
         <div className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded border border-state-warn/40 bg-state-warn/5 px-2 py-1.5">
-          <span className="text-[11.5px] leading-snug text-text-secondary">
+          <span className="text-[12px] leading-snug text-text-secondary">
             Hay un sótano por encima de una planta sobre rasante: la sección lo dibujaría colgado del suelo.
           </span>
           <button
@@ -376,7 +376,7 @@ export function Tabla({
                 ))}
               </select>
               {ayuda && (
-                <span className="max-w-[56ch] text-[10.5px] leading-snug text-text-disabled">
+                <span className="max-w-[56ch] text-[11px] leading-snug text-text-disabled">
                   La sección dibuja las plantas en este orden, de arriba abajo: la cubierta la primera y la planta
                   baja la última. Use las flechas de cada planta para colocarlas como en obra. Una planta con
                   partes distintas lleva una zona por parte.
@@ -385,12 +385,12 @@ export function Tabla({
             </div>
 
       {resultado.errores.map((e) => (
-        <p key={e} className="px-1 pt-2 text-[11.5px] leading-snug text-state-fail">
+        <p key={e} className="px-1 pt-2 text-[12px] leading-snug text-state-fail">
           {e}
         </p>
       ))}
       {[...resultado.avisos, ...avisosNieve].map((a) => (
-        <p key={a} className="px-1 pt-2 text-[11.5px] leading-snug text-state-warn">
+        <p key={a} className="px-1 pt-2 text-[12px] leading-snug text-state-warn">
           ⚠ {a}
         </p>
       ))}

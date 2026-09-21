@@ -41,7 +41,7 @@ export function Muros({ muros, ayuda, onCambiar }: Props) {
       </header>
 
       {ayuda && (
-        <p className="max-w-[56ch] border-b border-border-sub px-4 py-2 text-[11.5px] leading-snug text-text-disabled">
+        <p className="max-w-[56ch] border-b border-border-sub px-4 py-2 text-[12px] leading-snug text-text-disabled">
           ¿Hay muros de sótano o de contención? Entonces la memoria y el cuadro del plano tienen que decir con qué
           terreno se han calculado. Estos valores los da el estudio geotécnico; el empuje sobre cada muro sale de ellos
           y de su altura, y se calcula en el módulo Muros.
@@ -51,7 +51,7 @@ export function Muros({ muros, ayuda, onCambiar }: Props) {
       {muros.hay ? (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5">
           <div className="flex shrink-0 items-center gap-1.5">
-            <label htmlFor="cargas-muros-terreno" className="text-[11.5px] text-text-secondary">
+            <label htmlFor="cargas-muros-terreno" className="text-[12px] text-text-secondary">
               Terreno
             </label>
             <input
@@ -66,7 +66,7 @@ export function Muros({ muros, ayuda, onCambiar }: Props) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <label htmlFor="cargas-muros-phi" className="text-[11.5px] text-text-secondary">
+            <label htmlFor="cargas-muros-phi" className="text-[12px] text-text-secondary">
               Ángulo de rozamiento interno φ
             </label>
             <RawNumberInput
@@ -82,7 +82,7 @@ export function Muros({ muros, ayuda, onCambiar }: Props) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <label htmlFor="cargas-muros-gamma" className="text-[11.5px] text-text-secondary">
+            <label htmlFor="cargas-muros-gamma" className="text-[12px] text-text-secondary">
               Peso específico aparente γ
             </label>
             <RawNumberInput
@@ -97,7 +97,7 @@ export function Muros({ muros, ayuda, onCambiar }: Props) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <label htmlFor="cargas-muros-sobrecarga" className="text-[11.5px] text-text-secondary">
+            <label htmlFor="cargas-muros-sobrecarga" className="text-[12px] text-text-secondary">
               Sobrecarga sobre el terreno
             </label>
             <RawNumberInput
@@ -112,7 +112,7 @@ export function Muros({ muros, ayuda, onCambiar }: Props) {
           </div>
         </div>
       ) : (
-        <p className="max-w-[56ch] px-4 py-2.5 text-[11.5px] text-text-disabled">
+        <p className="max-w-[56ch] px-4 py-2.5 text-[12px] text-text-disabled">
           La obra no tiene muros de sótano ni de contención: la memoria y el cuadro del plano no dicen nada del terreno.
         </p>
       )}
