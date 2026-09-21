@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { AnchorPlateInputs } from '../../data/defaults';
 import type { AnchorPlateResult } from '../../lib/calculations/anchorPlate';
 import { makeISectionBySize } from '../../lib/sections';
@@ -66,17 +67,25 @@ const COLORS = {
   },
 };
 
-// L15 (Phase 4) — IDs estables para aria-labelledby. El sufijo `mode`
-// evita colisión entre el SVG de pantalla y el oculto del PDF.
-const svgInstanceCounter = 0;
-
 export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si' }: Props) {
   const C = COLORS[mode];
   const profile = makeISectionBySize(inp.sectionType, inp.sectionSize)?.profile;
-  // ID determinista a partir de `mode` para que no genere mismatch SSR/CSR.
-  const titleId = `anchor-plate-svg-title-${mode}`;
-  const descId  = `anchor-plate-svg-desc-${mode}`;
-  void svgInstanceCounter;
+  // L15 (Phase 4) — IDs estables para aria-labelledby.
+  //
+  // El sufijo era `mode`, pensado para separar el SVG de pantalla del oculto
+  // del PDF. Pero el módulo monta TRES: el de escritorio (`hidden lg:flex`),
+  // el de móvil (`lg:hidden`) y el del PDF. Los dos primeros son
+  // `mode='screen'`, así que emitían los mismos `na-clip-screen`,
+  // `hatch-concrete-screen`, `-title-screen` y `-desc-screen`. Por debajo de
+  // 1024 px ganaba el primero del documento —el de escritorio, en
+  // `display:none`— y el de móvil resolvía su recorte y su patrón contra una
+  // caja de 720×792 que no se estaba viendo: el eje neutro cruzaba el lienzo
+  // entero y el macizo salía sin rayado. En escritorio no se notaba porque
+  // ganaba el bueno. `useId` da un sufijo único por instancia y estable entre
+  // servidor y cliente.
+  const uid = useId();
+  const titleId = `anchor-plate-svg-title-${uid}`;
+  const descId  = `anchor-plate-svg-desc-${uid}`;
 
   // Dual-panel layout: planta (top) + alzado (bottom).
   const panelGap = 12;
@@ -184,7 +193,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
             líneas diagonales para que la zona sea identificable sin color.
             En pantalla se omite (el dark theme ya tiene contraste). */}
         {mode === 'pdf' && (
-          <pattern id={`hatch-compression-${mode}`} patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">
+          <pattern id={`hatch-compression-${uid}`} patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="5" stroke={C.compression_stroke} strokeWidth="0.6" opacity="0.7" />
           </pattern>
         )}
@@ -223,7 +232,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                 strokeDasharray="2 2"
               />
               {mode === 'pdf' && (
-                <polygon points={pts} fill={`url(#hatch-compression-${mode})`} stroke="none" />
+                <polygon points={pts} fill={`url(#hatch-compression-${uid})`} stroke="none" />
               )}
               {result.solver.fjd_MPa !== undefined && (
                 <text
@@ -261,7 +270,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
               />
               {mode === 'pdf' && (
                 <rect x={blockX} y={pCy - plateH / 2} width={blockW} height={plateH}
-                      fill={`url(#hatch-compression-${mode})`} stroke="none" />
+                      fill={`url(#hatch-compression-${uid})`} stroke="none" />
               )}
             </>
           );
@@ -296,7 +305,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                   NA (biaxial) most of it lies outside the plate and would overflow
                   the panel as a long diagonal. */}
               <defs>
-                <clipPath id={`na-clip-${mode}`}>
+                <clipPath id={`na-clip-${uid}`}>
                   <rect
                     x={pCx - plateW / 2}
                     y={pCy - plateH / 2}
@@ -314,7 +323,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                 strokeWidth={1.5}
                 strokeDasharray="6 3"
                 opacity={0.85}
-                clipPath={`url(#na-clip-${mode})`}
+                clipPath={`url(#na-clip-${uid})`}
               />
               <text
                 x={lbx}
@@ -462,10 +471,10 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
         />
         {/* Hormigón hatch — id is suffixed by mode so the screen SVG and the
             hidden PDF SVG can coexist in the DOM without url(#…) colliding (M23). */}
-        <pattern id={`hatch-concrete-${mode}`} patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        <pattern id={`hatch-concrete-${uid}`} patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="6" stroke={C.pedestal_stroke} strokeWidth="0.5" />
         </pattern>
-        <rect x={pedestalAlzadoX} y={pedestalAlzadoY} width={pedestalAlzadoW} height={pedestalAlzadoH} fill={`url(#hatch-concrete-${mode})`} />
+        <rect x={pedestalAlzadoX} y={pedestalAlzadoY} width={pedestalAlzadoW} height={pedestalAlzadoH} fill={`url(#hatch-concrete-${uid})`} />
 
         {/* Column profile silhouette (D10 — 5-second visual tell) */}
         {profile && (() => {
