@@ -25,7 +25,7 @@ import { useDrawer } from '../../components/layout/AppShell';
 import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { useDocTitle } from '../../hooks/useDocTitle';
-import { useIsMobile } from '../../hooks/useIsMobile';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useTitledFileExport } from '../../hooks/useTitledFileExport';
 import { useGuardarEnAnejo } from '../../hooks/useGuardarEnAnejo';
 import { useReconstruirCapitulo } from '../../hooks/useReconstruirCapitulo';
@@ -141,9 +141,16 @@ export function CargasPlantaModule() {
   // SOBRE LA TABLA, no sobre la mesa entera: si el dibujo estuviera dentro de
   // lo medido, crecer lo haría crecer otra vez.
   const { ref: refTabla, cotas, alto: altoTabla } = useCotasFilas<HTMLDivElement>([state.plantas, zonaSel, state.ayuda]);
-  // Por debajo de `lg` la sección se coloca debajo de la tabla, y entonces ya
-  // no hay filas con las que alinearse: reparte las plantas por igual.
-  const estrecho = useIsMobile();
+  // La sección se pone al lado de la mesa SÓLO cuando la ventana da para las
+  // dos. La mesa mide unos 1.126 px por sí sola y la sección se lleva 232 más,
+  // que con la barra lateral y los márgenes suman ~1.600: por debajo de eso
+  // ponerlas en fila no encogía la tabla —una tabla no encoge—, la cortaba por
+  // la derecha sin avisar. Medido: a 1.280 se quedaban fuera 306 px (todo el
+  // lado de la sobrecarga: uso, Q, nieve y los dos coeficientes) y a 1.440,
+  // 146 px. Debajo, la sección coge el ancho entero y la mesa también, así que
+  // se ven las quince columnas; lo que se pierde es la alineación con las
+  // filas, que sólo tiene sentido cuando están una al lado de la otra.
+  const seccionAlLado = useMediaQuery('(min-width: 1600px)');
   // La ficha de la fila abierta va fuera de la tabla: si al abrirla queda fuera
   // de la vista, se acerca lo justo (`scrollIntoView` no existe en jsdom).
   const refFicha = useRef<HTMLDivElement>(null);
@@ -335,20 +342,20 @@ export function CargasPlantaModule() {
   const seccion = (
     <SeccionSVG
       resultado={evaluacion.resultado}
-      cotas={estrecho ? [] : cotas}
+      cotas={seccionAlLado ? cotas : []}
       lineales={evaluacion.resultado.lineales}
       zonaSel={zonaSel}
       onSeleccionar={setZonaSel}
-      width={estrecho ? 300 : 232}
-      height={estrecho ? 420 : Math.max(320, altoTabla)}
+      width={seccionAlLado ? 232 : 300}
+      height={seccionAlLado ? Math.max(320, altoTabla) : 420}
     />
   );
 
   // La ficha de la fila abierta va FUERA de la tabla. Entre sus filas empujaba
   // las de abajo y la sección, que sigue a las filas, dibujaba más alta la
-  // planta abierta; y en estrecho heredaba el ancho mínimo de la tabla y se
-  // cortaba por la derecha. En ancho va debajo de la mesa; en estrecho, entre
-  // la tabla y la sección.
+  // planta abierta; y apilada heredaba el ancho mínimo de la tabla y se
+  // cortaba por la derecha. Con la sección al lado va debajo de la mesa;
+  // apiladas, entre la tabla y la sección.
   const fichaAbierta = zonaSel && (
     <div ref={refFicha} className="overflow-hidden rounded border border-border-main">
       <FichaDeZona
@@ -429,7 +436,7 @@ export function CargasPlantaModule() {
               </span>
               <p className="text-[12px] leading-snug text-text-secondary md:min-w-0 md:flex-1">
                 Cada fila es una planta: diga qué forjado tiene, qué hay encima y para qué se usa. La norma pone el resto
-                en azul y la sección de la derecha lo dibuja. ¿Prefiere ver un caso completo? Carga un edificio de
+                en azul y la sección lo dibuja. ¿Prefiere ver un caso completo? Carga un edificio de
                 viviendas en Aranda de Duero con un vaso de piscina en planta baja.
               </p>
               <div className="flex shrink-0 gap-1.5">
@@ -444,7 +451,7 @@ export function CargasPlantaModule() {
           )}
 
           {/* La mesa: la tabla y, a su derecha, la sección alineada con sus filas. */}
-          <div className={estrecho ? 'flex min-w-0 flex-col gap-3' : 'flex min-w-0 items-start'}>
+          <div className={seccionAlLado ? 'flex min-w-0 items-start' : 'flex min-w-0 flex-col gap-3'}>
             <div ref={refTabla} className="min-w-0 flex-1">
               <Tabla
                 plantas={state.plantas}
@@ -496,20 +503,20 @@ export function CargasPlantaModule() {
               />
             </div>
 
-            {estrecho && fichaAbierta}
+            {!seccionAlLado && fichaAbierta}
 
             <div
               className={[
                 'canvas-dot-grid shrink-0 self-start',
-                estrecho ? 'w-full overflow-x-auto rounded border border-border-main' : 'border-l border-border-main',
+                seccionAlLado ? 'border-l border-border-main' : 'w-full overflow-x-auto rounded border border-border-main',
               ].join(' ')}
-              style={estrecho ? undefined : { width: 232 }}
+              style={seccionAlLado ? { width: 232 } : undefined}
             >
               {seccion}
             </div>
           </div>
 
-          {!estrecho && fichaAbierta}
+          {seccionAlLado && fichaAbierta}
 
           <Lineales
             lineales={state.lineales}
