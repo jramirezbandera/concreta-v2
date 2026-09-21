@@ -836,6 +836,29 @@ interface EmbedBox { x: number; y: number; width: number; height: number; }
  * Debe ejecutarse en navegador (usa Image/canvas); en jsdom los módulos ya
  * saltan el embed porque el elemento SVG no existe en el DOM de test.
  */
+/**
+ * El alto que le corresponde a un SVG dibujado a `width` milímetros, según su
+ * propia proporción.
+ *
+ * `embedSvgAsImage` mete el dibujo en la caja que se le dé respetando la
+ * proporción (`preserveAspectRatio` por defecto), así que una caja con otra
+ * forma no agranda el dibujo: lo deja centrado con franjas en blanco. De ahí
+ * que la caja se calcule a partir del SVG y no al revés.
+ *
+ * `viewBox` primero —que es la medida de verdad— y los atributos `width` y
+ * `height` como respaldo: jsdom no implementa `viewBox.baseVal`, y sin el
+ * respaldo los tests de maquetación medirían una figura que no es la que se
+ * imprime.
+ */
+export function svgBoxHeight(svgEl: SVGSVGElement, width: number, fallback = 110): number {
+  const vb = svgEl.viewBox?.baseVal;
+  if (vb && vb.width > 0 && vb.height > 0) return width * (vb.height / vb.width);
+  const w = Number(svgEl.getAttribute('width'));
+  const h = Number(svgEl.getAttribute('height'));
+  if (w > 0 && h > 0) return width * (h / w);
+  return fallback;
+}
+
 export async function embedSvgAsImage(
   doc: jsPDF,
   svgEl: SVGSVGElement,

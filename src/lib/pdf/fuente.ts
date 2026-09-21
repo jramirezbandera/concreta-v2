@@ -89,10 +89,21 @@ export async function registrarFuente(doc: jsPDF): Promise<void> {
 const POR_DEFECTO: jsPDFOptions = { orientation: 'portrait', unit: 'mm', format: 'a4' };
 
 /**
+ * `compress` va aquí y no en cada llamada: sin él, las figuras entran en el
+ * PDF como mapas de bits EN CRUDO. Una figura de armado de 170 mm a 288 ppp
+ * son 1928 × 2399 píxeles × 3 bytes = 13,9 MB, más otros 4,6 de su máscara de
+ * transparencia; el PDF de un encepado de 3 páginas pesaba 23 MB, y el de una
+ * viga de 2 páginas casi 4. Con el flate de jsPDF, ese mismo dibujo —líneas
+ * negras sobre blanco— baja dos órdenes de magnitud. Importa más de lo que
+ * parece: los PDF viajan dentro del `.concreta`, que tiene un tope de 40 MB.
+ */
+const COMPRIMIR: jsPDFOptions = { compress: true };
+
+/**
  * El único sitio donde se construye un documento PDF en toda la app.
  */
 export async function crearPdf(opciones: jsPDFOptions = POR_DEFECTO): Promise<jsPDF> {
-  const doc = new jsPDF(opciones);
+  const doc = new jsPDF({ ...COMPRIMIR, ...opciones });
   await registrarFuente(doc);
   return doc;
 }

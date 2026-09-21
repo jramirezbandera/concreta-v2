@@ -34,13 +34,57 @@ function colors(isPdf: boolean) {
   };
 }
 
+/**
+ * La caja del dibujo, en píxeles del lienzo. Las dos vistas comparten
+ * márgenes Y ESCALA: dibujan el mismo encepado de L_x de ancho, así que una
+ * cota que se baje de la planta a la sección tiene que caer en el mismo sitio,
+ * como en un plano. Hasta 2026-09-21 cada una se escalaba contra una caja de
+ * alto FIJO —`width·0.62` la planta y `width·0.55` menos un arranque de pilar
+ * de 80 px la sección—, y el resultado era que:
+ *
+ *   • cualquier encepado más alto que ancho en planta (todos salvo el de dos)
+ *     se escalaba por el ALTO y dejaba un tercio del lienzo en blanco a los
+ *     lados. Con 6 micropilotes de 2200×2700 el encepado ocupaba 76 px de los
+ *     320 del lienzo del PDF: en el papel, 20 mm de los 85 de su columna, y
+ *     los rótulos de reacción se pisaban unos a otros.
+ *   • la sección salía a un quinto de la escala de la planta (16 px de alto
+ *     útil para un canto de 900 mm), que es justo lo que un plano no hace.
+ *
+ * Ahora manda el ANCHO útil y el alto del lienzo sale del dibujo. Los topes
+ * están para que una planta muy alargada o un canto enorme no conviertan el
+ * lienzo en una tira.
+ */
+const cuerpo = (isPdf: boolean) => (isPdf ? 7 : 10);
+/** Margen izquierdo: la cota del recubrimiento que la sección escribe fuera
+ *  («c=70», anclada por la derecha a 1,3 cuerpos del encepado). */
+const margenIzq = (isPdf: boolean) => Math.round(cuerpo(isPdf) * 4.5);
+/** Margen derecho: la cota z de la sección («z=699» a 1,4 cuerpos). La cota Ly
+ *  de la planta ya no pide sitio aquí: va GIRADA contra el borde del encepado,
+ *  como en un plano, que cuesta un cuerpo de ancho en vez de seis. */
+const margenDer = (isPdf: boolean) => Math.round(cuerpo(isPdf) * 5.2);
+
+function escalaComun(
+  width: number, isPdf: boolean, L_x: number, L_y: number, h_enc: number,
+): number {
+  const usableW = width - margenIzq(isPdf) - margenDer(isPdf);
+  return Math.min(
+    usableW / L_x,            // manda el ancho
+    (width * 1.25) / L_y,     // tope: planta muy alargada
+    (width * 0.55) / h_enc,   // tope: canto enorme en la sección
+  );
+}
+
 // ── Plan view ────────────────────────────────────────────────────────────────
 
 function PlanView({
   inp, result, width, isPdf, system,
 }: { inp: PileCapInputs; result: PileCapResult; width: number; isPdf: boolean; system: UnitSystem }) {
   const c = colors(isPdf);
-  const { pilePos, ties, reactions, L_x, L_y, R_max, outline, e_borde } = result;
+  const { pilePos, ties, reactions, L_x, L_y, R_max, R_min, outline, e_borde } = result;
+  // Sin momentos los seis micropilotes llevan la misma carga y TODOS eran «el
+  // más cargado»: el dibujo salía entero en azul y la leyenda señalaba a los
+  // seis, que es no señalar a ninguno. Se distingue sólo cuando hay reparto.
+  const hayCritico = R_max - R_min > 0.5;   // kN
   const n     = inp.n as number;
   const s_pil = inp.s as number;
   const d_p   = inp.d_p as number;
@@ -50,28 +94,21 @@ function PlanView({
   const plateSq = inp.plate_shape === 'cuad';
   const d_plate = (inp.d_plate as number | undefined) ?? 0;
 
-  // Escala: el contorno más los márgenes. El de la DERECHA es mayor porque
-  // ahí se escribe la cota Ly, fuera del contorno: con el margen simétrico de
-  // 20 px la cota se salía del viewBox y el SVG la cortaba (el usuario leía
-  // «Ly=» y nada más). El ancho de la cota es el del texto más largo que puede
-  // caber ahí, «Ly=1150 mm» a 10 px de cuerpo monoespaciado.
-  //
-  // La planta ocupa el MISMO ancho que la sección de abajo, y su alto sale del
-  // encepado que hay que dibujar. Antes era un cuadrado de 280 px con la
-  // sección al lado a 440: dos vistas de la misma pieza a dos tamaños
-  // distintos, una encima de otra, que es justo lo que un plano no hace. El
-  // tope de alto evita que una planta casi cuadrada (el triángulo de 3
-  // micropilotes) se coma el lienzo a lo alto.
-  // Márgenes asimétricos: a la derecha la cota Ly, a la izquierda las cotas
-  // que la sección de abajo escribe fuera del encepado (canto y recubrimiento).
-  // Los dos dibujos usan los MISMOS, que es lo que los deja concéntricos.
-  const margin = 40;
-  const marginR = 62;
-  const legendH = 24;
+  // Márgenes asimétricos y compartidos con la sección (ver `escalaComun`): a la
+  // izquierda y a la derecha caben las cotas que la sección escribe FUERA del
+  // encepado, y la planta los respeta para que las dos vistas dibujen el
+  // encepado al mismo ancho y en la misma posición.
+  const fPlan = cuerpo(isPdf);
+  const margin = margenIzq(isPdf);
+  const marginR = margenDer(isPdf);
+  const legendH = Math.round(fPlan * 1.8);
+  // Arriba, la cota Lx; abajo, el rótulo de reacción de la fila inferior, que
+  // con poca distancia a borde asoma por debajo del contorno.
+  const marginT = Math.round(fPlan * 1.8);
+  const marginB = Math.round(fPlan * 2.4);
   const usableW = width - margin - marginR;
-  const usableH = Math.round(width * 0.62) - 2 * margin - legendH;
-  const scale  = Math.min(usableW / L_x, usableH / L_y);
-  const height = Math.round(L_y * scale + 2 * margin + legendH);
+  const scale  = escalaComun(width, isPdf, L_x, L_y, inp.h_enc as number);
+  const height = Math.round(L_y * scale + marginT + marginB + legendH);
 
   // Se centra la ENVOLVENTE del contorno, no el centroide del grupo: el
   // hexágono de n=3 no es simétrico respecto al centroide (sube 2h/3+e y
@@ -84,7 +121,7 @@ function PlanView({
   // Centro del hueco útil, que ya no es el centro del cuadro: el margen
   // derecho de la cota lo desplaza a la izquierda.
   const ox = margin + usableW / 2;
-  const oy = margin + (height - 2 * margin - legendH) / 2;
+  const oy = marginT + (height - marginT - marginB - legendH) / 2;
 
   const px = (x: number) => ox + (x - cx) * scale;
   const py = (y: number) => oy - (y - cy) * scale;  // SVG y-axis flipped
@@ -96,7 +133,47 @@ function PlanView({
   const r_pile   = (d_p / 2) * scale;
 
   // Clamp pile radius to a visible range
-  const r_px = Math.min(Math.max(r_pile, 5), 20);
+  const r_px = Math.min(Math.max(r_pile, 4), Math.max(20, capHalfY * 0.3));
+
+  /*
+   * RÓTULOS DE REACCIÓN SIN SOLAPARSE.
+   *
+   * Van centrados bajo cada micropilote, así que dos de la misma fila se pisan
+   * en cuanto el texto es más ancho que la separación entre ejes dibujada —que
+   * es lo que pasaba en el PDF: «R5=405 kN» y «R6=405 kN» encabalgados, y los
+   * de la fila de abajo saliendo por los lados del encepado—.
+   *
+   * Se estima el ancho con el paso de la monoespaciada (0,6 · cuerpo, el mismo
+   * criterio que los rótulos del lienzo de viento y nieve) y se cede en dos
+   * pasos: primero se quita la unidad —que es la misma en los seis y ya está
+   * en la columna de datos— y, si aún no cabe, se reduce el cuerpo hasta el
+   * 70 %. Por debajo de eso no se encoge más: un número ilegíble no es mejor
+   * que uno pisado.
+   */
+  const anchoEstimado = (t: string, cuerpoPx: number) => t.length * cuerpoPx * 0.6;
+  const rotuloLargo = (i: number) =>
+    `R${i + 1}=${formatQuantity(reactions[i], 'force', system, { precision: 0 })}`;
+  const sinUnidad = (t: string) => {
+    const corte = t.lastIndexOf(' ');
+    return corte > 0 ? t.slice(0, corte) : t;
+  };
+  // Hueco disponible: la menor separación dibujada entre pilotes de una misma
+  // fila (los de filas distintas no comparten línea de texto).
+  let huecoRotulo = Infinity;
+  for (let i = 0; i < pilePos.length; i++) {
+    for (let j = i + 1; j < pilePos.length; j++) {
+      if (Math.abs(pilePos[i].y - pilePos[j].y) > 1) continue;
+      huecoRotulo = Math.min(huecoRotulo, Math.abs(pilePos[i].x - pilePos[j].x) * scale);
+    }
+  }
+  const cabe = (textos: string[], cuerpoPx: number) =>
+    Math.max(...textos.map((t) => anchoEstimado(t, cuerpoPx))) <= huecoRotulo * 0.92;
+  const largos = pilePos.map((_, i) => rotuloLargo(i));
+  const rotulos = cabe(largos, fPlan) ? largos : largos.map(sinUnidad);
+  const anchoRotulo = Math.max(...rotulos.map((t) => anchoEstimado(t, fPlan)));
+  const fRotulo = anchoRotulo <= huecoRotulo * 0.92
+    ? fPlan
+    : Math.max(fPlan * 0.7, (huecoRotulo * 0.92 * fPlan) / anchoRotulo);
 
   return (
     <svg
@@ -135,7 +212,7 @@ function PlanView({
 
       {/* Piles */}
       {pilePos.map((p, i) => {
-        const isCrit = reactions[i] === R_max;
+        const isCrit = hayCritico && reactions[i] === R_max;
         // Placa de reparto en cabeza: contorno discontinuo a escala real
         const r_plate_px = (d_plate / 2) * scale;
         return (
@@ -163,14 +240,14 @@ function PlanView({
             {/* Reaction label */}
             <text
               x={px(p.x)}
-              y={py(p.y) + r_px + 10}
+              y={py(p.y) + r_px + fRotulo * 1.1}
               textAnchor="middle"
-              fontSize={isPdf ? 7 : 10}
+              fontSize={fRotulo}
               fill={isCrit ? c.pileCrit : c.textSec}
               fontWeight={isCrit ? 600 : undefined}
               fontFamily="monospace"
             >
-              {`R${i + 1}=${formatQuantity(reactions[i], 'force', system, { precision: 0 })}`}
+              {rotulos[i]}
             </text>
           </g>
         );
@@ -199,20 +276,29 @@ function PlanView({
         </text>
       ) : (
         <text
-          x={ox + capHalfX + 5} y={oy}
-          textAnchor="start" fontSize={isPdf ? 7 : 10}
+          x={ox + capHalfX + fPlan * 1.2} y={oy}
+          textAnchor="middle" fontSize={fPlan}
           fill={c.textSec} fontFamily="monospace"
           dominantBaseline="middle"
+          transform={`rotate(-90 ${ox + capHalfX + fPlan * 1.2} ${oy})`}
         >
           {`Ly=${L_y.toFixed(0)} mm`}
         </text>
       )}
 
-      {/* Legend */}
-      <circle cx={12} cy={height - 12} r={4} fill={c.pileCritFill} stroke={c.pileCrit} strokeWidth={2} />
-      <text x={20} y={height - 8} fontSize={isPdf ? 6 : 9} fill={c.textSec} fontFamily="monospace">
-        micropilote más cargado
-      </text>
+      {/* Legend — sólo si hay a quién señalar */}
+      {hayCritico ? (
+        <>
+          <circle cx={12} cy={height - 12} r={4} fill={c.pileCritFill} stroke={c.pileCrit} strokeWidth={2} />
+          <text x={20} y={height - 8} fontSize={isPdf ? 6 : 9} fill={c.textSec} fontFamily="monospace">
+            micropilote más cargado
+          </text>
+        </>
+      ) : (
+        <text x={8} y={height - 8} fontSize={isPdf ? 6 : 9} fill={c.textSec} fontFamily="monospace">
+          {`reacción igual en los ${pilePos.length} micropilotes`}
+        </text>
+      )}
     </svg>
   );
 }
@@ -232,37 +318,34 @@ function SectionView({
   const d_plate = (inp.d_plate as number | undefined) ?? 0;
   const { L_x, z_eff, theta_deg } = result;
 
-  // El dibujo (pilar + encepado) y, debajo, la banda donde asoman los
-  // micropilotes. Antes la caja del SVG era sólo el dibujo y los micros se
-  // salían por abajo: el SVG los cortaba a media circunferencia. La escala se
-  // calcula con la altura del dibujo, la de siempre, así que el encepado se ve
-  // exactamente igual; lo único que cambia es que la caja llega hasta abajo.
-  const drawH = Math.round(width * 0.55);
-  const pileZone = 30;
-  const height = drawH + pileZone;
-
-  // Scale to fit cap width + top column stub + small margin. El margen
-  // derecho es el MISMO que el de la planta (allí lo pide la cota Ly), de modo
-  // que las dos vistas dibujan el encepado al mismo ancho y en la misma
-  // posición: se puede bajar la vista de una a otra, como en un plano.
-  const margin = 40;
-  const marginR = 62;
-  const colStubH = 80;  // px — symbolic column stub above cap
-  const totalH = drawH - margin * 2 - colStubH;
-  const scale = Math.min(
-    (width - margin - marginR) / L_x,
-    totalH / h_enc,
-  );
+  // La MISMA escala que la planta (ver `escalaComun`): las dos vistas dibujan
+  // el encepado al mismo ancho y en la misma posición, de modo que se puede
+  // bajar una cota de una a otra, como en un plano. Antes cada una se
+  // calculaba contra una caja de alto fijo y la sección salía a un quinto de
+  // la escala de la planta: 16 px de alto útil para un canto de 900 mm.
+  const f = cuerpo(isPdf);
+  const margin = margenIzq(isPdf);
+  const marginR = margenDer(isPdf);
+  const scale = escalaComun(width, isPdf, L_x, result.L_y, h_enc);
 
   const capW  = L_x * scale;
   const capH  = h_enc * scale;
+  // El arranque de pilar es SIMBÓLICO: proporcional al canto, no 80 px fijos
+  // que con la escala real dejaban el encepado convertido en una raya debajo.
+  const colStubH = Math.round(Math.max(f * 2.4, capH * 0.5));
+  // Banda de abajo donde asoman los micropilotes, con su rótulo de fila.
+  const pileZone = Math.round(Math.max(f * 3, (d_p / 2) * scale * 2 + f * 2));
+  const marginT = Math.round(f * 1.2);
+  const marginB = Math.round(f * 1.2);
+  const legendH = Math.round(f * 1.8);
+  const height = Math.round(marginT + colStubH + capH + pileZone + marginB + legendH);
   const colW  = b_col * scale;
-  const r_pile = Math.min(Math.max((d_p / 2) * scale, 5), 18);
+  const r_pile = Math.min(Math.max((d_p / 2) * scale, 4), Math.max(18, capH * 0.35));
   const cov_px = cover * scale;
 
   // Section origin: cap top-left
   const ox = margin + (width - margin - marginR) / 2 - capW / 2;
-  const oy = margin + colStubH;
+  const oy = marginT + colStubH;
 
   // Sección por la fila de pilotes más ancha: dos pilotes a ±x_max (s/2 con
   // 2, 3 y 4 pilotes; s_x/2 con la retícula 2 × 3).
@@ -288,8 +371,8 @@ function SectionView({
     >
       {/* Column stub */}
       <rect
-        x={col_cx - colW / 2} y={oy - colStubH + 10}
-        width={colW} height={colStubH - 10}
+        x={col_cx - colW / 2} y={oy - colStubH}
+        width={colW} height={colStubH}
         fill={c.colFill} stroke={c.colStroke} strokeWidth={1}
       />
 
@@ -336,11 +419,11 @@ function SectionView({
 
       {/* Cover annotation */}
       <line
-        x1={ox - 10} y1={oy + capH} x2={ox - 10} y2={tie_y}
+        x1={ox - f} y1={oy + capH} x2={ox - f} y2={tie_y}
         stroke={c.textSec} strokeWidth={0.8}
       />
       <text
-        x={ox - 13} y={(oy + capH + tie_y) / 2}
+        x={ox - f * 1.3} y={(oy + capH + tie_y) / 2}
         fontSize={isPdf ? 6 : 9} fill={c.textSec}
         fontFamily="monospace" textAnchor="end" dominantBaseline="middle"
       >
@@ -349,12 +432,12 @@ function SectionView({
 
       {/* z_eff annotation */}
       <line
-        x1={ox + capW + 10} y1={oy + capH - cov_px}
-        x2={ox + capW + 10} y2={oy}
+        x1={ox + capW + f} y1={oy + capH - cov_px}
+        x2={ox + capW + f} y2={oy}
         stroke={c.textSec} strokeWidth={0.8}
       />
       <text
-        x={ox + capW + 14} y={oy + (capH - cov_px) / 2}
+        x={ox + capW + f * 1.4} y={oy + (capH - cov_px) / 2}
         fontSize={isPdf ? 6 : 9} fill={c.textSec}
         fontFamily="monospace" dominantBaseline="middle"
       >
@@ -387,10 +470,12 @@ function SectionView({
         </g>
       ))}
 
-      {/* Cap depth label */}
+      {/* Cap depth label — a media altura del canto, contra el borde izquierdo
+        * del encepado; el recubrimiento se acota abajo del todo, así que no se
+        * estorban aunque el margen sea estrecho. */}
       <text
-        x={ox / 2} y={oy + capH / 2}
-        textAnchor="middle" fontSize={isPdf ? 7 : 10}
+        x={ox - f * 1.3} y={oy + capH / 2}
+        textAnchor="end" fontSize={f}
         fill={c.textSec} fontFamily="monospace" dominantBaseline="middle"
       >
         {`h=${h_enc}`}

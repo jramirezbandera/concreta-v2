@@ -150,6 +150,15 @@ export const PDF_CASES: PdfCase[] = [
   { m: 20, name: 'punching',          run: (t = ID) => exportPunchingPDF(punchingDefaults, t(calcPunching(punchingDefaults)) as any, 'si', T) },
   { m: 20, name: 'composite-section', run: (t = ID) => exportCompositeSectionPDF(compositeSectionDefaults, t(calcCompositeSection(compositeSectionDefaults)) as any, 'si', T) },
   { m: 20, name: 'pile-cap',          run: (t = ID) => exportPileCapPDF(pileCapDefaults, t(calcPileCap(pileCapDefaults)) as any, 'si', T) },
+  // Los defaults son n=2, y la mitad de las filas de la tabla —las de la
+  // retícula entre bandas y los cercos de banda, que son las descripciones MÁS
+  // LARGAS del módulo— sólo existen con 3 o más micropilotes. Sin este caso,
+  // el test medía la variante corta y daba por buena una columna que se
+  // desbordaba en cuanto el usuario ponía una retícula de 6.
+  { m: 20, name: 'pile-cap 6 micropilotes', run: (t = ID) => {
+    const inp = { ...pileCapDefaults, n: 6, s: 1000, s_x: 1500, N_Ed: 2250, R_adm: 422 };
+    return exportPileCapPDF(inp, t(calcPileCap(inp)) as any, 'si', T);
+  } },
   { m: 20, name: 'empresillado',      run: (t = ID) => exportEmpresalladoPDF(empresalladoDefaults, t(calcEmpresillado(empresalladoDefaults)) as any, 'si', T) },
   { m: 20, name: 'isolated-footing',  run: (t = ID) => exportIsolatedFootingPDF(isolatedFootingDefaults, t(calcIsolatedFooting(isolatedFootingDefaults)) as any, 'si', T) },
   { m: 20, name: 'timber-beams',      run: (t = ID) => exportTimberBeamsPDF(timberBeamDefaults, t(calcTimberBeam(timberBeamDefaults)) as any, 'si', T) },

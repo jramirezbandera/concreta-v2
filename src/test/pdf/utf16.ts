@@ -4,6 +4,8 @@
 //
 // Ver la cabecera de unicodeEncoding.dom.test.ts para el porqué del invariante.
 
+import { inflateSync } from 'node:zlib';
+
 /** Ejecuta un exportador y devuelve el PDF crudo como cadena latin-1. */
 export async function pdfBytes(run: () => Promise<unknown>): Promise<string> {
   let captured: Blob | undefined;
@@ -32,9 +34,41 @@ const NUL = String.fromCharCode(0);
  * streams de FontFile2 con el TTF entero dentro, y un TTF está lleno de NUL:
  * escanearlos disparaba el detector de UTF-16 en los 18 módulos a la vez.
  */
+/**
+ * Infla un stream deflatado; si no lo está, lo devuelve tal cual.
+ *
+ * Los documentos se construyen con `compress: true` (ver `lib/pdf/fuente.ts`,
+ * que lo puso para que las figuras dejaran de entrar como mapas de bits EN
+ * CRUDO —un encepado de 3 páginas pesaba 23 MB—). Con eso el texto viaja
+ * deflatado, y buscar ` Tf` o los NUL del UTF-16 en los bytes tal cual no
+ * encuentra nada: este helper devolvía cero rachas en los 18 módulos a la vez
+ * y el invariante pasaba a no vigilar nada.
+ */
+function inflar(raw: string): string {
+  try {
+    const bytes = Uint8Array.from(raw, (ch) => ch.charCodeAt(0) & 0xff);
+    const out = inflateSync(bytes);
+    let s = '';
+    for (let i = 0; i < out.length; i++) s += String.fromCharCode(out[i]);
+    return s;
+  } catch {
+    return raw;
+  }
+}
+
+/**
+ * Los streams de imágenes (`/Image`) y los de las caras (`/Length1`) se
+ * descartan por su diccionario ANTES de inflar: un bitmap inflado carácter a
+ * carácter tarda más que todo el resto del test junto, y no tiene texto.
+ */
 function streamsDeContenido(pdf: string): string[] {
   const out: string[] = [];
-  for (const m of pdf.matchAll(STREAM_RE)) if (m[1].includes(' Tf')) out.push(m[1]);
+  for (const m of pdf.matchAll(STREAM_RE)) {
+    const dic = pdf.slice(Math.max(0, (m.index ?? 0) - 400), m.index ?? 0);
+    if (/\/Image|\/Length1/.test(dic)) continue;
+    const contenido = inflar(m[1]);
+    if (contenido.includes(' Tf')) out.push(contenido);
+  }
   return out;
 }
 

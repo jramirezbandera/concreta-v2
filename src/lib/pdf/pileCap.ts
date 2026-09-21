@@ -5,7 +5,8 @@
 import { crearPdf } from './fuente';
 import { type PileCapInputs } from '../../data/defaults';
 import { type PileCapResult } from '../../lib/calculations/pileCap';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { embedSvgAsImage, svgBoxHeight, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, ensureSpace, titledFilename, drawElementTitle, type PdfResult } from './utils';
+import { checkValueStr, checkLimitStr } from '../calculations/checkFormat';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
 
@@ -45,18 +46,24 @@ export async function exportPileCapPDF(
   setGray(doc, 200);
   doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
-  // ── SVG: dual plan + section view ──────────────────────────────────────────
+  // ── Figura: planta Y sección, una debajo de otra ─────────────────────
+  //
+  // `querySelectorAll`, no `querySelector`: el clon oculto trae las DOS vistas
+  // —la planta y la sección transversal— y quedarse con la primera dejaba la
+  // sección fuera del PDF sin que nadie lo notara, con su hueco reservado en
+  // blanco (la caja era de 85 × 110 mm: la de las dos juntas).
+  //
+  // Cada vista va en una caja de SU proporción (`svgBoxHeight`). Meterlas en
+  // una caja de otra forma no las agranda: las centra con franjas en blanco a
+  // los lados, que era la otra mitad de «el dibujo sale minúsculo».
   const svgContainer = document.getElementById('pile-cap-svg-pdf');
-  const svgEl = svgContainer?.querySelector('svg') as SVGSVGElement | null;
+  const svgEls = Array.from(svgContainer?.querySelectorAll('svg') ?? []) as SVGSVGElement[];
 
-  const SVG_W = 85;
-  const SVG_H = 110;
+  const SVG_W = 85;      // mm — ancho de la columna de la figura
   const svgX  = M;
   const svgY  = titleBaseY + 12;
-
-  if (svgEl) {
-    await embedSvgAsImage(doc, svgEl, { x: svgX, y: svgY, width: SVG_W, height: SVG_H });
-  }
+  const CAPTION = 3.5;   // mm del rótulo de cada vista
+  const GAP     = 3;     // mm entre vistas
 
   // ── Right column: inputs + key results ─────────────────────────────────────
   const COL_R  = M + 93;
@@ -76,11 +83,19 @@ export async function exportPileCapPDF(
     setGray(doc, 80);
   };
 
+  // Las dos celdas se parten a su ancho Útil en vez de escribirse a pelo: la
+  // de la derecha acaba en el margen de la página, y con 6 micropilotes
+  // «As,y = 13 ph12 (1470 mm^2)» se salía 1,2 mm por fuera. Al partirse, la
+  // fila crece hacia abajo en vez de hacia fuera.
+  const W_A = COL_R2 - COL_R - 2;
+  const W_B = PAGE_W - M - COL_R2;
   const twoCol = (a: string, b: string) => {
     doc.setFontSize(8);
-    doc.text(pdfStr(a), COL_R, ry);
-    if (b) doc.text(pdfStr(b), COL_R2, ry);
-    ry += LH;
+    const la = doc.splitTextToSize(pdfStr(a), W_A) as string[];
+    const lb = b ? (doc.splitTextToSize(pdfStr(b), W_B) as string[]) : [];
+    la.forEach((t, i) => doc.text(t, COL_R, ry + i * LH));
+    lb.forEach((t, i) => doc.text(t, COL_R2, ry + i * LH));
+    ry += Math.max(la.length, lb.length, 1) * LH;
   };
 
   const gap = () => { ry += 2; };
@@ -138,6 +153,18 @@ export async function exportPileCapPDF(
       ? `As,y = ${result.n_bars_y} ph${phi_tie} (${result.As_prov_y?.toFixed(0)} mm^2)`
       : '',
   );
+  // Cuando el nº de barras lo pone el usuario se deja dicho, y con cuál era el
+  // mínimo al lado: en el documento que se entrega tiene que verse que las
+  // barras de más están puestas a propósito, no por descuido.
+  const barsAuto = (inp.bars_auto as boolean | undefined) ?? true;
+  if (!barsAuto) {
+    twoCol(
+      'Barras: puestas a mano',
+      result.n_bars_min_y !== null
+        ? `minimo ${result.n_bars_min_x} en x, ${result.n_bars_min_y} en y`
+        : `minimo ${result.n_bars_min_x}`,
+    );
+  }
   if (n === 2) {
     // Con 2 pilotes el tirante barre todo el ancho y comparte capa con la malla
     // inferior: el As,min de seccion lo cubren las dos, y la separacion que
@@ -177,10 +204,40 @@ export async function exportPileCapPDF(
   twoCol(`rho x = ${(result.rho_x * 1000).toFixed(2)} por mil`, `rho y = ${(result.rho_y * 1000).toFixed(2)} por mil`);
   twoCol(`minimo ${(result.rho_min * 1000).toFixed(1)} por mil (B${inp.fyk})`, `hueco max ${result.hueco_max.toFixed(0)} mm`);
 
+  // ── La figura, ya sabiendo hasta dónde baja la columna de datos ────────
+  //
+  // El alto disponible es el de la columna de la derecha: la figura ocupa la
+  // columna izquierda y las dos acaban a la vez, de modo que la tabla empieza
+  // donde acabe la más larga y no queda hueco muerto. Si las dos vistas a 85
+  // mm de ancho no caben en ese alto (plantas muy alargadas), se estrechan las
+  // dos lo justo para que quepan, que es preferible a recortar una.
+  const ROTULOS = ['PLANTA', 'SECCIÓN TRANSVERSAL'];
+  const altoDisponible = Math.max(110, ry + 4 - svgY);
+  let figH = 0;
+  if (svgEls.length > 0) {
+    const altos = svgEls.map((el) => svgBoxHeight(el, SVG_W));
+    const bruto = altos.reduce((a, b) => a + b, 0)
+      + svgEls.length * CAPTION + (svgEls.length - 1) * GAP;
+    const k = bruto > altoDisponible ? altoDisponible / bruto : 1;
+    const anchoFig = SVG_W * k;
+    let yFig = svgY;
+    for (let i = 0; i < svgEls.length; i++) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      setGray(doc, 120);
+      doc.text(pdfStr(ROTULOS[i] ?? ''), svgX, yFig + CAPTION - 1);
+      yFig += CAPTION;
+      const h = altos[i] * k;
+      await embedSvgAsImage(doc, svgEls[i], { x: svgX, y: yFig, width: anchoFig, height: h });
+      yFig += h + (i < svgEls.length - 1 ? GAP : 0);
+    }
+    figH = yFig - svgY;
+  }
+
   // ── Divider + checks table ──────────────────────────────────────────────────
   // Empieza bajo la figura o bajo la columna derecha, lo que quede mas abajo:
   // con Mx, placa y la secundaria la columna ya baja mas que la figura.
-  const tableY = Math.max(svgY + SVG_H + 6, ry + 4);
+  const tableY = Math.max(svgY + figH + 6, ry + 4);
 
   doc.setLineWidth(0.3);
   setGray(doc, 180);
@@ -200,13 +257,21 @@ export async function exportPileCapPDF(
   setGray(doc, 30);
   doc.text(STATUS_LABEL[overall], PAGE_W - M, tableY + 3, { align: 'right' });
 
+  // `COL` es el origen de cada celda y `CW` su ancho ÚTIL. Todo texto se parte
+  // a ese ancho (celdas multilínea), que es lo que faltaba: con 3 o más
+  // micropilotes hay descripciones de 90 caracteres —«Retícula inferior entre
+  // bandas Ø12 c/100 (capacidad por sentido ≥ 1/4 de las bandas)»— que,
+  // escritas sin medir, se metían dentro de la columna Valor y se leían
+  // encabalgadas con el número. Mismo arreglo que micropilotes y muros.
   const COL = {
     desc:   M,
-    value:  M + 82,
-    limit:  M + 118,
-    util:   M + 150,      // borde DERECHO (align:'right')
+    value:  M + 80,
+    limit:  M + 112,
+    util:   M + 148,      // borde DERECHO (align:'right')
     status: PAGE_W - M,   // borde DERECHO (align:'right')
   };
+  const CW = { desc: 78, value: 30, limit: 28 };
+  const LH_CELDA = 3.2;   // interlínea dentro de una celda
 
   let rowY = tableY + 9;
 
@@ -235,26 +300,48 @@ export async function exportPileCapPDF(
   rowY = drawChecksHeader(rowY);
 
   for (const chk of result.checks) {
-    // Each row is description (4mm) + article (3mm) + separator (4mm) ≈ 11mm.
-    // Predictive break with header repeat — never lose a check on overflow.
-    rowY = ensureSpace(doc, rowY, 11, M, drawChecksHeader);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    // checkValueStr/checkLimitStr y no `chk.value`: las filas construidas con
+    // `makeCheckQty` (la biela y el nodo bajo el pilar, que llevan tensiones)
+    // sólo traen el par numérico valueNum/valueQty, así que leyendo el campo
+    // legacy salían con las columnas Valor y Límite EN BLANCO —dos
+    // comprobaciones sin números en el documento que se entrega—. Y de paso
+    // se formatean en el sistema de unidades activo.
+    const descL = doc.splitTextToSize(pdfStr(chk.description), CW.desc) as string[];
+    const valL  = doc.splitTextToSize(pdfStr(checkValueStr(chk, system)), CW.value) as string[];
+    const limL  = doc.splitTextToSize(pdfStr(checkLimitStr(chk, system)), CW.limit) as string[];
+    const nLines = Math.max(descL.length, valL.length, limL.length, 1);
+    // Avance de fila: (n−1) interlíneas + artículo (4) + regla (3) + hueco (4).
+    const rowH = (nLines - 1) * LH_CELDA + 11;
+
+    // Salto de página predictivo, con la cabecera repetida.
+    rowY = ensureSpace(doc, rowY, rowH, M, drawChecksHeader);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
 
     const st = chk.status;
     setGray(doc, 50);
-    doc.text(pdfStr(chk.description), COL.desc,   rowY);
-    doc.text(pdfStr(chk.value ?? ''), COL.value,  rowY);
-    doc.text(pdfStr(chk.limit ?? ''), COL.limit,  rowY);
-    doc.text(`${(chk.utilization * 100).toFixed(0)}%`, COL.util, rowY, { align: 'right' });
+    descL.forEach((t, i) => doc.text(t, COL.desc,  rowY + i * LH_CELDA));
+    valL .forEach((t, i) => doc.text(t, COL.value, rowY + i * LH_CELDA));
+    limL .forEach((t, i) => doc.text(t, COL.limit, rowY + i * LH_CELDA));
+    // Las filas informativas (la placa de reparto, la secundaria no exigida)
+    // no tienen utilización: escribir «0%» las hacía parecer comprobadas y
+    // sobradas.
+    const utilStr = st === 'neutral' || !isFinite(chk.utilization)
+      ? '—'
+      : `${(chk.utilization * 100).toFixed(0)}%`;
+    doc.text(utilStr, COL.util, rowY, { align: 'right' });
     doc.setFont('helvetica', 'bold');
     setGray(doc, st === 'ok' ? 60 : 30);
     doc.text(STATUS_LABEL[st], COL.status, rowY, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     setGray(doc, 50);
 
-    rowY += 4;
+    rowY += (nLines - 1) * LH_CELDA + 4;
     doc.setFontSize(6);
     setGray(doc, 160);
-    doc.text(chk.article, COL.desc + 2, rowY);
+    doc.text(pdfStr(chk.article), COL.desc + 2, rowY);
     doc.setFontSize(7);
     setGray(doc, 50);
 
@@ -269,9 +356,8 @@ export async function exportPileCapPDF(
   const rebarContainer = document.getElementById('pile-cap-rebar-svg-pdf');
   const rebarEl = rebarContainer?.querySelector('svg') as SVGSVGElement | null;
   if (rebarEl) {
-    const vb = rebarEl.viewBox?.baseVal;   // jsdom no implementa viewBox
     const REBAR_W = PAGE_W - 2 * M;
-    const REBAR_H = vb && vb.width > 0 ? REBAR_W * (vb.height / vb.width) : 110;
+    const REBAR_H = svgBoxHeight(rebarEl, REBAR_W);
     rowY = ensureSpace(doc, rowY + 2, REBAR_H + 8, M);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
