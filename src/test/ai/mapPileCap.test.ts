@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   pileCapAdapter,
+  PILE_CAP_APPLY_ORDER,
   summarizePileCapResults,
   N2_MX_SKIP_REASON,
   N2_MX_PENDING_WARNING,
@@ -29,6 +30,8 @@ interface Payload {
   b_col_mm: number | null; h_col_mm: number | null;
   fck_MPa: number | null; fyk_MPa: number | null;
   cover_mm: number | null; phi_tie_mm: number | null;
+  barras_tirante_auto: boolean | null;
+  n_bar_x_ud: number | null; n_bar_y_ud: number | null;
   N_Ed_kN: number | null; Mx_kNm: number | null; My_kNm: number | null; R_adm_kN: number | null;
   warnings: string[];
 }
@@ -38,6 +41,7 @@ function makePayload(partial: Partial<Payload> = {}): Payload {
     n: null,
     d_p_mm: null, s_mm: null, h_enc_mm: null, b_col_mm: null, h_col_mm: null,
     fck_MPa: null, fyk_MPa: null, cover_mm: null, phi_tie_mm: null,
+    barras_tirante_auto: null, n_bar_x_ud: null, n_bar_y_ud: null,
     N_Ed_kN: null, Mx_kNm: null, My_kNm: null, R_adm_kN: null,
     warnings: [],
     ...partial,
@@ -174,10 +178,11 @@ describe('pileCap adapter — catálogos', () => {
 });
 
 describe('pileCap adapter — notFound y warnings', () => {
-  it('payload vacío → notFound con las 14 claves y sin cambios', () => {
+  it('payload vacío → notFound con las 17 claves y sin cambios', () => {
     const p = plan();
     expect(p.changes).toEqual([]);
-    expect(p.notFound).toHaveLength(14);
+    // 14 de siempre + las tres del nº de barras del tirante (2026-09-21)
+    expect(p.notFound).toHaveLength(17);
     expect(p.notFound[0]).toBe('Nº de micropilotes');
   });
 
@@ -225,13 +230,129 @@ describe('pileCap adapter — reglas de seguridad', () => {
   });
 });
 
+// ── Nº de barras del tirante (2026-09-21) ───────────────────────────
+//
+// Quitar el aviso del tirante —que el automático deja pegado al 100 % por el
+// redondeo— es justo lo que se le pide al asistente, así que puede tocarlo.
+describe('pileCap adapter — barras del tirante', () => {
+  const seis: PileCapInputs = {
+    ...pileCapDefaults, n: 6, s: 1000, s_x: 1500, d_p: 185, h_enc: 900,
+    N_Ed: 2250, R_adm: 422, fck: 30, phi_tie: 16, cover: 70, b_col: 300, h_col: 300,
+  };
+
+  it('proponer un número pasa el modo a mano sin tener que pedirlo', () => {
+    const p = plan({ n_bar_y_ud: 8 }, seis);
+    expect(p.fields.bars_auto).toBe(false);
+    expect(p.fields.n_bar_y).toBe(8);
+  });
+
+  it('el sentido que no se propone se siembra con lo que ponía el automático', () => {
+    const p = plan({ n_bar_y_ud: 8 }, seis);
+    // Sin esto, x se quedaría con la semilla rancia del estado (4) y pedir más
+    // armadura en y bajaría la de x sin que nadie lo dijera.
+    expect(p.fields.n_bar_x).toBe(6);
+    expect(p.changes.some((c) => c.field === 'n_bar_x' && c.before.includes('automático'))).toBe(true);
+  });
+
+  it('el mínimo se siembra con el resto de la propuesta ya aplicada', () => {
+    // Ø20 en vez de Ø16: con más sección por barra el mínimo baja, y es ESE el
+    // que hay que sembrar, no el del diámetro viejo.
+    const conPhi = plan({ phi_tie_mm: 20, n_bar_y_ud: 6 }, seis).fields.n_bar_x;
+    const sinPhi = plan({ n_bar_y_ud: 6 }, seis).fields.n_bar_x;
+    expect(conPhi).toBeLessThan(sinPhi as number);
+  });
+
+  it('volver al automático', () => {
+    const manual: PileCapInputs = { ...seis, bars_auto: false, n_bar_x: 9, n_bar_y: 9 };
+    const p = plan({ barras_tirante_auto: true }, manual);
+    expect(p.fields.bars_auto).toBe(true);
+    expect(p.fields.n_bar_x).toBeUndefined();
+  });
+
+  it('pedir automático Y un número a la vez: manda el automático y se dice', () => {
+    const manual: PileCapInputs = { ...seis, bars_auto: false, n_bar_x: 9, n_bar_y: 9 };
+    const p = plan({ barras_tirante_auto: true, n_bar_x_ud: 9 }, manual);
+    expect(p.fields.bars_auto).toBe(true);
+    expect(p.fields.n_bar_x).toBeUndefined();
+    expect(skipFor(p, 'Barras del tirante en x')?.reason).toContain('manda el automático');
+  });
+
+  it('fuera de rango → skip, y el otro sentido no se queda a medias', () => {
+    const p = plan({ n_bar_x_ud: 0 }, seis);
+    expect(skipFor(p, 'Barras del tirante en x')?.reason).toContain('rango');
+    expect(p.fields.n_bar_x).toBe(6);        // sembrado con el automático
+    expect(p.fields.bars_auto).toBe(false);
+  });
+
+  it('con 2 o 3 micropilotes no hay sentido y: se salta con motivo', () => {
+    const p = plan({ n_bar_y_ud: 5 }, { ...pileCapDefaults, n: 2 });
+    expect(skipFor(p, 'Barras del tirante en y')?.reason).toContain('un solo sentido');
+    expect(p.fields.n_bar_y).toBeUndefined();
+  });
+
+  it('el mismo número que ya había a mano → ALREADY', () => {
+    const manual: PileCapInputs = { ...seis, bars_auto: false, n_bar_x: 6, n_bar_y: 8 };
+    const p = plan({ n_bar_x_ud: 6 }, manual);
+    expect(skipFor(p, 'Barras del tirante en x')?.reason).toContain('Ya coincide');
+  });
+
+  it('poner barras NUNCA es un riesgo de seguridad: de más es el lado seguro y de menos se ve en rojo', () => {
+    expect(plan({ n_bar_x_ud: 2, n_bar_y_ud: 2 }, seis).risks).toEqual([]);
+  });
+});
+
+// ── La lista blanca del módulo ───────────────────────────────────
+//
+// `handleAiApply` recorre `PILE_CAP_APPLY_ORDER` y escribe sólo lo que esté en
+// ella. Un campo que el mapper sepa proponer y que falte se cae SIN RUIDO: el
+// usuario ve el cambio en el modal, lo confirma y el formulario no se entera.
+// Pasó al añadir el nº de barras del tirante (2026-09-21).
+describe('pileCap adapter — todo lo que el mapper propone se aplica', () => {
+  it('ningún campo del plan queda fuera del orden de aplicación', () => {
+    // Un payload que toca TODO lo que el mapper sabe escribir, sobre un estado
+    // distinto en cada campo para que nada se salte por ALREADY.
+    const current: PileCapInputs = {
+      ...pileCapDefaults, n: 4, d_p: 200, s: 1100, h_enc: 750,
+      b_col: 350, h_col: 350, fck: 25, fyk: 400, cover: 50, phi_tie: 12,
+      N_Ed: 400, Mx_Ed: 10, My_Ed: 10, R_adm: 300,
+      bars_auto: false, n_bar_x: 5, n_bar_y: 5,
+    };
+    const p = plan({
+      n: 6, d_p_mm: 185, s_mm: 1000, h_enc_mm: 900,
+      b_col_mm: 300, h_col_mm: 300, fck_MPa: 30, fyk_MPa: 500,
+      cover_mm: 70, phi_tie_mm: 16,
+      n_bar_x_ud: 7, n_bar_y_ud: 9,
+      N_Ed_kN: 2250, Mx_kNm: 20, My_kNm: 20, R_adm_kN: 422,
+    }, current);
+
+    const escritos = Object.keys(p.fields) as (keyof PileCapInputs)[];
+    expect(escritos.length).toBeGreaterThan(14);
+    const fuera = escritos.filter((k) => !PILE_CAP_APPLY_ORDER.includes(k));
+    expect(fuera).toEqual([]);
+  });
+});
+
 describe('pileCap adapter — snapshot', () => {
   it('defaults → todas las claves en sin_confirmar', () => {
     const snap = JSON.parse(pileCapAdapter.snapshot(pileCapDefaults));
     expect(snap.valores.n).toBe(2);
     expect(snap.valores.h_enc_mm).toBe(800);
     expect(snap.valores.R_adm_kN).toBe(250);
-    expect(snap.sin_confirmar).toHaveLength(14);
+    // 15, no 17: con el nº de barras en automático, `n_bar_x`/`n_bar_y` guardan
+    // una semilla que nadie mira, así que van como null y no cuentan como «valor
+    // sin confirmar» —no son un dato todavía—.
+    expect(snap.sin_confirmar).toHaveLength(15);
+    expect(snap.valores.barras_tirante_auto).toBe(true);
+    expect(snap.valores.n_bar_x_ud).toBeNull();
+    expect(snap.sin_confirmar).not.toContain('n_bar_x_ud');
+  });
+
+  it('con las barras a mano, el número SÍ viaja en el snapshot', () => {
+    const snap = JSON.parse(pileCapAdapter.snapshot({
+      ...pileCapDefaults, bars_auto: false, n_bar_x: 7, n_bar_y: 5,
+    }));
+    expect(snap.valores.barras_tirante_auto).toBe(false);
+    expect(snap.valores.n_bar_x_ud).toBe(7);
   });
 
   it('un valor tocado sale de sin_confirmar', () => {

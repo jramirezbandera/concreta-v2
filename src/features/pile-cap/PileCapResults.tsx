@@ -14,6 +14,7 @@ interface Props {
 export function PileCapResults({ inp, result }: Props) {
   const n       = inp.n as number;
   const phi_tie = inp.phi_tie as number;
+  const barsAuto = (inp.bars_auto as boolean | undefined) ?? true;
   const { system } = useUnitSystem();
   const fmtSi = (v: number, q: Quantity, precision = 1) =>
     formatQuantity(v, q, system, { precision });
@@ -99,7 +100,14 @@ export function PileCapResults({ inp, result }: Props) {
         value={`${result.As_adopted_x.toFixed(0)} mm²`}
       />
       <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
-        <span className="text-[12px] text-text-secondary">Barras x</span>
+        <span className="text-[12px] text-text-secondary">
+          Barras x
+          {/* Puestas a mano: se dice cuántas hacían falta, que es la referencia
+            * contra la que el usuario decide si le sobra o le falta una. */}
+          {!barsAuto && (
+            <span className="text-[11px] text-text-disabled">{` · mínimo ${result.n_bars_min_x}`}</span>
+          )}
+        </span>
         <span className="text-[11px] font-mono text-accent tabular-nums font-semibold">
           {`${result.n_bars_x} Ø${phi_tie} → ${result.As_prov_x.toFixed(0)} mm²`}
         </span>
@@ -118,7 +126,12 @@ export function PileCapResults({ inp, result }: Props) {
           <ValueRow label={resultLabel('As_min_y')}     value={`${result.As_min_y.toFixed(0)} mm²`} />
           <ValueRow label={resultLabel('As_adopted_y')} value={`${result.As_adopted_y.toFixed(0)} mm²`} />
           <div className="flex items-center justify-between py-1.75 border-b border-border-sub">
-            <span className="text-[12px] text-text-secondary">Barras y</span>
+            <span className="text-[12px] text-text-secondary">
+              Barras y
+              {!barsAuto && result.n_bars_min_y !== null && (
+                <span className="text-[11px] text-text-disabled">{` · mínimo ${result.n_bars_min_y}`}</span>
+              )}
+            </span>
             <span className="text-[11px] font-mono text-accent tabular-nums font-semibold">
               {`${result.n_bars_y} Ø${phi_tie} → ${result.As_prov_y.toFixed(0)} mm²`}
             </span>

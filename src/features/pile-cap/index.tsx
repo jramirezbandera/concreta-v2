@@ -10,7 +10,7 @@ import { exportPileCapPDF, pileCapFallbackFilename } from '../../lib/pdf/pileCap
 import { encepadoFallbackDxf } from '../../lib/export/filename';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
-import { pileCapAdapter, summarizePileCapResults } from '../../lib/ai/modules/pileCap';
+import { pileCapAdapter, summarizePileCapResults, PILE_CAP_APPLY_ORDER } from '../../lib/ai/modules/pileCap';
 import { Topbar } from '../../components/layout/Topbar';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { GRUPO_ANEJO_CALCULO, type IdAnejo } from '../../components/layout/opcionAnejo';
@@ -100,13 +100,12 @@ export function PileCapModule() {
   // Aplica el plan confirmado en AiChatModal. ORDER del contrato con `n`
   // PRIMERO: decide las posiciones de los pilotes y qué tirantes existen. El
   // modal NO se cierra al aplicar (la conversación sigue).
+  //
+  // El orden —que es además LISTA BLANCA— lo trae el adaptador: un campo que
+  // el mapper sepa proponer y que no esté en ella se caería en silencio, así
+  // que las dos cosas viven juntas y hay un test que lo vigila.
   const handleAiApply = (plan: AiApplyPlan<PileCapInputs>) => {
-    const ORDER: (keyof PileCapInputs)[] = [
-      'n', 'd_p', 's', 'h_enc', 'b_col', 'h_col',
-      'fck', 'fyk', 'cover', 'phi_tie',
-      'N_Ed', 'Mx_Ed', 'My_Ed', 'R_adm',
-    ];
-    for (const k of ORDER) {
+    for (const k of PILE_CAP_APPLY_ORDER) {
       const v = plan.fields[k];
       if (v !== undefined) setField(k, v as PileCapInputs[typeof k]);
     }
@@ -200,7 +199,11 @@ export function PileCapModule() {
           ].join(' ')}
         >
           <div className="flex-1 overflow-y-auto scroll-hide px-4 py-4">
-            <PileCapInputsPanel state={state} setField={setField} />
+            <PileCapInputsPanel
+              state={state}
+              setField={setField}
+              nBarMin={{ x: result.n_bars_min_x, y: result.n_bars_min_y }}
+            />
           </div>
           <div className="hidden lg:block px-5 py-3 border-t border-border-main shrink-0">
             <button

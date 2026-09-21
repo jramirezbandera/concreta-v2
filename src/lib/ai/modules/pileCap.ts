@@ -23,7 +23,7 @@ import {
   magnitudeIsSafer,
   type SafetyRule,
 } from '../safety';
-import type { PileCapResult } from '../../calculations/pileCap';
+import { barrasAutomaticas, type PileCapResult } from '../../calculations/pileCap';
 import { pileCapDefaults, type PileCapInputs } from '../../../data/defaults';
 import { availableFck } from '../../../data/materials';
 import { availableBarDiams } from '../../../data/rebar';
@@ -46,6 +46,7 @@ export const PILE_CAP_PAYLOAD_SCHEMA: Record<string, unknown> = {
   required: [
     'n', 'd_p_mm', 's_mm', 'h_enc_mm', 'b_col_mm', 'h_col_mm',
     'fck_MPa', 'fyk_MPa', 'cover_mm', 'phi_tie_mm',
+    'barras_tirante_auto', 'n_bar_x_ud', 'n_bar_y_ud',
     'N_Ed_kN', 'Mx_kNm', 'My_kNm', 'R_adm_kN', 'warnings',
   ],
   properties: {
@@ -59,6 +60,9 @@ export const PILE_CAP_PAYLOAD_SCHEMA: Record<string, unknown> = {
     fyk_MPa: { type: ['integer', 'null'], enum: [...FYK_OPTIONS, null], description: 'Límite elástico del acero de armar en MPa (B500S → 500). Este módulo solo admite 400 o 500.' },
     cover_mm: { type: ['integer', 'null'], description: 'Recubrimiento inferior hasta el centro de gravedad del tirante, en mm.' },
     phi_tie_mm: { type: ['integer', 'null'], enum: [...availableBarDiams, null], description: 'Diámetro de las barras del tirante, en mm.' },
+    barras_tirante_auto: { type: ['boolean', 'null'], description: 'Quién decide CUÁNTAS barras lleva el tirante: true = el programa pone las justas; false = el número lo fijas tú en n_bar_x_ud / n_bar_y_ud. Proponer un número ya implica false, no hace falta mandar los dos.' },
+    n_bar_x_ud: { type: ['integer', 'null'], description: 'Número de barras del tirante paralelo a x (con 3 micropilotes, por cada uno de los tres lados; con 2, a todo el ancho). Entre 1 y 60. Únicamente para ponerlas A MANO: déjalo a null si quieres que las calcule el programa.' },
+    n_bar_y_ud: { type: ['integer', 'null'], description: 'Número de barras del tirante paralelo a y, por banda. Solo existe con 4 o 6 micropilotes (con 2 y 3 hay un único sentido de tirante). Entre 1 y 60.' },
     N_Ed_kN: { type: ['number', 'null'], description: 'Axil de cálculo N_Ed en kN (ELU, compresión positiva).' },
     Mx_kNm: { type: ['number', 'null'], description: 'Momento de cálculo alrededor del eje x, en kNm. CON SIGNO (entra en la fórmula de Navier). Con n=2 debe ser 0.' },
     My_kNm: { type: ['number', 'null'], description: 'Momento de cálculo alrededor del eje y, en kNm. CON SIGNO.' },
@@ -75,7 +79,8 @@ const PROMPT_RULES = `Reglas específicas del módulo Encepados de micropilotes:
 3. Los momentos entran CON SIGNO: no los pases a valor absoluto.
 4. n (2, 3, 4 ó 6 micropilotes) condiciona toda la geometría. Con n=2 los pilotes van alineados en el eje x y Mx debe ser 0: un Mx ≠ 0 es estáticamente inadmisible (el cálculo no es válido). Si el enunciado trae momento en las dos direcciones, propón n=4.
 5. R_adm_kN es la resistencia de cálculo a compresión de UN micropilote: la fija el estudio geotécnico o el fabricante del micropilote, no este cálculo.
-6. En este módulo son DATOS del problema, no variables de diseño: las acciones (N_Ed, Mx, My), la resistencia del micropilote (R_adm) y el recubrimiento (lo fija la durabilidad). Para que el encepado cumpla actúa SIEMPRE sobre su GEOMETRÍA y su ARMADO: más canto (h_enc, es lo que endereza la biela), mayor separación entre pilotes, más micropilotes, hormigón de más resistencia, tirante de mayor diámetro. NUNCA rebajes una carga ni subas R_adm para que salga el cálculo.`;
+6. NÚMERO DE BARRAS DEL TIRANTE: por defecto lo pone el programa, y pone las JUSTAS. Como redondea al alza sobre la última barra, la utilización de «armadura tirante» queda casi siempre entre el 95 % y el 100 % y la comprobación sale en ADVERTENCIA aunque cumpla. Si el usuario se queja de ese aviso, o pide «más holgura» en el tirante, la respuesta NO es cambiar el diámetro ni la geometría: proponé una barra más que el mínimo en el sentido que avisa (n_bar_x_ud o n_bar_y_ud). El mínimo de cada sentido viene en el resumen de resultados. Nunca propongas MENOS barras que ese mínimo: la comprobación pasaría a INCUMPLE.
+7. En este módulo son DATOS del problema, no variables de diseño: las acciones (N_Ed, Mx, My), la resistencia del micropilote (R_adm) y el recubrimiento (lo fija la durabilidad). Para que el encepado cumpla actúa SIEMPRE sobre su GEOMETRÍA y su ARMADO: más canto (h_enc, es lo que endereza la biela), mayor separación entre pilotes, más micropilotes, hormigón de más resistencia, tirante de mayor diámetro. NUNCA rebajes una carga ni subas R_adm para que salga el cálculo.`;
 
 const PLACEHOLDER_EXAMPLE =
   'Ej.: Encepado de 2 micropilotes de Ø220 separados 1.20 m para un pilar de 40×40 cm '
@@ -94,6 +99,9 @@ interface PileCapPayload {
   fyk_MPa: number | null;
   cover_mm: number | null;
   phi_tie_mm: number | null;
+  barras_tirante_auto: boolean | null;
+  n_bar_x_ud: number | null;
+  n_bar_y_ud: number | null;
   N_Ed_kN: number | null;
   Mx_kNm: number | null;
   My_kNm: number | null;
@@ -122,6 +130,9 @@ function parsePayload(raw: unknown): PileCapPayload {
     fyk_MPa: finiteNumber(r.fyk_MPa),
     cover_mm: finiteNumber(r.cover_mm),
     phi_tie_mm: finiteNumber(r.phi_tie_mm),
+    barras_tirante_auto: typeof r.barras_tirante_auto === 'boolean' ? r.barras_tirante_auto : null,
+    n_bar_x_ud: finiteNumber(r.n_bar_x_ud),
+    n_bar_y_ud: finiteNumber(r.n_bar_y_ud),
     N_Ed_kN: finiteNumber(r.N_Ed_kN),
     Mx_kNm: finiteNumber(r.Mx_kNm),
     My_kNm: finiteNumber(r.My_kNm),
@@ -145,6 +156,9 @@ const LABELS = {
   fyk_MPa: 'Acero fyk',
   cover_mm: 'Recubrimiento',
   phi_tie_mm: 'Diámetro del tirante',
+  barras_tirante_auto: 'Nº de barras del tirante',
+  n_bar_x_ud: 'Barras del tirante en x',
+  n_bar_y_ud: 'Barras del tirante en y',
   N_Ed_kN: 'Axil N_Ed',
   Mx_kNm: 'Momento Mx',
   My_kNm: 'Momento My',
@@ -157,10 +171,33 @@ type PayloadKey = keyof typeof LABELS;
 const KEY_ORDER: readonly PayloadKey[] = [
   'n', 'd_p_mm', 's_mm', 'h_enc_mm', 'b_col_mm', 'h_col_mm',
   'fck_MPa', 'fyk_MPa', 'cover_mm', 'phi_tie_mm',
+  'barras_tirante_auto', 'n_bar_x_ud', 'n_bar_y_ud',
   'N_Ed_kN', 'Mx_kNm', 'My_kNm', 'R_adm_kN',
 ];
 
+/**
+ * En qué orden escribe el módulo los campos de un plan aceptado.
+ *
+ * Vive aquí, y no en el componente, porque es LISTA BLANCA además de orden: un
+ * campo que el mapper sepa proponer y que falte en ella se cae en silencio —el
+ * usuario lo ve en el modal, lo confirma y no pasa nada—. Teniéndola al lado
+ * del payload, añadir una clave y olvidarse de la lista deja de ser posible sin
+ * que lo cace el test.
+ *
+ * `n` PRIMERO: decide las posiciones de los micropilotes y qué tirantes
+ * existen. El modo del nº de barras, antes que los números.
+ */
+export const PILE_CAP_APPLY_ORDER: readonly (keyof PileCapInputs)[] = [
+  'n', 'd_p', 's', 'h_enc', 'b_col', 'h_col',
+  'fck', 'fyk', 'cover', 'phi_tie',
+  'bars_auto', 'n_bar_x', 'n_bar_y',
+  'N_Ed', 'Mx_Ed', 'My_Ed', 'R_adm',
+];
+
 const ALREADY = 'Ya coincide con el valor actual';
+const BARRAS_AUTO_MANDA =
+  'La propuesta pide a la vez que las barras del tirante las ponga el programa '
+  + 'y un número concreto: manda el automático.';
 const EPS = 1e-9;
 
 /**
@@ -327,6 +364,84 @@ function buildPileCapPlan(
     }
   }
 
+  /*
+   * --- Nº de barras del tirante ---
+   *
+   * Proponer un número IMPLICA ponerlo a mano: pedir «8 barras en y» y dejar el
+   * automático puesto sería pedir algo que el programa deshace en el acto.
+   *
+   * Y al pasar a manual hay que sembrar el sentido que NO se propone. Los
+   * campos `n_bar_x` / `n_bar_y` arrastran un valor rancio mientras manda el
+   * automático (nadie los mira), así que aplicar sólo `n_bar_y` dejaría las de
+   * x en ese valor: pedir más armadura en un sentido bajaría la del otro sin
+   * que nadie lo dijera. Se siembran con lo que pondría el automático
+   * (`barrasAutomaticas`, el mismo cálculo que usa el botón «Manual» del
+   * panel) sobre el estado YA con el resto de la propuesta aplicada —`n` y el
+   * diámetro cambian el mínimo—, y el cambio se enseña como uno más.
+   *
+   * No hay regla de seguridad para estos campos a propósito: poner de más es el
+   * lado seguro, y poner de menos no engaña a nadie —la fila del tirante pasa a
+   * INCUMPLE y se ve en rojo—. Las reglas existen para lo que hace que un
+   * cálculo PAREZCA cumplir sin cumplir, que no es el caso.
+   */
+  {
+    const pideAuto = x.barras_tirante_auto;
+    const hayConteo = x.n_bar_x_ud !== null || x.n_bar_y_ud !== null;
+
+    if (pideAuto === true && hayConteo) {
+      // Contradicción en la propuesta: manda lo explícito (el automático) y se
+      // dice por qué se han dejado fuera los números.
+      if (x.n_bar_x_ud !== null) skip('n_bar_x_ud', BARRAS_AUTO_MANDA);
+      if (x.n_bar_y_ud !== null) skip('n_bar_y_ud', BARRAS_AUTO_MANDA);
+    }
+
+    const aManual = (pideAuto === false) || (hayConteo && pideAuto !== true);
+
+    // `pideAuto === true` a secas, sin mirar si también venían números: los
+    // números ya se han saltado arriba, y condicionarlo dejaba el caso
+    // contradictorio sin aplicar NADA —ni el automático ni las barras—.
+    if (pideAuto === true) {
+      if (current.bars_auto) skip('barras_tirante_auto', ALREADY);
+      else apply('barras_tirante_auto', 'bars_auto', true, 'a mano', 'automático');
+    } else if (aManual) {
+      if (!current.bars_auto) skip('barras_tirante_auto', ALREADY);
+      else apply('barras_tirante_auto', 'bars_auto', false, 'automático', 'a mano');
+    }
+
+    if (aManual) {
+      // Lo que pondría el automático con el resto de la propuesta ya aplicada.
+      const semilla = barrasAutomaticas({ ...current, ...fields });
+      type Sentido = [
+        key: 'n_bar_x_ud' | 'n_bar_y_ud',
+        field: 'n_bar_x' | 'n_bar_y',
+        propuesto: number | null,
+        auto: number,
+      ];
+      const nSentidos: Sentido[] = [
+        ['n_bar_x_ud', 'n_bar_x', x.n_bar_x_ud, semilla.x],
+      ];
+      if (semilla.y !== null) {
+        nSentidos.push(['n_bar_y_ud', 'n_bar_y', x.n_bar_y_ud, semilla.y]);
+      } else if (x.n_bar_y_ud !== null) {
+        skip('n_bar_y_ud', `Con ${nFinal} micropilotes el tirante tiene un solo sentido: las barras se ponen en n_bar_x_ud`);
+      }
+
+      for (const [key, field, propuesto, auto] of nSentidos) {
+        const valor = propuesto === null ? auto : Math.round(propuesto);
+        if (propuesto !== null && (valor < 1 || valor > 60)) {
+          skip(key, rangeReason(propuesto, 1, 60, 'barras'));
+          // El sentido que no se propone se siembra igualmente: el estado no
+          // puede quedarse a medias entre el automático y lo puesto a mano.
+          if (current.bars_auto) fields[field] = auto;
+          continue;
+        }
+        const antes = current.bars_auto ? `automático (${auto})` : `${current[field]}`;
+        if (!current.bars_auto && valor === current[field]) skip(key, ALREADY);
+        else apply(key, field, valor, antes, `${valor} barras`);
+      }
+    }
+  }
+
   // --- Acciones (kN / kNm, sin conversión) ---
   if (x.N_Ed_kN !== null) {
     if (x.N_Ed_kN <= 0 || x.N_Ed_kN > 50000) {
@@ -383,6 +498,7 @@ function buildPileCapPlan(
     n: x.n, d_p_mm: x.d_p_mm, s_mm: x.s_mm, h_enc_mm: x.h_enc_mm,
     b_col_mm: x.b_col_mm, h_col_mm: x.h_col_mm,
     fck_MPa: x.fck_MPa, fyk_MPa: x.fyk_MPa, cover_mm: x.cover_mm, phi_tie_mm: x.phi_tie_mm,
+    barras_tirante_auto: x.barras_tirante_auto, n_bar_x_ud: x.n_bar_x_ud, n_bar_y_ud: x.n_bar_y_ud,
     N_Ed_kN: x.N_Ed_kN, Mx_kNm: x.Mx_kNm, My_kNm: x.My_kNm, R_adm_kN: x.R_adm_kN,
   };
   const notFound: string[] = [];
@@ -401,6 +517,9 @@ function buildPileCapPlan(
 // Solo claves NUMÉRICAS del estado: fuera `title`, el flag `dims_auto` con sus
 // cotas manuales L_x/L_y/e_man, la placa de reparto (plate_*) y la secundaria dispuesta — la IA trabaja con
 // la geometría del grupo, no con las cotas del encepado ni el detalle de cabeza.
+// `bars_auto` y su nº de barras SÍ entran (decisión del usuario, 2026-09-21):
+// quitar el aviso del tirante es justo el tipo de retoque que se le pide al
+// asistente, y con el automático puesto no hay forma de hacerlo.
 type StateKey = Exclude<
   keyof PileCapInputs,
   'title' | 'dims_auto' | 'L_x' | 'L_y' | 'e_man' | 's_x' | 'plate_on' | 'plate_shape' | 'd_plate'
@@ -418,6 +537,9 @@ const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {
   fyk_MPa: 'fyk',
   cover_mm: 'cover',
   phi_tie_mm: 'phi_tie',
+  barras_tirante_auto: 'bars_auto',
+  n_bar_x_ud: 'n_bar_x',
+  n_bar_y_ud: 'n_bar_y',
   N_Ed_kN: 'N_Ed',
   Mx_kNm: 'Mx_Ed',
   My_kNm: 'My_Ed',
@@ -425,13 +547,20 @@ const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {
 };
 
 function buildSnapshot(c: PileCapInputs): string {
-  const valores: Record<string, number> = {};
+  const valores: Record<string, number | boolean | null> = {};
   const sinConfirmar: PayloadKey[] = [];
+  // Con el automático puesto, `n_bar_x`/`n_bar_y` guardan una semilla que nadie
+  // mira: mandarla sería decirle al modelo que el tirante lleva 4 barras cuando
+  // lleva las que haya calculado el motor. Van como null —«esto no es un dato
+  // todavía»— y el número real llega por el resumen de resultados.
+  const barrasSinFijar = new Set<PayloadKey>(
+    c.bars_auto ? ['n_bar_x_ud', 'n_bar_y_ud'] : [],
+  );
   for (const key of KEY_ORDER) {
     const field = SNAPSHOT_FIELDS[key];
     const value = c[field];
-    valores[key] = value;
-    if (value === pileCapDefaults[field]) sinConfirmar.push(key);
+    valores[key] = barrasSinFijar.has(key) ? null : value;
+    if (!barrasSinFijar.has(key) && value === pileCapDefaults[field]) sinConfirmar.push(key);
   }
   return JSON.stringify({ valores, sin_confirmar: sinConfirmar });
 }
@@ -446,9 +575,16 @@ function buildSnapshot(c: PileCapInputs): string {
  */
 export function summarizePileCapResults(r: PileCapResult): AiResultsSummary {
   if (r.error != null) return summarizeCalcResults(r);
+  // Las barras del tirante y su mínimo: sin el mínimo delante, el modelo no
+  // puede proponer «una más», que es la salida al aviso de armadura al 95-100 %
+  // (el nº automático redondea al alza y deja la utilización pegada al tope).
+  const barrasY = r.n_bars_y !== null
+    ? `, ${r.n_bars_y} en y (mínimo ${r.n_bars_min_y})`
+    : '';
   const extras = [
     `Reacción máxima R_max = ${r.R_max.toFixed(1)} kN (mínima ${r.R_min.toFixed(1)} kN)`,
     `Ángulo de biela θ = ${r.theta_deg.toFixed(1)}° (admisible 26.5°–63.5°; sube h_enc para enderezarla)`,
+    `Barras del tirante: ${r.n_bars_x} en x (mínimo ${r.n_bars_min_x})${barrasY}`,
   ];
   if (r.R_min < 0) {
     extras.push('Hay micropilotes a TRACCIÓN: su resistencia a tracción no la comprueba este módulo.');

@@ -693,6 +693,17 @@ export interface PileCapInputs {
   fyk:      number;  // MPa
   cover:    number;  // mm — bottom cover to tie bar centroid
   phi_tie:  number;  // mm — tie bar diameter
+  /** true → el nº de barras del tirante lo pone el programa (el mínimo que
+   *  cubre la demanda); false → lo pone el usuario en `n_bar_x` / `n_bar_y`.
+   *
+   *  Por qué existe: el automático redondea al alza el ÚLTIMO redondo, así que
+   *  la utilización queda pegada al 100 % por construcción y la comprobación
+   *  sale en ámbar («cumple al borde») sin que el usuario pudiera hacer nada
+   *  —sólo podía cambiar el diámetro, que salta de golpe—. Con el manual, una
+   *  barra más baja la utilización y el aviso desaparece. */
+  bars_auto: boolean;
+  n_bar_x:  number;  // ud — barras del tirante ∥ x (n=3: por lado); modo manual
+  n_bar_y:  number;  // ud — barras del tirante ∥ y (n=4 y n=6); modo manual
   /** Armadura secundaria (EHE-08 art. 58.4.1.2; el CE no fija mínimos propios),
    *  dispuesta por el usuario y comprobada frente al mínimo: superior y retícula
    *  lateral (2 pilotes); retícula inferior entre bandas y cercos de banda (3 y 4). */
@@ -738,6 +749,11 @@ export const pileCapDefaults: PileCapInputs = {
   fyk:     500,
   cover:   60,
   phi_tie: 12,
+  // Nº de barras automático. Los manuales son SEMILLA: al pasar a manual, el
+  // panel los reescribe con el óptimo que acaba de calcular el motor.
+  bars_auto: true,
+  n_bar_x: 4,
+  n_bar_y: 4,
   // Secundaria (n=2, EHE-08 58.4.1.2.1.2): b_ref = min(1150, 400) = 400 → 4‰ =
   // 1600 mm²/m; Ø12 c/100 con 2 ramas = 2262 mm²/m (71 %); superior 2Ø12 = 226
   // vs 113 mm² (50 %). Retícula inferior Ø12 c/100 sólo cuenta con n ≥ 3.

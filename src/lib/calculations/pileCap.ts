@@ -170,6 +170,11 @@ export interface PileCapResult {
   As_adopted_y: number | null;
   n_bars_x: number;
   n_bars_y: number | null;
+  /** Nº de barras MÍNIMO que cubre lo adoptado (el que pone el modo
+   *  automático). En manual es la referencia contra la que se mira lo que ha
+   *  puesto el usuario; en automático coincide con `n_bars_x` / `n_bars_y`. */
+  n_bars_min_x: number;
+  n_bars_min_y: number | null;
   As_prov_x: number;
   As_prov_y: number | null;
   s_bar_x: number;
@@ -204,6 +209,7 @@ const EMPTY: PileCapResult = {
   As_g_x_inf: 0, As_min_net_x: 0, As_bot_tot_x: 0, s_layer_x: 0,
   As_adopted_x: 0, As_adopted_y: null,
   n_bars_x: 0, n_bars_y: null,
+  n_bars_min_x: 0, n_bars_min_y: null,
   As_prov_x: 0, As_prov_y: null,
   s_bar_x: 0, s_bar_y: null,
   s_max: 0,
@@ -405,6 +411,27 @@ export function autoEdge3(d_p: number, s: number, b_col: number, h_col: number):
 }
 
 /**
+ * Las barras que pondría el modo AUTOMÁTICO para un estado dado, por sentido
+ * (`y` es `null` con 2 y 3 micropilotes, que tienen un solo sentido de tirante).
+ *
+ * Existe para que quien tenga que SEMBRAR el modo manual —el panel al pulsar
+ * «Manual», el asistente IA cuando propone un número para un solo sentido— no
+ * tenga que reimplementar el redondeo, y sobre todo para que no deje el otro
+ * sentido con el valor rancio que arrastraba el estado: pedir «8 barras en y»
+ * no puede bajar de 6 a 4 las de x sin que nadie lo diga.
+ *
+ * Fuerza `bars_auto` a true: contesta siempre cuál es el mínimo, esté el estado
+ * en automático o no.
+ */
+export function barrasAutomaticas(inp: PileCapInputs): { x: number; y: number | null } {
+  const r = calcPileCap({ ...inp, bars_auto: true });
+  return {
+    x: Math.max(1, r.n_bars_min_x),
+    y: r.n_bars_min_y === null ? null : Math.max(1, r.n_bars_min_y),
+  };
+}
+
+/**
  * Dimensiones en planta AUTOMÁTICAS: extensión del grupo + 2·e_min por
  * dirección, redondeadas hacia arriba a 5 cm. Para n=2 la dirección y no tiene
  * pilotes: manda el mayor de pilar y pilote. Para n=3 la planta es triangular
@@ -473,6 +500,12 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const s_ch    = (inp.s_ch as number | undefined) ?? 100;
   const phi_g   = (inp.phi_g as number | undefined) ?? 12;
   const s_g     = (inp.s_g as number | undefined) ?? 100;
+  // Nº de barras del tirante: automático (el mínimo) o el del usuario. Los
+  // estados guardados antes de este campo no lo traen → automático, que es lo
+  // que hacían.
+  const barsAuto = (inp.bars_auto as boolean | undefined) ?? true;
+  const nBarUserX = (inp.n_bar_x as number | undefined) ?? 0;
+  const nBarUserY = (inp.n_bar_y as number | undefined) ?? 0;
 
   // ── Input validation ──────────────────────────────────────────────────────
   if (n !== 2 && n !== 3 && n !== 4 && n !== 6) return invalid('n debe ser 2, 3, 4 ó 6 micropilotes');
@@ -489,6 +522,12 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     return invalid('Separaciones de cercos, horizontal de caras y retícula deben ser > 0');
   }
   if (!(n_cv >= 1) || !(n_top >= 0)) return invalid('Ramas de cerco ≥ 1 y barras superiores ≥ 0');
+  // El tope de 60 no es normativo: es el punto a partir del cual el dibujo deja
+  // de ser legible y la congestión ya ha fallado de sobra. Sin él, un cero de
+  // más en la casilla cuelga el render de la sección.
+  if (!barsAuto && (!(nBarUserX >= 1) || nBarUserX > 60 || !(nBarUserY >= 1) || nBarUserY > 60)) {
+    return invalid('El número de barras del tirante debe estar entre 1 y 60');
+  }
   if (plate_on) {
     if (!(d_plate > 0)) return invalid('Dimensión de la placa de reparto debe ser > 0');
     if (d_plate < d_p) {
@@ -743,7 +782,11 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   // max(1, …): con la malla cubriendo el mínimo, el nº de barras lo fija sólo
   // el tirante y podría degenerar a 0 si R_max ≤ 0 (NaN aguas abajo).
   const As_adopted_x = Math.max(As_tie_x, As_min_net_x);
-  const n_bars_x = Math.max(1, Math.ceil(As_adopted_x / A_phi));
+  const n_bars_min_x = Math.max(1, Math.ceil(As_adopted_x / A_phi));
+  // En manual manda el usuario, aunque ponga MENOS de las necesarias: la fila
+  // del tirante lo dirá en rojo, que es para lo que está. Poner un suelo aquí
+  // sería contestar la comprobación por él.
+  const n_bars_x = barsAuto ? n_bars_min_x : Math.max(1, Math.round(nBarUserX));
   const As_prov_x = n_bars_x * A_phi;
   const As_bot_tot_x = As_prov_x + As_g_x_inf;
   const s_bar_x = n_bars_x > 1 ? w_band / (n_bars_x - 1) : 999;  // single bar: flag as warn
@@ -758,6 +801,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   let As_min_y: number | null = null;
   let As_adopted_y: number | null = null;
   let n_bars_y: number | null = null;
+  let n_bars_min_y: number | null = null;
   let As_prov_y: number | null = null;
   let s_bar_y: number | null = null;
 
@@ -765,7 +809,8 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     As_tie_y = Ft_y * 1000 / fyd;
     As_min_y = calcAsMin(fctm, fyk, b_y, d_eff) / nb_min_y;
     As_adopted_y = Math.max(As_tie_y, As_min_y);
-    n_bars_y = Math.ceil(As_adopted_y / A_phi);
+    n_bars_min_y = Math.max(1, Math.ceil(As_adopted_y / A_phi));
+    n_bars_y = barsAuto ? n_bars_min_y : Math.max(1, Math.round(nBarUserY));
     As_prov_y = n_bars_y * A_phi;
     s_bar_y = n_bars_y > 1 ? w_band / (n_bars_y - 1) : 999;
   }
@@ -1284,6 +1329,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
     As_g_x_inf, As_min_net_x, As_bot_tot_x, s_layer_x,
     As_adopted_x, As_adopted_y,
     n_bars_x, n_bars_y,
+    n_bars_min_x, n_bars_min_y,
     As_prov_x, As_prov_y,
     s_bar_x, s_bar_y,
     s_max,

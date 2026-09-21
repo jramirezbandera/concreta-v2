@@ -12,6 +12,11 @@ import { RawNumberInput } from '../../components/units/RawNumberInput';
 interface Props {
   state:    PileCapInputs;
   setField: <K extends keyof PileCapInputs>(field: K, value: PileCapInputs[K]) => void;
+  /** Barras mínimas del tirante que acaba de calcular el motor, por sentido
+   *  (`y` es null con 2 y 3 micropilotes, que tienen un solo sentido). Se usa
+   *  para sembrar el modo manual y para decir al lado cuál es el mínimo: el
+   *  panel no recalcula nada, lo recibe hecho. */
+  nBarMin:  { x: number; y: number | null };
 }
 
 // ── NumField ──────────────────────────────────────────────────────────────────
@@ -176,7 +181,7 @@ function RebarCountField({
 
 const N_OPTIONS = [2, 3, 4, 6] as const;
 
-export function PileCapInputsPanel({ state, setField }: Props) {
+export function PileCapInputsPanel({ state, setField, nBarMin }: Props) {
   const n = state.n as number;
   const plateOn = (state.plate_on as boolean | undefined) ?? false;
   const dimsAuto = (state.dims_auto as boolean | undefined) ?? true;
@@ -194,6 +199,15 @@ export function PileCapInputsPanel({ state, setField }: Props) {
     state.d_p as number, state.s as number,
     state.b_col as number, state.h_col as number,
   );
+
+  // Nº de barras del tirante: modo y rótulo del mínimo, en el lenguaje de cada
+  // n (uno solo con 2 y 3, dos sentidos con las retículas de 4 y 6).
+  const barsAuto = (state.bars_auto as boolean | undefined) ?? true;
+  const phiTie = state.phi_tie as number;
+  const barrasSub = n === 2 ? 'Tirante inferior' : n === 3 ? 'Por lado' : 'Por banda';
+  const minTexto = nBarMin.y !== null
+    ? `${nBarMin.x}Ø${phiTie} en x y ${nBarMin.y}Ø${phiTie} en y`
+    : `${nBarMin.x}Ø${phiTie}`;
 
   const fckOptions = availableFck.map((v) => ({ value: v, label: `${v} MPa` }));
   const fykOptions = [{ value: 500, label: '500 MPa' }, { value: 400, label: '400 MPa' }];
@@ -427,6 +441,84 @@ export function PileCapInputsPanel({ state, setField }: Props) {
       <CollapsibleSection label="Armadura tirantes">
         <SelectField labelKey="bar_diameter_tie" field="phi_tie" value={state.phi_tie as number} options={barOptions} setField={setField} />
         <NumField labelKey="cover_mechanical" field="cover"  value={state.cover as number}  setField={setField} />
+
+        {/* Nº de barras: el programa pone las justas o las pone el usuario.
+          * El automático redondea al alza el último redondo, así que la
+          * utilización del tirante queda pegada al 100 % por construcción y la
+          * fila sale en ámbar aunque cumpla; desde la pantalla no había forma
+          * de bajarla salvo cambiar el diámetro, que salta de golpe. En manual
+          * se pone una barra más y baja. Mismo patrón que Lx × Ly: al pasar a
+          * manual se siembra con lo que acaba de calcular el motor. */}
+        <div className="flex items-center justify-between py-0.75 max-lg:min-h-11 gap-2 mt-1">
+          <InputLabel
+            htmlFor="pc-bars-mode"
+            label="Nº de barras"
+            sub={barrasSub}
+            help={`Automático: las barras justas para cubrir la armadura necesaria (tirante o mínimo de sección, el que mande). Como el redondeo es al alza sobre la última barra, la utilización queda casi siempre rozando el 100 % y la comprobación se marca en ámbar aunque cumpla. Manual: pones tú cuántas van —una más que el mínimo suele bastar para bajar el aprovechamiento— y el ${n === 2 ? 'dibujo y el detalle' : 'dibujo, el detalle'} las reparten solas. Si pones menos de las necesarias, la comprobación lo dirá en rojo.`}
+          />
+          <div
+            id="pc-bars-mode"
+            role="radiogroup"
+            aria-label="Modo del número de barras del tirante"
+            className="flex rounded border border-border-main overflow-hidden shrink-0"
+          >
+            {([
+              { auto: true,  label: 'Auto' },
+              { auto: false, label: 'Manual' },
+            ] as const).map((opt) => {
+              const isActive = barsAuto === opt.auto;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  onClick={() => {
+                    if (barsAuto === opt.auto) return;
+                    setField('bars_auto', opt.auto);
+                    if (!opt.auto) {
+                      // Al pasar a manual, partir del óptimo vigente
+                      setField('n_bar_x', nBarMin.x);
+                      setField('n_bar_y', nBarMin.y ?? nBarMin.x);
+                    }
+                  }}
+                  className={[
+                    'px-2.5 py-1 text-[11px] font-mono transition-colors border-r border-border-main last:border-r-0',
+                    isActive
+                      ? 'bg-accent/10 text-accent font-semibold'
+                      : 'text-text-disabled hover:text-text-secondary',
+                  ].join(' ')}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {barsAuto ? (
+          <p className="text-[10px] text-text-secondary leading-relaxed py-0.75">
+            {`Auto: ${minTexto} (las justas). Pasa a Manual para poner alguna más y bajar el aprovechamiento.`}
+          </p>
+        ) : (
+          <>
+            <NumField
+              label="n_x" sub={n === 2 ? 'Barras (todo el ancho)' : n === 3 ? 'Barras por lado' : 'Barras banda x'}
+              field="n_bar_x" value={state.n_bar_x as number} unit="ud" setField={setField}
+              help={`Barras del tirante ${n === 2 ? 'de la cara inferior' : n === 3 ? 'de cada uno de los tres lados' : 'de cada banda paralela a x'}. Mínimo calculado: ${nBarMin.x}.`}
+            />
+            {n >= 4 && nBarMin.y !== null && (
+              <NumField
+                label="n_y" sub="Barras banda y"
+                field="n_bar_y" value={state.n_bar_y as number} unit="ud" setField={setField}
+                help={`Barras del tirante de cada banda paralela a y. Mínimo calculado: ${nBarMin.y}.`}
+              />
+            )}
+            <p className="text-[10px] text-text-secondary leading-relaxed py-0.75">
+              {`Mínimo: ${minTexto}.`}
+            </p>
+          </>
+        )}
 
         {n === 2 && (
           <p className="text-[10px] text-text-secondary mt-3 leading-relaxed">

@@ -905,6 +905,80 @@ describe('Malla inferior en el As,min (n = 2)', () => {
   });
 });
 
+// ── Nº de barras del tirante: automático o del usuario ─────────────────
+//
+// El automático redondea al alza sobre la última barra, así que la utilización
+// del tirante queda pegada al 100 % por construcción: con Ø16 y 6 micropilotes
+// sale 95 % y 97 %, ambos en ámbar, y desde la pantalla no había forma de
+// bajarlos (sólo cambiar el diámetro, que salta de golpe). De ahí el modo
+// manual.
+describe('Número de barras del tirante', () => {
+  const seis = { ...base, n: 6, s: 1000, s_x: 1500, d_p: 185, h_enc: 900,
+    N_Ed: 2250, R_adm: 422, fck: 30, phi_tie: 16, cover: 70, b_col: 300, h_col: 300 };
+
+  it('automático: el mínimo coincide con lo adoptado', () => {
+    const r = calcPileCap(seis);
+    expect(r.valid).toBe(true);
+    expect(r.n_bars_x).toBe(r.n_bars_min_x);
+    expect(r.n_bars_y).toBe(r.n_bars_min_y);
+    // Y la utilización del tirante roza el tope, que es el problema de partida
+    const y = r.checks.find((c) => c.id === 'tie-steel-y')!;
+    expect(y.utilization).toBeGreaterThan(0.9);
+  });
+
+  it('una barra más en cada sentido baja el aprovechamiento y quita el ámbar', () => {
+    const auto = calcPileCap(seis);
+    const man = calcPileCap({
+      ...seis, bars_auto: false,
+      n_bar_x: auto.n_bars_min_x + 1,
+      n_bar_y: (auto.n_bars_min_y ?? 0) + 1,
+    });
+    expect(man.valid).toBe(true);
+    expect(man.n_bars_x).toBe(auto.n_bars_x + 1);
+    expect(man.n_bars_y).toBe((auto.n_bars_y ?? 0) + 1);
+    expect(man.As_prov_x).toBeGreaterThan(auto.As_prov_x);
+    // El mínimo se sigue informando: es la referencia del panel
+    expect(man.n_bars_min_x).toBe(auto.n_bars_min_x);
+    for (const id of ['tie-steel-x', 'tie-steel-y', 'tie-steel-min-x', 'tie-steel-min-y']) {
+      const antes = auto.checks.find((c) => c.id === id);
+      const ahora = man.checks.find((c) => c.id === id);
+      if (!antes || !ahora) continue;
+      expect(ahora.utilization).toBeLessThan(antes.utilization);
+    }
+    expect(man.checks.filter((c) => c.id.startsWith('tie-steel')).every((c) => c.status === 'ok')).toBe(true);
+  });
+
+  it('menos barras de las necesarias: no se corrige, se suspende', () => {
+    const auto = calcPileCap(seis);
+    const man = calcPileCap({ ...seis, bars_auto: false, n_bar_x: 2, n_bar_y: 2 });
+    expect(man.valid).toBe(true);
+    expect(man.n_bars_x).toBe(2);
+    expect(man.n_bars_x).toBeLessThan(auto.n_bars_min_x);
+    expect(man.checks.find((c) => c.id === 'tie-steel-x')!.status).toBe('fail');
+  });
+
+  it('el nº de barras manual no cambia el cálculo, sólo lo dispuesto', () => {
+    const auto = calcPileCap(seis);
+    const man = calcPileCap({ ...seis, bars_auto: false, n_bar_x: 12, n_bar_y: 12 });
+    for (const k of ['R_max', 'theta_deg', 'Ft_x', 'As_tie_x', 'As_min_x', 'z_eff'] as const) {
+      expect(man[k]).toBeCloseTo(auto[k] as number, 6);
+    }
+  });
+
+  it('fuera de rango (0 o más de 60) no cuela', () => {
+    expect(calcPileCap({ ...seis, bars_auto: false, n_bar_x: 0, n_bar_y: 4 }).valid).toBe(false);
+    expect(calcPileCap({ ...seis, bars_auto: false, n_bar_x: 4, n_bar_y: 99 }).valid).toBe(false);
+  });
+
+  it('un estado guardado antes del campo se calcula como automático', () => {
+    const viejo = { ...seis } as Partial<typeof seis>;
+    delete viejo.bars_auto; delete viejo.n_bar_x; delete viejo.n_bar_y;
+    const r = calcPileCap(viejo as typeof seis);
+    expect(r.valid).toBe(true);
+    expect(r.n_bars_x).toBe(calcPileCap(seis).n_bars_x);
+  });
+});
+
 // ── Robustez numérica ─────────────────────────────────────────────────────
 describe('Sin NaN/Infinity', () => {
   for (const n of [2, 3, 4, 6]) {
