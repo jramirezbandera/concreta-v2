@@ -87,14 +87,22 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
   const zonas: { z: ZonaCargasResuelta; iPlanta: number; iZona: number; nZonas: number }[] = [];
   resultado.plantas.forEach((p, iPlanta) => p.zonas.forEach((z, iZona) => zonas.push({ z, iPlanta, iZona, nZonas: p.zonas.length })));
 
-  const arriba = 46;
+  const arriba = 52;
   const usable = Math.max(60, height - arriba - 96);
   /** Sin medida (la sección va debajo de la tabla, o en un test) se reparte por igual. */
   const uniforme = cotas.length === 0;
   const paso = usable / Math.max(1, zonas.length);
 
   const bx = 34;
-  const bw = Math.max(60, width - bx - 78);
+  /**
+   * Lo que se reserva a la derecha para los rótulos (nombre de planta y cota).
+   * A 10 px de mono cada carácter mide ~6, así que 94 − 6 de separación dan
+   * sitio para catorce, que es lo que mide «Planta Primera», el nombre por
+   * defecto más largo. `corto` recorta a esa misma cuenta: si se cambia uno hay
+   * que cambiar el otro o los nombres se salen del viewBox, que los recorta
+   * sin avisar.
+   */
+  const bw = Math.max(60, width - bx - 94);
 
   /** El eje del forjado que le toca a la fila i de la tabla. */
   const yFila = (i: number, id?: string) => {
@@ -142,7 +150,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
   const rotuloCota = (c: number) => (c === 0 ? '±0,00' : `${c > 0 ? '+' : '−'}${dec(Math.abs(c), 2)}`);
 
   /** El rótulo de la planta, recortado a lo que cabe en el margen del dibujo. */
-  const corto = (nombre: string) => (nombre.length > 15 ? `${nombre.slice(0, 14)}…` : nombre);
+  const corto = (nombre: string) => (nombre.length > 14 ? `${nombre.slice(0, 13)}…` : nombre);
 
   const peto = lineales.find((l) => esPeto(l.concepto));
   const fachada = lineales.find((l) => esFachada(l.concepto));
@@ -167,8 +175,15 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
       <Rotulo x={4} y={16} tam={10} mono color={COLOR.secundario} peso={500}>
         SECCIÓN · qd por forjado
       </Rotulo>
-      <Rotulo x={4} y={28} tam={8.5} mono color={COLOR.atenuado}>
-        {uniforme ? 'sin escala vertical' : 'alineada con la tabla · sin escala vertical'}
+      {/* En dos líneas: con la sección al lado el lienzo mide 232 px y el
+          subtítulo largo, a 10 px de mono, pide 252. */}
+      {!uniforme && (
+        <Rotulo x={4} y={28} tam={10} mono color={COLOR.atenuado}>
+          alineada con la tabla
+        </Rotulo>
+      )}
+      <Rotulo x={4} y={uniforme ? 28 : 40} tam={10} mono color={COLOR.atenuado}>
+        sin escala vertical
       </Rotulo>
 
       {/* Fachadas: de la primera planta a la última */}
@@ -184,7 +199,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
             </>
           )}
           {textoFachada && (
-            <text x={bx - 8} y={yFachada} fontSize={8} fill={COLOR.atenuado} textAnchor="middle" transform={`rotate(-90 ${bx - 8} ${yFachada})`} style={{ fontFamily: 'var(--font-mono)' }}>
+            <text x={bx - 8} y={yFachada} fontSize={10} fill={COLOR.atenuado} textAnchor="middle" transform={`rotate(-90 ${bx - 8} ${yFachada})`} style={{ fontFamily: 'var(--font-mono)' }}>
               {textoFachada}
             </text>
           )}
@@ -222,7 +237,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
             {hueco ? (
               <>
                 <rect x={x} y={y} width={ancho} height={GRUESO_FORJADO} fill="none" stroke={COLOR.fallo} strokeWidth={1} strokeDasharray="3 2" />
-                <Rotulo x={x + ancho / 2} y={y - 6} tam={9.5} mono color={COLOR.fallo} peso={600} ancla="middle">
+                <Rotulo x={x + ancho / 2} y={y - 6} tam={10} mono color={COLOR.fallo} peso={600} ancla="middle">
                   ¿PP?
                 </Rotulo>
               </>
@@ -232,7 +247,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
                 <rect x={x} y={y - hG} width={ancho} height={hG} fill={mezcla(COLOR.seccion, 25)} stroke={mezcla(COLOR.seccion, 45)} strokeWidth={0.75} />
                 <rect x={x} y={y - hG - hQ} width={ancho} height={hQ} fill={mezcla(COLOR.accent, 45)} stroke={COLOR.accent} strokeWidth={0.75} />
                 {conNieve && <rect x={x} y={yTop} width={ancho} height={ALTO_NIEVE} fill={m.nieve} stroke={mezcla(COLOR.accent, 50)} strokeWidth={0.5} />}
-                <Rotulo x={x + ancho / 2} y={yTop - 4} tam={9.5} mono color={COLOR.accent} peso={600} ancla="middle">
+                <Rotulo x={x + ancho / 2} y={yTop - 4} tam={10} mono color={COLOR.accent} peso={600} ancla="middle">
                   {superficial(z.qd)}
                 </Rotulo>
               </>
@@ -247,11 +262,11 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
       {resultado.plantas.map((p, i) =>
         p.zonas.length === 0 ? null : (
           <g key={`rotulo-${p.id ?? i}`}>
-            <Rotulo x={bx + bw + 6} y={yPlanta[i] + 9} tam={8} mono color={COLOR.atenuado}>
+            <Rotulo x={bx + bw + 6} y={yPlanta[i] + 10} tam={10} mono color={COLOR.atenuado}>
               {corto(p.nombre)}
             </Rotulo>
             {cotasForjado[i] !== null && (
-              <Rotulo x={bx + bw + 6} y={yPlanta[i] + 18} tam={7.5} mono color={COLOR.atenuado}>
+              <Rotulo x={bx + bw + 6} y={yPlanta[i] + 22} tam={10} mono color={COLOR.atenuado}>
                 {rotuloCota(cotasForjado[i] as number)}
               </Rotulo>
             )}
@@ -264,7 +279,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
         <>
           <rect x={bx} y={yPrimero - 10} width={3} height={10} fill={COLOR.seccion} />
           <rect x={bx + bw - 3} y={yPrimero - 10} width={3} height={10} fill={COLOR.seccion} />
-          <Rotulo x={bx + bw + 6} y={yPrimero - 3} tam={8} mono color={COLOR.atenuado}>
+          <Rotulo x={bx + bw + 6} y={yPrimero - 4} tam={10} mono color={COLOR.atenuado}>
             {lineal(peto.gk)} {uL}
           </Rotulo>
         </>
@@ -282,7 +297,7 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
           ) : (
             <Suelo x1={bx - 18} x2={bx + bw + 18} y={yRasante} patron={m.suelo} />
           )}
-          <Rotulo x={bx + bw + 22} y={yRasante + 4} tam={8} mono color={COLOR.atenuado}>
+          <Rotulo x={bx + bw + 6} y={yRasante + 16} tam={10} mono color={COLOR.atenuado}>
             rasante
           </Rotulo>
         </>
@@ -291,21 +306,21 @@ export function SeccionSVG({ resultado, cotas, lineales, zonaSel, onSeleccionar,
       {/* Leyenda */}
       <g transform={`translate(4 ${yFondo + 28})`}>
         <rect x={0} y={-8} width={10} height={8} fill={mezcla(COLOR.seccion, 25)} stroke={mezcla(COLOR.seccion, 45)} strokeWidth={0.75} />
-        <Rotulo x={16} y={0} tam={8.5} mono color={COLOR.secundario}>
+        <Rotulo x={16} y={0} tam={10} mono color={COLOR.secundario}>
           permanente · Gd = 1,35 · G
         </Rotulo>
         <rect x={0} y={7} width={10} height={8} fill={mezcla(COLOR.accent, 45)} stroke={COLOR.accent} strokeWidth={0.75} />
-        <Rotulo x={16} y={15} tam={8.5} mono color={COLOR.secundario}>
+        <Rotulo x={16} y={16} tam={10} mono color={COLOR.secundario}>
           variable · Qd = 1,50 · Q
         </Rotulo>
         <rect x={0} y={22} width={10} height={8} fill={m.nieve} stroke={mezcla(COLOR.accent, 50)} strokeWidth={0.5} />
-        <Rotulo x={16} y={30} tam={8.5} mono color={COLOR.secundario}>
+        <Rotulo x={16} y={32} tam={10} mono color={COLOR.secundario}>
           nieve cuando no manda
         </Rotulo>
-        <Rotulo x={0} y={48} tam={8.5} mono color={COLOR.atenuado}>
+        <Rotulo x={0} y={51} tam={10} mono color={COLOR.atenuado}>
           alto del bloque ∝ {uQ}
         </Rotulo>
-        <Rotulo x={0} y={60} tam={8.5} mono color={COLOR.atenuado}>
+        <Rotulo x={0} y={64} tam={10} mono color={COLOR.atenuado}>
           clic en un bloque = su fila
         </Rotulo>
       </g>
