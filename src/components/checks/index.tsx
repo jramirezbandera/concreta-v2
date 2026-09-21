@@ -158,10 +158,14 @@ export function CheckRowItem({ check, compact = false }: { check: CheckRow; comp
           </span>
         )}
       </span>
+      {/* La barra se anima con `transform`, no con `width`: `width` es propiedad
+          de layout y cada fotograma reflowa la fila. Un panel corriente pinta
+          15 de estas a la vez. El redondeo lo pone la pista con overflow-hidden,
+          así que la barra de dentro no necesita el suyo. */}
       <div className="h-1 bg-border-sub rounded-sm overflow-hidden self-center max-lg:hidden">
         <div
-          className={`h-full rounded-sm transition-[width] duration-200 ${BAR_CLASSES[check.status]}`}
-          style={{ width: `${pct}%` }}
+          className={`h-full w-full origin-left transition-transform duration-200 ${BAR_CLASSES[check.status]}`}
+          style={{ transform: `scaleX(${pct / 100})` }}
           role="presentation"
         />
       </div>
