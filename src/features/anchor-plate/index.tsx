@@ -91,18 +91,38 @@ export function AnchorPlateModule() {
       onTitleChange: (t) => setField('title', t),
     });
 
-  const [canvasRef, canvasWidth] = useContainerWidth();
+  const [canvasRef, canvasWidth, canvasHeight] = useContainerWidth();
   const [mobileCanvasRef, mobileCanvasWidth] = useContainerWidth();
 
   // M24 (Phase 4): cap desktop subido de 420 → 720 px. La placa es el "trust
   // anchor" del módulo y la tabla de resultados pesaba más en pantalla.
-  // 720 sigue siendo conservador vs el sibling isolated-footing (960).
-  const FIXED_SVG_W = 720;
+  //
+  // design review 2026-09-21: el alto salía de `svgW * 1.1` y NO miraba el del
+  // contenedor, así que era el único módulo con el alto sin tope —792 px, 2,6×
+  // el más alto de sus hermanos, que capan entre 300 y 560—. Con la ventana a
+  // 900 px de alto el panel mide 672 y el Alzado caía por debajo del pliegue de
+  // un contenedor con `scroll-hide`: sin barra de scroll, nada decía que
+  // hubiera más dibujo debajo. Y el cap de 720 de ancho se justificaba contra
+  // isolated-footing (960), pero ése conmuta a tres paneles en horizontal y
+  // sale a 360 px de alto: el precedente citado es 2,2× más bajo.
+  //
+  // Ahora el alto se acota al hueco real (idiom de fem2d) y el ancho sube a
+  // 900: con una sola escala para las dos vistas (ver AnchorPlateSVG), más
+  // hueco es dibujo más grande, que es lo que pide el design thesis.
+  const FIXED_SVG_W = 900;
+  const MAX_SVG_H = 990;
   const CANVAS_PAD = 32;
   const svgW = canvasWidth !== undefined && canvasWidth > 0
     ? Math.min(FIXED_SVG_W, Math.max(260, canvasWidth - CANVAS_PAD))
-    : FIXED_SVG_W;
-  const svgH = Math.round(svgW * 1.1);
+    : 720;
+  const svgH = Math.round(Math.max(
+    320,
+    Math.min(
+      svgW * 1.1,
+      MAX_SVG_H,
+      canvasHeight !== undefined && canvasHeight > 0 ? canvasHeight - CANVAS_PAD : MAX_SVG_H,
+    ),
+  ));
 
   // M13 (Phase 4): mobile responsive. Antes width=320 hardcoded → en layouts
   // 8/9 los círculos de barras caían a 3-4 px. Usamos el ancho real del
@@ -150,7 +170,13 @@ export function AnchorPlateModule() {
         </div>
 
         {/* Right: SVG + results */}
+        {/* El ref del lienzo va AQUÍ, en el panel con scroll, no en el div del
+            dibujo: ese crece con el SVG, así que leerle el alto para dimensionar
+            el SVG sería un bucle. El panel sí tiene alto propio (lo fija el
+            flex), que es justo el hueco del que disponemos. Mismo sitio que en
+            fem2d. */}
         <div
+          ref={canvasRef}
           className={[
             'min-w-0 overflow-y-auto scroll-hide',
             'lg:flex-1',
@@ -158,10 +184,7 @@ export function AnchorPlateModule() {
             'lg:block',
           ].join(' ')}
         >
-          <div
-            ref={canvasRef}
-            className="hidden lg:flex border-b border-border-main canvas-dot-grid items-center justify-center py-6 px-4"
-          >
+          <div className="hidden lg:flex border-b border-border-main canvas-dot-grid items-center justify-center py-6 px-4">
             <AnchorPlateSVG
               inp={deferredState}
               result={result}
