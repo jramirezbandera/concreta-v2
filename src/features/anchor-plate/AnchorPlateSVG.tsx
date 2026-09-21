@@ -87,36 +87,14 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
   const titleId = `anchor-plate-svg-title-${uid}`;
   const descId  = `anchor-plate-svg-desc-${uid}`;
 
-  // Dual-panel layout: planta (top) + alzado (bottom).
+  // Dual-panel layout: planta (arriba) + alzado (abajo).
   const panelGap = 12;
-  const panelH = (height - panelGap) / 2;
+  const pad = 24;
 
-  // ─── PLANTA (top) — scale plate to fit panel width with pedestal margin ──
-  const plantaPad = 24;
+  // ─── Geometría natural de cada vista, en mm ──────────────────────────────
   const pedestalW = inp.plate_a + 2 * inp.plate_margin_x;
   const pedestalH = inp.plate_b + 2 * inp.plate_margin_y;
-  const scalePlanta = Math.min(
-    (width - 2 * plantaPad) / pedestalW,
-    (panelH - 2 * plantaPad) / pedestalH,
-  );
 
-  const pw = pedestalW * scalePlanta;
-  const ph = pedestalH * scalePlanta;
-  const pCx = width / 2;
-  const pCy = plantaPad + ph / 2;
-
-  const plateW = inp.plate_a * scalePlanta;
-  const plateH = inp.plate_b * scalePlanta;
-
-  // Profile footprint (planta): I-section outline, rotated so h is along plate_a
-  const profH = (profile?.h ?? 200) * scalePlanta;
-  const profB = (profile?.b ?? 200) * scalePlanta;
-  const profTf = (profile?.tf ?? 15) * scalePlanta;
-  const profTw = (profile?.tw ?? 9) * scalePlanta;
-
-  // ─── ALZADO (bottom) ─────────────────────────────────────────────────────
-  const alzadoPad = 24;
-  const alzadoTopGap = 8;
   // Visible column stub above plate. Must extend above the stiffeners so they
   // never visually float above the column — otherwise rib_h > 60 (the previous
   // fixed default) would render the rigidizador taller than the column.
@@ -125,23 +103,60 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
     ? Math.max(colStubMin, inp.rib_h + 20)
     : colStubMin;
   const hef_visible = inp.bar_hef;
-  const alzadoNaturalH = colH + inp.plate_t + hef_visible + 20;  // mm equivalent
   const alzadoNaturalW = pedestalW;
-  const scaleAlzado = Math.min(
-    (width - 2 * alzadoPad) / alzadoNaturalW,
-    (panelH - 2 * alzadoPad) / alzadoNaturalH,
+  const alzadoNaturalH = colH + inp.plate_t + hef_visible;   // mm que escalan
+
+  // ─── UNA escala para las dos vistas ──────────────────────────────────────
+  //
+  // Planta y alzado comparten eje (`width/2`), así que el ojo las lee como un
+  // par en proyección: tienen que ir a la MISMA escala o una cota bajada de una
+  // a otra no cae donde debe. Antes cada vista se ajustaba por su cuenta a su
+  // medio panel de alto fijo, y con los valores por defecto la misma placa de
+  // 400 mm salía 228 px en planta y 285 px en alzado (+25%), el mismo macizo de
+  // 700 mm salía 399 y 500 px, y las barras de la planta no caían sobre las del
+  // alzado. Mismo criterio que `escalaComun` de PileCapSVG.
+  //
+  // El reparto vertical lo manda el dibujo, no un 50/50: se descuentan primero
+  // los huecos en px y se escala lo que está en mm.
+  const alzadoTopGap = 8;      // px, holgura entre el pie del pilar y la placa
+  const pedestalBottomPx = 20; // px, macizo dibujado por debajo de hef
+  const alturaUtil = height - 2 * pad - panelGap - alzadoTopGap - pedestalBottomPx;
+  const escala = Math.min(
+    (width - 2 * pad) / Math.max(pedestalW, alzadoNaturalW),
+    alturaUtil / (pedestalH + alzadoNaturalH),
   );
-  const plateYrect = panelH + panelGap + alzadoPad + colH * scaleAlzado + alzadoTopGap;
-  const aPlateW = inp.plate_a * scaleAlzado;
-  const aPlateT = Math.max(3, inp.plate_t * scaleAlzado);
+  const scalePlanta = escala;
+  const scaleAlzado = escala;
+
+  // ─── PLANTA (arriba) ─────────────────────────────────────────────────────
+  const pw = pedestalW * escala;
+  const ph = pedestalH * escala;
+  const pCx = width / 2;
+  const pCy = pad + ph / 2;
+
+  const plateW = inp.plate_a * escala;
+  const plateH = inp.plate_b * escala;
+
+  // Profile footprint (planta): I-section outline, rotated so h is along plate_a
+  const profH = (profile?.h ?? 200) * escala;
+  const profB = (profile?.b ?? 200) * escala;
+  const profTf = (profile?.tf ?? 15) * escala;
+  const profTw = (profile?.tw ?? 9) * escala;
+
+  // ─── ALZADO (abajo) ──────────────────────────────────────────────────────
+  const alzadoTop = pad + ph + panelGap;
+  const panelH = alzadoTop - panelGap / 2;   // y del separador punteado
+  const plateYrect = alzadoTop + colH * escala + alzadoTopGap;
+  const aPlateW = inp.plate_a * escala;
+  const aPlateT = Math.max(3, inp.plate_t * escala);
   const aCx = width / 2;
   const aPlateX = aCx - aPlateW / 2;
 
-  const hefVisPx = inp.bar_hef * scaleAlzado;
-  const pedestalAlzadoW = pedestalW * scaleAlzado;
+  const hefVisPx = inp.bar_hef * escala;
+  const pedestalAlzadoW = pedestalW * escala;
   const pedestalAlzadoX = aCx - pedestalAlzadoW / 2;
   const pedestalAlzadoY = plateYrect + aPlateT;
-  const pedestalAlzadoH = hefVisPx + 20;
+  const pedestalAlzadoH = hefVisPx + pedestalBottomPx;
 
   return (
     <svg
