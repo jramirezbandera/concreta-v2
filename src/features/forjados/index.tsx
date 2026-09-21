@@ -143,6 +143,7 @@ export function ForjadosModule() {
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-hide px-4 py-4 min-w-0">
             <ForjadosInputsPanel
+              errorField={result.errorField}
               state={state}
               section={section}
               setSection={setSection}

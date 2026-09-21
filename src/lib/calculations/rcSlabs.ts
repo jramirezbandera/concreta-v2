@@ -68,6 +68,12 @@ export interface ForjadosSectionResult {
 export interface ForjadosResult {
   valid:     boolean;
   error?:    string;
+  /**
+   * Campo de entrada que invalida el cálculo. El mensaje salía en el panel de
+   * resultados, al otro lado de la pantalla, y el campo culpable no se
+   * marcaba: en escritorio son 700 px entre la causa y el aviso.
+   */
+  errorField?: keyof ForjadosInputs;
   variant:   'reticular' | 'maciza';
   bEff:      number;   // mm — only meaningful for reticular vano (0 for maciza)
   L0:        number;   // mm — only meaningful for reticular (0 for maciza)
@@ -399,10 +405,10 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
   };
 }
 
-function globalInvalid(error: string, variant: 'reticular' | 'maciza'): ForjadosResult {
+function globalInvalid(error: string, variant: 'reticular' | 'maciza', errorField?: keyof ForjadosInputs): ForjadosResult {
   const sec = invalidSection(error);
   return {
-    valid: false, error, variant, bEff: 0, L0: 0,
+    valid: false, error, errorField, variant, bEff: 0, L0: 0,
     vano: sec, apoyo: sec,
     VRdc: 0, VRds: 0, VRd: 0, VRdmax: 0,
     shearChecks: [], infoChecks: [],
@@ -412,27 +418,27 @@ function globalInvalid(error: string, variant: 'reticular' | 'maciza'): Forjados
 export function calcForjados(inp: ForjadosInputs): ForjadosResult {
   // ── Input validation ─────────────────────────────────────────────────
   const variant = inp.variant as 'reticular' | 'maciza';
-  if ((inp.h as number) <= 0) return globalInvalid('Canto h debe ser > 0 mm', variant);
-  if ((inp.cover as number) <= 0) return globalInvalid('Recubrimiento debe ser > 0 mm', variant);
+  if ((inp.h as number) <= 0) return globalInvalid('Canto h debe ser > 0 mm', variant, 'h');
+  if ((inp.cover as number) <= 0) return globalInvalid('Recubrimiento debe ser > 0 mm', variant, 'cover');
   if ((inp.fck as number) < 12 || (inp.fck as number) > 90)
-    return globalInvalid('fck fuera de rango (12–90 MPa)', variant);
+    return globalInvalid('fck fuera de rango (12–90 MPa)', variant, 'fck');
   if (!(inp.exposureClass in wkMax))
-    return globalInvalid(`Clase de exposición inválida: ${inp.exposureClass}`, variant);
+    return globalInvalid(`Clase de exposición inválida: ${inp.exposureClass}`, variant, 'exposureClass');
 
   if (variant === 'reticular') {
-    if ((inp.bWeb as number) <= 0) return globalInvalid('b_w debe ser > 0 mm', variant);
-    if ((inp.intereje as number) <= 0) return globalInvalid('Intereje debe ser > 0 mm', variant);
-    if ((inp.hFlange as number) <= 0) return globalInvalid('Capa de compresión h_f debe ser > 0 mm', variant);
-    if ((inp.spanLength as number) <= 0) return globalInvalid('Luz L debe ser > 0 mm', variant);
+    if ((inp.bWeb as number) <= 0) return globalInvalid('b_w debe ser > 0 mm', variant, 'bWeb');
+    if ((inp.intereje as number) <= 0) return globalInvalid('Intereje debe ser > 0 mm', variant, 'intereje');
+    if ((inp.hFlange as number) <= 0) return globalInvalid('Capa de compresión h_f debe ser > 0 mm', variant, 'hFlange');
+    if ((inp.spanLength as number) <= 0) return globalInvalid('Luz L debe ser > 0 mm', variant, 'spanLength');
     // Base es obligatoria (montaje continuo); refuerzos pueden ser 0.
-    if ((inp.base_inf_nBars as number) <= 0) return globalInvalid('Barras montaje inferior > 0', variant);
-    if ((inp.base_sup_nBars as number) <= 0) return globalInvalid('Barras montaje superior > 0', variant);
+    if ((inp.base_inf_nBars as number) <= 0) return globalInvalid('Barras montaje inferior > 0', variant, 'base_inf_nBars');
+    if ((inp.base_sup_nBars as number) <= 0) return globalInvalid('Barras montaje superior > 0', variant, 'base_sup_nBars');
   } else {
     // Parrilla base obligatoria en ambas caras; refuerzos pueden ser 0.
-    if ((inp.base_inf_phi_mac as number) <= 0) return globalInvalid('Ø parrilla inferior > 0 mm', variant);
-    if ((inp.base_inf_s_mac   as number) <= 0) return globalInvalid('Separación parrilla inferior > 0 mm', variant);
-    if ((inp.base_sup_phi_mac as number) <= 0) return globalInvalid('Ø parrilla superior > 0 mm', variant);
-    if ((inp.base_sup_s_mac   as number) <= 0) return globalInvalid('Separación parrilla superior > 0 mm', variant);
+    if ((inp.base_inf_phi_mac as number) <= 0) return globalInvalid('Ø parrilla inferior > 0 mm', variant, 'base_inf_phi_mac');
+    if ((inp.base_inf_s_mac   as number) <= 0) return globalInvalid('Separación parrilla inferior > 0 mm', variant, 'base_inf_s_mac');
+    if ((inp.base_sup_phi_mac as number) <= 0) return globalInvalid('Ø parrilla superior > 0 mm', variant, 'base_sup_phi_mac');
+    if ((inp.base_sup_s_mac   as number) <= 0) return globalInvalid('Separación parrilla superior > 0 mm', variant, 'base_sup_s_mac');
   }
 
   const h       = inp.h as number;
@@ -640,8 +646,8 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     });
   }
 
-  if (dVano  <= 0) return globalInvalid('Canto útil vano ≤ 0 — revise h, recubrimiento, Ø', variant);
-  if (dApoyo <= 0) return globalInvalid('Canto útil apoyo ≤ 0', variant);
+  if (dVano  <= 0) return globalInvalid('Canto útil vano ≤ 0 — revise h, recubrimiento, Ø', variant, 'h');
+  if (dApoyo <= 0) return globalInvalid('Canto útil apoyo ≤ 0', variant, 'h');
 
   // ── Section calcs ─────────────────────────────────────────────────────
   const vano = calcSection({
@@ -681,9 +687,12 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     'CE Anejo 19 §6.1',
   ));
 
-  // ── Anchorage (CE Anejo 19 §8.4.4) — info per bar bundle ────────────────
-  // Report lb_rqd and lb_min for each non-empty bundle (base + refuerzo) in
-  // each zone. Status is always 'ok' / utilization 0 (non-blocking info).
+  // ── Anchorage (CE Anejo 19 §8.4.4) — longitud a detallar, no comprobacion ──
+  // No son comprobaciones: el modulo no pregunta por la longitud disponible,
+  // asi que no hay nada contra lo que comprobar. Se emiten con `neutral` para
+  // que el panel las pinte sin barra ni porcentaje: antes salian con un chip
+  // verde al 0 %, que se lee como «sobra margen» cuando lo que dicen es
+  // «detalla 485 mm». El valor y el limite siguen ahi para el PDF.
   const appendAnchorage = (sec: ForjadosSectionResult, bundles: BarBundle[]) => {
     for (const b of bundles) {
       const a = computeAnchorage(b.phi, mat.fctm, fyd, b.cara, h);
@@ -694,6 +703,8 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
         limit: `lb,min = ${a.lb_min.toFixed(0)} mm`,
         utilization: 0,
         status: 'ok',
+        neutral: true,
+        tag: `lb = ${a.lb_rqd.toFixed(0)} mm`,
         article: 'CE Anejo 19 §8.4.4',
       });
     }
@@ -841,7 +852,15 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
       value: `—`,
       limit: `Info`,
       utilization: 0, status: 'ok',
-      article: 'v1',
+      neutral: true,
+      tag: 'Una dirección',
+      // Sin artículo: es una nota de alcance del módulo, no un artículo del
+      // Código. Decía 'v1', que se pintaba en el mismo hueco monoespaciado
+      // donde el resto de las filas cita «CE Anejo 19 §…» y se leía como una
+      // referencia normativa. La cadena vacía es el centinela de «sin
+      // artículo» que ya usa lib/ai/resultsSummary.ts y que todos los
+      // renderizadores guardan.
+      article: '',
     });
   }
 

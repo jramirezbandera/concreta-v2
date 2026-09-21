@@ -31,6 +31,7 @@ import { SteelColumnsResults } from '../../features/steel-columns/SteelColumnsRe
 import { RockfillWallResults } from '../../features/rockfill-wall/RockfillWallResults';
 import { RetainingWallResults } from '../../features/retaining-wall/RetainingWallResults';
 import { AnchorPlateResults } from '../../features/anchor-plate/AnchorPlateResults';
+import { ForjadosResults } from '../../features/forjados/ForjadosResults';
 
 import { calcMicropiles } from '../../lib/calculations/micropiles';
 import { calcRetainingWall } from '../../lib/calculations/retainingWall';
@@ -40,11 +41,14 @@ import { calcSteelBeam } from '../../lib/calculations/steelBeams';
 import { calcSteelColumn } from '../../lib/calculations/steelColumns';
 import { calcRockfillWall } from '../../lib/calculations/rockfillWall';
 import { calcAnchorPlate } from '../../lib/calculations/anchorPlate';
+import { calcForjados } from '../../lib/calculations/rcSlabs';
+import { variantSwitchPatch } from '../../data/forjadoTipologias';
 
 import {
   micropilesDefaults, micropilesSoilDefaults, punchingDefaults,
   rcBeamDefaults, steelBeamDefaults, steelColumnDefaults,
   rockfillWallDefaults, retainingWallDefaults, anchorPlateDefaults,
+  forjadosDefaults,
 } from '../../data/defaults';
 
 interface Case {
@@ -192,6 +196,31 @@ const CASES: Case[] = [
     build: () => {
       const r = calcAnchorPlate(anchorPlateDefaults);
       return { ui: <AnchorPlateResults result={r} />, checks: r.checks };
+    },
+  },
+  {
+    // design review 2026-09-21: el modulo estaba BIEN —el panel reparte con
+    // .map() sobre los arrays enteros y overallStatus suma vano + apoyo +
+    // cortante— pero nada lo guardaba. Sin `partitioned`: como rc-beams, pinta
+    // el vano Y el apoyo, asi que los mismos ids salen dos veces a proposito.
+    name: 'forjados (reticular)',
+    build: () => {
+      const r = calcForjados(forjadosDefaults);
+      return {
+        ui: <ForjadosResults result={r} />,
+        checks: [...r.vano.checks, ...r.apoyo.checks, ...r.shearChecks, ...r.infoChecks],
+      };
+    },
+  },
+  {
+    name: 'forjados (losa maciza)',
+    build: () => {
+      const inp = { ...forjadosDefaults, ...variantSwitchPatch(forjadosDefaults, 'maciza') };
+      const r = calcForjados(inp);
+      return {
+        ui: <ForjadosResults result={r} />,
+        checks: [...r.vano.checks, ...r.apoyo.checks, ...r.shearChecks, ...r.infoChecks],
+      };
     },
   },
 ];
