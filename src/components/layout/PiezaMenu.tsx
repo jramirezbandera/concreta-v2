@@ -13,6 +13,13 @@
  * guardado de este módulo y ninguno abierto—, para que un módulo que nunca has
  * guardado no cargue con un desplegable vacío.
  *
+ * El disparador va en CAJA —borde, fondo de campo, icono de documento y galón—
+ * y no como texto suelto. Suelto se leía como una coletilla del título del
+ * módulo: mismo cuerpo, mismo color, pegado a él, y nadie adivinaba que se
+ * podía pulsar. La caja es la misma que la de un campo del formulario
+ * (`bg-bg-primary` sobre la barra `bg-bg-surface`), que es lo que es: el
+ * selector de qué cálculo tienes abierto.
+ *
  * Saltar y empezar de nuevo REMONTAN el módulo (`pedirRemonte`): los módulos
  * leen el almacén sólo al montarse, así que sin eso se les cambiarían los datos
  * por debajo y seguirían enseñando los de antes.
@@ -23,7 +30,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, FilePlus2 } from 'lucide-react';
+import { Check, ChevronDown, FilePlus2, FileText } from 'lucide-react';
 import { showToast } from '../ui/Toast';
 import {
   hayTrabajoSinGuardar,
@@ -125,10 +132,21 @@ export function PiezaMenu() {
         aria-haspopup="menu"
         aria-label={abiertaAhora ? `Cálculo abierto: ${abiertaAhora.titulo}. Cambiar de cálculo` : 'Elegir un cálculo guardado'}
         title="Los cálculos de este módulo guardados en el anejo de la obra"
-        className="inline-flex max-w-[9rem] items-center gap-1 rounded px-1 text-[12.5px] text-text-secondary hover:text-text-primary transition-colors sm:max-w-[14rem]"
+        className={`inline-flex max-w-[9rem] items-center gap-1.5 rounded border px-2 py-[3px] text-[12px] leading-none transition-colors sm:max-w-[14rem] ${
+          abierto
+            ? 'border-accent bg-bg-primary text-text-primary'
+            : 'border-border-main bg-bg-primary text-text-secondary hover:border-accent hover:text-text-primary'
+        }`}
       >
-        <span className="truncate">{abiertaAhora ? abiertaAhora.titulo : 'Sin guardar'}</span>
-        <ChevronDown size={13} className="shrink-0" aria-hidden="true" />
+        <FileText size={12} className="shrink-0 text-text-disabled" aria-hidden="true" />
+        <span className={`truncate ${abiertaAhora ? '' : 'text-text-disabled'}`}>
+          {abiertaAhora ? abiertaAhora.titulo : 'Sin guardar'}
+        </span>
+        <ChevronDown
+          size={12}
+          className={`shrink-0 text-text-disabled transition-transform duration-150 ${abierto ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
       </button>
 
       {abierto && (
