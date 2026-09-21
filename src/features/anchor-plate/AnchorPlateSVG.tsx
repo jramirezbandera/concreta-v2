@@ -30,7 +30,17 @@ const COLORS = {
     profile:      'var(--color-chart-profile)',
     profile_stroke: 'var(--color-chart-rebar-dim)',
     bolt_c:       'var(--color-chart-section-fill)',
-    bolt_t:       'var(--color-state-fail)',
+    // Traccionada iba en `state-fail`. El predicado es `inTension && Ft > 0`:
+    // estar traccionada no es una tasa de utilización ni un aviso, así que no
+    // es un estado. DESIGN.md §131-133 y components/canvas/paleta.ts:9 dicen lo
+    // mismo: «los colores de estado son para el ESTADO: nunca para codificar
+    // magnitudes en el dibujo». Una barra al 12% se pintaba del mismo rojo que
+    // el INCUMPLE de la tabla —y el MISMO concepto físico, acero traccionado,
+    // es `state-ok` verde en encepados (los tirantes)—. Accent, que es el token
+    // con rol dual documentado para «estado calculado vivo», y leyenda debajo
+    // del dibujo, como en encepados y zapatas.
+    bolt_t:       'var(--color-accent)',
+    legend:       'var(--color-text-secondary)',
     bolt_stroke:  'var(--color-chart-stirrup)',
     rib:          'var(--color-chart-rebar-dim)',
     rib_hatch:    'var(--color-chart-rebar-faint)',
@@ -56,7 +66,8 @@ const COLORS = {
     profile:      '#cbd5e1',
     profile_stroke: '#334155',
     bolt_c:       '#ffffff',
-    bolt_t:       '#ef4444',
+    bolt_t:       '#0284c7',
+    legend:       '#475569',
     bolt_stroke:  '#334155',
     rib:          '#e2e8f0',
     rib_hatch:    '#64748b',
@@ -127,7 +138,8 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
   // los huecos en px y se escala lo que está en mm.
   const alzadoTopGap = 8;      // px, holgura entre el pie del pilar y la placa
   const pedestalBottomPx = 20; // px, macizo dibujado por debajo de hef
-  const alturaUtil = height - 2 * pad - panelGap - alzadoTopGap - pedestalBottomPx;
+  const legendH = 16;          // px, franja de la leyenda al pie
+  const alturaUtil = height - 2 * pad - panelGap - alzadoTopGap - pedestalBottomPx - legendH;
   const escala = Math.min(
     (width - 2 * pad) / Math.max(pedestalW, alzadoNaturalW),
     alturaUtil / (pedestalH + alzadoNaturalH),
@@ -745,6 +757,32 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
           );
         })()}
       </g>
+
+      {/* Leyenda — el dibujo codifica por color y forma (traccionada rellena,
+          comprimida hueca, bloque comprimido en accent a trazos) y hasta ahora
+          no lo explicaba en ninguna parte. Mismo sitio y mismo cuerpo que la de
+          PileCapSVG; IsolatedFootingSVG añade la suya «a11y para colorblind»,
+          que es el otro motivo: el relleno distingue sin depender del color. */}
+      {(() => {
+        const ly = height - 6;
+        const r = 4;
+        const cuerpo = mode === 'pdf' ? 6 : 9;
+        const paso = mode === 'pdf' ? 108 : 150;
+        const x0 = 12;
+        return (
+          <g fill={C.legend} fontSize={cuerpo}>
+            <circle cx={x0 + r} cy={ly - 3} r={r} fill={C.bolt_t} stroke={C.bolt_stroke} strokeWidth={1} />
+            <text x={x0 + 2 * r + 5} y={ly}>barra traccionada</text>
+            <circle cx={x0 + paso + r} cy={ly - 3} r={r} fill={C.bolt_c} stroke={C.bolt_stroke} strokeWidth={1} />
+            <text x={x0 + paso + 2 * r + 5} y={ly}>comprimida</text>
+            <rect
+              x={x0 + 2 * paso} y={ly - 7} width={2 * r} height={2 * r}
+              fill={C.compression} stroke={C.compression_stroke} strokeWidth={1} strokeDasharray="2 2"
+            />
+            <text x={x0 + 2 * paso + 2 * r + 5} y={ly}>bloque comprimido de hormigón</text>
+          </g>
+        );
+      })()}
     </svg>
   );
 }
