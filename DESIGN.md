@@ -110,7 +110,7 @@ los sobrescribe bajo `html[data-theme="dark"]`.
 | `text-primary` | `#0f172a` | valores, títulos |
 | `text-secondary` | `#475569` | etiquetas, nav |
 | `text-disabled` | `#94a3b8` | inactivos |
-| `accent` / `-hover` | `#0284c7` / `#0369a1` | sky-600/700 — AA en blanco; mantiene el **rol dual** (UI + anotación SVG) en un solo token |
+| `accent` / `-hover` | `#0369a1` / `#075985` | sky-700/800 — AA en las tres superficies (5,93 / 5,67 / 5,42:1); mantiene el **rol dual** (UI + anotación SVG) en un solo token. *Antes sky-600 `#0284c7`, que esta tabla daba por «AA en blanco» y no lo era: 4,10:1. El acento también escribe los valores derivados (qd, cotas, `tabla C.5`) a 8,5–11,5 px, así que es texto y le toca 4,5:1 — corregido en el design review 2026-09-21.* |
 | `state-ok` | `#15803d` | green-700 para texto/veredicto; green-600 en rellenos grandes |
 | `state-warn` | `#b45309` | amber-700 |
 | `state-fail` | `#dc2626` | red-600 |

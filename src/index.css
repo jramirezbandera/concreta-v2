@@ -350,8 +350,15 @@ html, body { overflow-x: hidden; }
      ambiental del veredicto (4,32 en verde, 4,71 en rojo). Este llega a AA en
      todas ellas manteniendo el escalón por debajo de text-secondary. */
   --color-text-disabled: #586880;  /* 5,67:1 primary · 5,41 surface · 5,17 elevated */
-  --color-accent: #0284c7;
-  --color-accent-hover: #0369a1;
+  /* El acento tiene rol doble: UI interactiva y anotación del SVG, pero además
+     es el color en el que se escriben los valores DERIVADOS —qd, las cotas, la
+     referencia de tabla—, o sea texto, y encima a 8,5-11,5 px. El valor
+     anterior (#0284c7, sky-600) no llegaba a AA en ninguna superficie del tema:
+     4,10:1 en bg-primary, 3,91 en bg-surface y 3,74 en bg-elevated, aunque
+     DESIGN.md lo daba por «AA en blanco». Baja un escalón a sky-700 y el hover,
+     detrás de él, a sky-800. Ónice no se toca: #38bdf8 da 9,12:1. */
+  --color-accent: #0369a1;       /* 5,93:1 primary · 5,67 surface · 5,42 elevated */
+  --color-accent-hover: #075985; /* 7,56:1 primary · 7,23 surface · 6,90 elevated */
   /* Primary-button surface, decoupled from the link accent so button text stays
      AA in light: white on #0369a1 ≈ 5.7:1; white on the link accent #0284c7 is
      only ~4.1:1 (fails). Dark keeps the bright accent with near-black text. */
