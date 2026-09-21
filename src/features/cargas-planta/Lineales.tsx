@@ -67,7 +67,7 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
       </header>
 
       {ayuda && (
-        <p className="border-b border-border-sub px-4 py-2 text-[11.5px] leading-snug text-text-disabled">
+        <p className="max-w-[56ch] border-b border-border-sub px-4 py-2 text-[11.5px] leading-snug text-text-disabled">
           Cerramientos de fachada, muros, tabiques pesados, petos y barandillas: cargas por metro que el programa de
           cálculo recibe sobre vigas y bordes de forjado. Un muro se mide por metro cuadrado: teclee lo que pesa un
           metro cuadrado de fábrica —lo que la norma llama su alzado— y la altura de la planta, y la carga por metro

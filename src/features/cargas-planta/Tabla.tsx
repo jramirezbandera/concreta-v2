@@ -133,7 +133,7 @@ export function Tabla({
   return (
     <div className="flex min-w-0 flex-col">
       {ayuda && (
-        <p className="px-1 pb-2 text-[11.5px] leading-snug text-text-disabled">
+        <p className="max-w-[56ch] px-1 pb-2 text-[11.5px] leading-snug text-text-disabled">
           Una fila por zona de carga. Diga qué forjado tiene, qué hay encima y para qué se usa: la norma pone en azul
           el peso propio, la sobrecarga y el valor de cálculo qd que se lleva al programa. Lo de la izquierda pesa
           siempre (carga permanente G); lo de la derecha va y viene (sobrecarga variable Q). Si una planta tiene partes

@@ -434,7 +434,7 @@ export function CargasPlantaModule() {
               <span className="shrink-0 font-mono text-[10px] uppercase text-accent" style={{ letterSpacing: '0.07em' }}>
                 Empiece por las plantas
               </span>
-              <p className="text-[12px] leading-snug text-text-secondary md:min-w-0 md:flex-1">
+              <p className="max-w-[56ch] text-[12px] leading-snug text-text-secondary md:min-w-0 md:flex-1">
                 Cada fila es una planta: diga qué forjado tiene, qué hay encima y para qué se usa. La norma pone el resto
                 en azul y la sección lo dibuja. ¿Prefiere ver un caso completo? Carga un edificio de
                 viviendas en Aranda de Duero con un vaso de piscina en planta baja.
@@ -542,7 +542,7 @@ export function CargasPlantaModule() {
             >
               <ul className="flex list-disc flex-col gap-1.5 pb-2 pl-4">
                 {notas.map((n) => (
-                  <li key={n} className="text-[11.5px] leading-snug text-text-secondary">
+                  <li key={n} className="max-w-[56ch] text-[11.5px] leading-snug text-text-secondary">
                     {n}
                   </li>
                 ))}
