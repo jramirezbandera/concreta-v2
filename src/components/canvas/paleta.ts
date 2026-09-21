@@ -33,9 +33,16 @@ export function mezcla(color: string, porcentaje: number): string {
   return `color-mix(in srgb, ${color} ${Math.round(porcentaje)}%, transparent)`;
 }
 
-/** Fuente de los rótulos: las de la app, heredadas por los `<text>` del dibujo. */
-export const FUENTE_MONO = 'var(--font-mono)';
-export const FUENTE_SANS = 'var(--font-sans)';
+/**
+ * Fuente de los rótulos: las de la app, heredadas por los `<text>` del dibujo.
+ *
+ * Con respaldo a propósito. Los exportadores rasterizan el SVG serializándolo
+ * a un data-URL (`embedSvgAsImage` en lib/pdf/utils.ts), y ahí el clon vive
+ * FUERA del documento: ninguna `var(--…)` resuelve. Sin el segundo argumento
+ * el PDF salía en la fuente por defecto del navegador.
+ */
+export const FUENTE_MONO = 'var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)';
+export const FUENTE_SANS = 'var(--font-sans, system-ui, -apple-system, sans-serif)';
 
 /**
  * Número con coma decimal, como en toda la interfaz. Se re-exporta el de

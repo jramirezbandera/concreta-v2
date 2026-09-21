@@ -170,11 +170,15 @@ export function ForjadosModule() {
             'lg:block',
           ].join(' ')}
         >
+          {/* Banda de alto FIJO. Antes el alto salía del contenido y el ancho
+              iba topado a 480 px: el dibujo usaba la mitad del lienzo y la
+              banda saltaba al cambiar el canto, empujando la tabla. Ahora el
+              SVG recibe los dos ejes y escala para caber en ambos. */}
           <div
             ref={canvasRef}
-            className="hidden lg:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4"
+            className="hidden lg:flex items-center justify-center border-b border-border-main canvas-dot-grid h-[372px] py-4 px-4"
           >
-            <ForjadosSVG inp={state} result={result} section={section} width={Math.min(svgW, 480)} mode="screen" />
+            <ForjadosSVG inp={state} result={result} section={section} width={svgW} height={340} mode="screen" />
           </div>
           <div className="px-6 py-5">
             <ForjadosResults result={result} />
@@ -183,7 +187,7 @@ export function ForjadosModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide canvas-dot-grid lg:hidden flex flex-col items-center py-4 px-4 gap-4">
+          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide canvas-dot-grid lg:hidden flex flex-col items-center justify-center py-4 px-4 gap-4">
             <ForjadosSVG inp={state} result={result} section={section} width={mobileW} mode="screen" />
           </div>
         )}

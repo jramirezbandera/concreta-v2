@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- `anchoEstimado` es la medida con la que los dibujos reservan el margen de sus rótulos: separarla de las primitivas que la usan alejaría la cifra de su motivo. Mismo criterio que `viento-nieve/lienzo/primitivas.tsx`. HMR full-reload aceptable. */
 /**
  * Primitivas de dibujo compartidas por los lienzos de la app: rótulos,
  * cabeceras, flechas, cotas y la línea de rasante. Las puntas de flecha y los
@@ -56,14 +57,24 @@ export function Flecha({ x1, y1, x2, y2, punta, color = COLOR.accent, grosor = 1
   return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={grosor} markerEnd={punta} strokeDasharray={discontinua ? '4 3' : undefined} />;
 }
 
+/**
+ * Ancho aproximado de un rótulo, px. Mono ocupa ~0,6 em por carácter y sans
+ * ~0,52; el 5 % extra es por la negrita. Sobra un poco a propósito: mejor un
+ * hueco que un solape. Sirve para reservar el margen del lienzo ANTES de
+ * escribir el texto, que es la única forma de que el `viewBox` no lo recorte.
+ */
+export function anchoEstimado(texto: string, tam: number, mono = false, peso: 400 | 500 | 600 = 400): number {
+  return texto.length * tam * (mono ? 0.6 : 0.52) * (peso >= 600 ? 1.05 : 1);
+}
+
 /** Cota horizontal entre x1 y x2, con el texto encima. */
-export function CotaH({ x1, x2, y, texto, color = COLOR.cota }: { x1: number; x2: number; y: number; texto: string; color?: string }) {
+export function CotaH({ x1, x2, y, texto, color = COLOR.cota, colorTexto = COLOR.cotaTexto }: { x1: number; x2: number; y: number; texto: string; color?: string; colorTexto?: string }) {
   return (
     <g>
       <line x1={x1} y1={y} x2={x2} y2={y} stroke={color} strokeWidth={1} />
       <line x1={x1} y1={y - 4} x2={x1} y2={y + 4} stroke={color} strokeWidth={1} />
       <line x1={x2} y1={y - 4} x2={x2} y2={y + 4} stroke={color} strokeWidth={1} />
-      <Rotulo x={(x1 + x2) / 2} y={y - 5} tam={10} color={COLOR.cotaTexto} mono ancla="middle">
+      <Rotulo x={(x1 + x2) / 2} y={y - 5} tam={10} color={colorTexto} mono ancla="middle">
         {texto}
       </Rotulo>
     </g>
@@ -71,14 +82,21 @@ export function CotaH({ x1, x2, y, texto, color = COLOR.cota }: { x1: number; x2
 }
 
 /** Cota vertical entre y1 e y2, con el texto a un lado. */
-export function CotaV({ x, y1, y2, texto, lado = 'derecha', color = COLOR.cota }: { x: number; y1: number; y2: number; texto: string; lado?: 'derecha' | 'izquierda'; color?: string }) {
+export function CotaV({ x, y1, y2, texto, lado = 'derecha', color = COLOR.cota, colorTexto = COLOR.cotaTexto, anclaTexto, yTexto }: { x: number; y1: number; y2: number; texto: string; lado?: 'derecha' | 'izquierda'; color?: string; colorTexto?: string; anclaTexto?: { x: number; ancla: 'start' | 'end' }; yTexto?: number }) {
   const derecha = lado === 'derecha';
   return (
     <g>
       <line x1={x} y1={y1} x2={x} y2={y2} stroke={color} strokeWidth={1} />
       <line x1={x - 4} y1={y1} x2={x + 4} y2={y1} stroke={color} strokeWidth={1} />
       <line x1={x - 4} y1={y2} x2={x + 4} y2={y2} stroke={color} strokeWidth={1} />
-      <Rotulo x={derecha ? x + 6 : x - 6} y={(y1 + y2) / 2 + 3} tam={10} color={COLOR.cotaTexto} mono ancla={derecha ? 'start' : 'end'}>
+      <Rotulo
+        x={anclaTexto ? anclaTexto.x : derecha ? x + 6 : x - 6}
+        y={yTexto ?? (y1 + y2) / 2 + 3}
+        tam={10}
+        color={colorTexto}
+        mono
+        ancla={anclaTexto ? anclaTexto.ancla : derecha ? 'start' : 'end'}
+      >
         {texto}
       </Rotulo>
     </g>
