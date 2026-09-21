@@ -25,7 +25,7 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { CATALOGO_PERMANENTES } from './catalogos';
 import { columnasEncima } from './columnas';
 import { FilaZona } from './FilaZona';
-import { BOTON_MENOR, INPUT, SEP, TD, TH, TH_BANDA, TH_DER, TH_GRUPO, TH_NUM, TH_QD_STICKY } from './estilos';
+import { BOTON_MENOR, INPUT, SEP, TH, TH_BANDA, TH_DER, TH_GRUPO, TH_NUM, TH_QD_STICKY } from './estilos';
 import type { NievePublicada } from './nievePub';
 import { cotasEdificio } from '../../lib/edificio';
 import { edificioDePlantas, rotuloDeZona, type PlantaUI, type ZonaUI } from './state';
@@ -98,13 +98,6 @@ export function Tabla({
   const columnas = columnasEncima(plantas);
   const porId = new Map<string, ZonaCargasResuelta>();
   resultado.plantas.forEach((p) => p.zonas.forEach((z) => z.id && porId.set(z.id, z)));
-  /**
-   * Columnas de la tabla: planta, zona, forjado, canto, PP, las de encima (al
-   * menos una, aunque no haya ninguna), uso, q uso, nieve, G, Q y qd. Este
-   * número es el `colSpan` de la ficha y del pie: si se queda corto, las dos
-   * últimas columnas se quedan fuera de la banda.
-   */
-  const anchoTotal = 12 + Math.max(1, columnas.length);
   /** La cota de cada planta sale de las alturas de las de debajo: una vez para toda la mesa. */
   const cotas = cotasEdificio(edificioDePlantas(plantas).plantas);
   /**
@@ -344,50 +337,52 @@ export function Tabla({
               );
             })}
 
-            <tr>
-              <td colSpan={anchoTotal} className={TD + ' border-b-0'}>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                  {/* En el acento, como «+ Añadir elemento» de materiales y de
-                      incendio: al pie de la tabla y en gris pasaba por una nota
-                      y no por lo que es, la manera de meter una planta más. */}
-                  <button type="button" onClick={onAnadirPlanta} className={BOTON_ANADIR}>
-                    + Añadir planta
-                  </button>
-                  <select
-                    value=""
-                    aria-label="Añadir una carga permanente a todas las zonas"
-                    title="Añade la carga a las zonas que no la tienen, con el valor de la norma"
-                    className={INPUT + ' max-w-[280px]'}
-                    onChange={(ev) => ev.target.value && onAnadirColumna(ev.target.value)}
-                  >
-                    <option value="">+ Añadir una carga encima del forjado…</option>
-                    {CATALOGO_PERMANENTES.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.etiqueta}
-                        {/* El valor que se va a meter en la celda: va en las
-                            unidades en que se va a ver allí, no en las del
-                            catálogo. */}
-                        {c.valor !== null
-                          ? ` (${mostrar(c.valor, 'areaLoad')} ${uQ})`
-                          : c.porEspesor !== null
-                            ? ` (${mostrar(c.porEspesor, 'weightDensity')} ${uD})`
-                            : ''}
-                      </option>
-                    ))}
-                  </select>
-                  {ayuda && (
-                    <span className="text-[10.5px] text-text-disabled">
-                      La sección dibuja las plantas en este orden, de arriba abajo: la cubierta la primera y la planta
-                      baja la última. Use las flechas de cada planta para colocarlas como en obra. Una planta con
-                      partes distintas lleva una zona por parte.
-                    </span>
-                  )}
-                </div>
-              </td>
-            </tr>
           </tbody>
         </table>
       </div>
+      {/* La barra de acciones va FUERA del scroll horizontal. Dentro era una
+          fila más de la tabla, así que heredaba su ancho mínimo: al desplazar
+          la mesa para ver la sobrecarga, «+ Añadir planta» y el desplegable de
+          cargas se iban por la izquierda, y el pie se salía por la derecha
+          (medido: 203 caracteres de línea y 326 px fuera de la ventana a 768).
+          Además no son datos tabulares y no pintan nada en el <tbody>. */}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1">
+              {/* En el acento, como «+ Añadir elemento» de materiales y de
+                  incendio: al pie de la tabla y en gris pasaba por una nota
+                  y no por lo que es, la manera de meter una planta más. */}
+              <button type="button" onClick={onAnadirPlanta} className={BOTON_ANADIR}>
+                + Añadir planta
+              </button>
+              <select
+                value=""
+                aria-label="Añadir una carga permanente a todas las zonas"
+                title="Añade la carga a las zonas que no la tienen, con el valor de la norma"
+                className={INPUT + ' max-w-[280px]'}
+                onChange={(ev) => ev.target.value && onAnadirColumna(ev.target.value)}
+              >
+                <option value="">+ Añadir una carga encima del forjado…</option>
+                {CATALOGO_PERMANENTES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.etiqueta}
+                    {/* El valor que se va a meter en la celda: va en las
+                        unidades en que se va a ver allí, no en las del
+                        catálogo. */}
+                    {c.valor !== null
+                      ? ` (${mostrar(c.valor, 'areaLoad')} ${uQ})`
+                      : c.porEspesor !== null
+                        ? ` (${mostrar(c.porEspesor, 'weightDensity')} ${uD})`
+                        : ''}
+                  </option>
+                ))}
+              </select>
+              {ayuda && (
+                <span className="max-w-[56ch] text-[10.5px] leading-snug text-text-disabled">
+                  La sección dibuja las plantas en este orden, de arriba abajo: la cubierta la primera y la planta
+                  baja la última. Use las flechas de cada planta para colocarlas como en obra. Una planta con
+                  partes distintas lleva una zona por parte.
+                </span>
+              )}
+            </div>
 
       {resultado.errores.map((e) => (
         <p key={e} className="px-1 pt-2 text-[11.5px] leading-snug text-state-fail">
