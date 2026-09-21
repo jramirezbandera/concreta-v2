@@ -140,7 +140,7 @@ export function FilaZona({
             unit="m"
             min={0}
             allowEmpty
-            widthClass="w-10"
+            widthClass="w-10 max-lg:w-13"
           />
           {p && <span className="font-mono text-[9px] text-accent">= {mostrar(p.valor)}</span>}
         </span>
@@ -155,7 +155,7 @@ export function FilaZona({
           quantity="areaLoad"
           min={0}
           allowEmpty
-          widthClass="w-11"
+          widthClass="w-11 max-lg:w-13"
           hideUnit
         />
       </span>
@@ -245,7 +245,7 @@ export function FilaZona({
                   min={0}
                   precision={2}
                   allowEmpty
-                  widthClass="w-12"
+                  widthClass="w-12 max-lg:w-13"
                   hideUnit
                 />
               </span>
@@ -320,7 +320,7 @@ export function FilaZona({
           <span className={LINEA_DER + ' font-mono text-[11px] text-text-disabled'}>—</span>
         ) : (
           <span className={CAJA_DER}>
-            <RawNumberInput value={z.forjado.canto} onChange={(canto) => onZona({ forjado: { ...z.forjado, canto } })} ariaLabel={`Canto del forjado de ${quien}`} min={0} max={200} widthClass="w-10" hideUnit />
+            <RawNumberInput value={z.forjado.canto} onChange={(canto) => onZona({ forjado: { ...z.forjado, canto } })} ariaLabel={`Canto del forjado de ${quien}`} min={0} max={200} widthClass="w-10 max-lg:w-13" hideUnit />
           </span>
         )}
       </td>
@@ -332,7 +332,7 @@ export function FilaZona({
             ariaLabel={`Peso propio de ${quien} (${uQ})`}
             quantity="areaLoad"
             min={0}
-            widthClass="w-12"
+            widthClass="w-12 max-lg:w-13"
             hideUnit
           />
           {z.forjado.ppManual !== null ? (

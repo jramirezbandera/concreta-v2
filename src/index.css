@@ -344,7 +344,12 @@ html, body { overflow-x: hidden; }
   --color-border-sub: #e2e8f0;
   --color-text-primary: #0f172a;
   --color-text-secondary: #475569;
-  --color-text-disabled: #64748b;  /* slate-500 ~4.8:1 on white — labels/refs/helptext stay AA */
+  /* Labels/refs/helptext y las cabeceras de grupo de 10px. El valor anterior
+     (#64748b) sólo llegaba a AA sobre BLANCO: 4,76:1 en bg-primary pero 4,55
+     en bg-surface y 4,34 en bg-elevated, y por debajo de eso sobre el tinte
+     ambiental del veredicto (4,32 en verde, 4,71 en rojo). Este llega a AA en
+     todas ellas manteniendo el escalón por debajo de text-secondary. */
+  --color-text-disabled: #586880;  /* 5,67:1 primary · 5,41 surface · 5,17 elevated */
   --color-accent: #0284c7;
   --color-accent-hover: #0369a1;
   /* Primary-button surface, decoupled from the link accent so button text stays
@@ -449,7 +454,9 @@ html[data-theme="dark"] {
   --color-border-sub: #202027;   /* divider — below border-main, still reads as a card edge */
   --color-text-primary: #fafafa;
   --color-text-secondary: #9a9ea7;
-  --color-text-disabled: #6b6f79; /* labels/refs/helptext + 10px uppercase group headers */
+  /* Ídem en Ónice. El anterior (#6b6f79) no llegaba a AA en NINGUNA superficie
+     del tema: 3,89:1 en bg-primary, 3,59 en bg-surface y 3,23 en bg-elevated. */
+  --color-text-disabled: #8a8e99; /* 5,96:1 primary · 5,38 surface · 4,95 elevated */
   --color-accent: #38bdf8;
   --color-accent-hover: #0ea5e9;
   --color-btn-primary-bg: #38bdf8;
