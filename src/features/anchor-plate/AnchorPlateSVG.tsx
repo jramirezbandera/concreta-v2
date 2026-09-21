@@ -41,7 +41,14 @@ const COLORS = {
     neutral_axis: 'var(--color-chart-label)',   // M9: distinto del compression_stroke
     cone_stroke:  'var(--color-chart-stirrup)',
     text:         'var(--color-text-primary)',
-    dim:          'var(--color-chart-rebar-faint)',
+    // Las cotas iban en `chart-rebar-faint`, que index.css documenta como
+    // «secondary/side bars»: armadura, no anotación. En el tema oscuro vale
+    // #6b6f79 y da 3,89:1 sobre el lienzo (#0c0c0e), por debajo del 4,5:1 de
+    // AA para texto de 9 px, así que TODAS las cotas del dibujo —a, b, t,
+    // hef— quedaban por debajo del mínimo en el tema firma. `chart-dim-text`
+    // es el token que el sistema tiene para esto (es el que usan CotaH/CotaV
+    // de components/canvas/primitivas) y da 7,28:1.
+    dim:          'var(--color-chart-dim-text)',
   },
   pdf: {
     plate:        '#f1f5f9',
