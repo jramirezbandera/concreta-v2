@@ -84,6 +84,15 @@ const CHECK_SHORT_LABEL: Record<string, string> = {
   'pullout':           'pull-out',
   'splitting':         'splitting',
   'stiffener':         'rigidizador',
+  // Los seis que el panel no pintaba: sin entrada aquí la cabecera enseñaba el
+  // id interno en crudo («util. máx. 321% · concrete-interaction») en una
+  // interfaz en castellano.
+  'plate-tension-tstub':    'tracción placa (T-stub)',
+  'concrete-edge-breakout': 'rotura de borde',
+  'concrete-pryout':        'pry-out',
+  'concrete-breakout-v':    'breakout cortante',
+  'concrete-interaction':   'interacción N+V hormigón',
+  'solver-equilibrium':     'equilibrio del nudo',
 };
 
 export function AnchorPlateResults({ result }: Props) {
@@ -137,11 +146,35 @@ export function AnchorPlateResults({ result }: Props) {
     ? CHECK_SHORT_LABEL[governingCheck.id] ?? governingCheck.id
     : null;
 
-  // D1 — group checks into 4 sub-bands (design review finding)
-  const plateChecks   = checks.filter((c) => c.id === 'plate-compression' || c.id === 'plate-bending');
-  const boltChecks    = checks.filter((c) => c.id === 'bolt-tension' || c.id === 'bolt-shear' || c.id === 'bolt-interaction');
-  const anchorChecks  = checks.filter((c) => c.id === 'anchorage-length' || c.id === 'concrete-cone' || c.id === 'pullout' || c.id === 'splitting');
-  const stiffChecks   = checks.filter((c) => c.id === 'stiffener');
+  // D1 — group checks into sub-bands (design review finding).
+  //
+  // El reparto era una lista blanca de ids: las comprobaciones que no caían en
+  // ninguna de las cuatro listas desaparecían de la tabla, pero seguían
+  // contando para `worstUtil` y las seguía pintando el PDF. Con los valores por
+  // defecto la cabecera decía «INCUMPLE · util. máx. 321% · concrete-inter-
+  // action» y ningún renglón pasaba del 99%: el proyectista no podía saber qué
+  // tocar. Se caían seis ids —plate-tension-tstub, concrete-edge-breakout,
+  // concrete-pryout, concrete-breakout-v, concrete-interaction y
+  // solver-equilibrium—. Es el mismo fallo que documenta
+  // `src/test/features/checksVisible.dom.test.tsx` para empresillado,
+  // rc-columns y retaining-wall; este panel no estaba enrolado en ese test y
+  // ahora sí. Patrón `placed`/`unplaced` de RCColumnsResults.
+  const plateChecks  = checks.filter((c) => ['plate-compression', 'plate-bending', 'plate-tension-tstub'].includes(c.id));
+  const boltChecks   = checks.filter((c) => ['bolt-tension', 'bolt-shear', 'bolt-interaction'].includes(c.id));
+  const anchorChecks = checks.filter((c) => [
+    'anchorage-length', 'concrete-cone', 'pullout', 'splitting',
+    'concrete-edge-breakout', 'concrete-pryout', 'concrete-breakout-v', 'concrete-interaction',
+  ].includes(c.id));
+  const stiffChecks  = checks.filter((c) => c.id === 'stiffener');
+
+  // Red de seguridad: lo que el motor añada y este panel no coloque, se pinta
+  // igual al final. El veredicto se calcula sobre TODAS las filas, así que
+  // ninguna puede quedarse fuera de la pantalla sin más.
+  const placed = new Set([
+    ...plateChecks.map((c) => c.id), ...boltChecks.map((c) => c.id),
+    ...anchorChecks.map((c) => c.id), ...stiffChecks.map((c) => c.id),
+  ]);
+  const unplaced = checks.filter((c) => !placed.has(c.id));
 
   const tensionedBolts = solver.bolts.filter((b) => b.inTension && b.Ft > 0);
 
@@ -225,6 +258,10 @@ export function AnchorPlateResults({ result }: Props) {
       {/* Group 4 — Rigidizadores */}
       <GroupHeader label={`Rigidizadores (${stiffChecks.length})`} />
       {stiffChecks.map((c) => <CheckRowItem key={c.id} check={c} />)}
+
+      {/* Cualquier comprobación futura no colocada arriba: nunca invisible. */}
+      {unplaced.length > 0 && <GroupHeader label="Otras comprobaciones" />}
+      {unplaced.map((c) => <CheckRowItem key={c.id} check={c} />)}
 
       {/* Solver summary values */}
       <GroupHeader label="Estado del nudo" />

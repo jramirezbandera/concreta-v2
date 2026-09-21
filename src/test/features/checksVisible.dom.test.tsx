@@ -30,6 +30,7 @@ import { SteelBeamsResults } from '../../features/steel-beams/SteelBeamsResults'
 import { SteelColumnsResults } from '../../features/steel-columns/SteelColumnsResults';
 import { RockfillWallResults } from '../../features/rockfill-wall/RockfillWallResults';
 import { RetainingWallResults } from '../../features/retaining-wall/RetainingWallResults';
+import { AnchorPlateResults } from '../../features/anchor-plate/AnchorPlateResults';
 
 import { calcMicropiles } from '../../lib/calculations/micropiles';
 import { calcRetainingWall } from '../../lib/calculations/retainingWall';
@@ -38,11 +39,12 @@ import { calcRCBeam } from '../../lib/calculations/rcBeams';
 import { calcSteelBeam } from '../../lib/calculations/steelBeams';
 import { calcSteelColumn } from '../../lib/calculations/steelColumns';
 import { calcRockfillWall } from '../../lib/calculations/rockfillWall';
+import { calcAnchorPlate } from '../../lib/calculations/anchorPlate';
 
 import {
   micropilesDefaults, micropilesSoilDefaults, punchingDefaults,
   rcBeamDefaults, steelBeamDefaults, steelColumnDefaults,
-  rockfillWallDefaults, retainingWallDefaults,
+  rockfillWallDefaults, retainingWallDefaults, anchorPlateDefaults,
 } from '../../data/defaults';
 
 interface Case {
@@ -178,6 +180,18 @@ const CASES: Case[] = [
         ui: <MemoryRouter><RetainingWallResults result={r} inp={retainingWallDefaults} /></MemoryRouter>,
         checks: r.checks,
       };
+    },
+  },
+  {
+    // design review 2026-09-21: el panel repartia por lista blanca de ids y se
+    // dejaba fuera seis comprobaciones. Con estos mismos valores por defecto la
+    // cabecera decia «INCUMPLE · util. max. 321% · concrete-interaction» y
+    // ningun renglon pintado pasaba del 99%.
+    name: 'anchor-plate',
+    partitioned: true,
+    build: () => {
+      const r = calcAnchorPlate(anchorPlateDefaults);
+      return { ui: <AnchorPlateResults result={r} />, checks: r.checks };
     },
   },
 ];
