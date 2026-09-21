@@ -41,9 +41,17 @@ export const TH = 'border-b border-border-main px-1.5 pb-1 align-bottom text-lef
 export const TH_NUM = `${TH} text-right`;
 export const TH_DER = `${TH} text-right text-accent`;
 
-/** Cabecera de grupo: la pregunta en lenguaje de obra que manda sobre varias columnas. */
+/**
+ * Cabecera de grupo: la pregunta en lenguaje de obra que manda sobre varias
+ * columnas. En caja alta NO: son las cadenas más largas de la cabecera —«¿Qué
+ * hay encima? · kN/m² · C.5» son treinta caracteres— y en versales se pierde
+ * la silueta de las palabras, que es por donde se leen de un vistazo. Además
+ * son preguntas, y una pregunta gritada no se lee como una pregunta. Deja
+ * también tres bandas de versales seguidas (banda, grupo y columna) en dos,
+ * que es lo que hacía que los tres niveles se confundieran entre sí.
+ */
 export const TH_GRUPO =
-  'px-1.5 pb-0.5 pt-1 text-left align-bottom font-mono text-[9.5px] uppercase text-text-disabled border-l border-border-sub';
+  'px-1.5 pb-0.5 pt-1 text-left align-bottom font-mono text-[9.5px] text-text-disabled border-l border-border-sub';
 
 /**
  * La banda de arriba del todo: de qué es cada mitad de la mesa. A la izquierda
