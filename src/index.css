@@ -308,12 +308,20 @@ html.theme-switching *::after {
 }
 
 /* ── Móvil: usabilidad de formularios ──
-   El auto-zoom de iOS al enfocar un input (que además ensanchaba la página) se
-   desactiva a nivel viewport con `maximum-scale=1, user-scalable=no` (ver
-   index.html), así que aquí ya no hace falta llegar a 16px. Fijamos los controles
-   a 14px en móvil/tablet (< lg): algo más grandes que en escritorio para tocar,
-   sin resultar enormes. `!important` porque debe ganar a las utilidades Tailwind
-   `text-[12px]` de los inputs; regla de un único propósito y scope acotado. */
+   Fijamos los controles a 14px en móvil/tablet (< lg): algo más grandes que en
+   escritorio para tocar, sin resultar enormes. `!important` porque debe ganar a
+   las utilidades Tailwind `text-[12px]` de los inputs; regla de un único
+   propósito y scope acotado.
+
+   OJO al tocar este valor: las cajas de las tablas se miden para él. Subirlo
+   sin ensanchar las cajas las hace recortar su propio número, que es lo que
+   pasaba en Cargas por planta (las de w-11/w-12 cortaban «5,00» en «5,0»).
+
+   Estos 14px NO son 16 porque el viewport llevaba `maximum-scale=1,
+   user-scalable=no` para matar el auto-zoom de iOS al enfocar. Eso se ha
+   quitado (bloqueaba ampliar con los dedos, WCAG 1.4.4). Si el salto al
+   enfocar resulta molesto en iPhone, la salida es subir A 16px aquí y
+   reensanchar las cajas, no volver a cerrar el zoom. */
 @media (max-width: 1023px) {
   input:not([type="checkbox"]):not([type="radio"]),
   select,
