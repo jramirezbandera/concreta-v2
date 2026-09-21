@@ -147,6 +147,24 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
   const scalePlanta = escala;
   const scaleAlzado = escala;
 
+  // ─── Rótulos que no se pisan ─────────────────────────────────────────────
+  //
+  // El dibujo colocaba cada rótulo en coordenadas fijas y no comprobaba nada,
+  // así que `fjd=...` se salía por el borde derecho de la placa y se metía en
+  // la cota «b = ...» (5 colisiones medidas con getBBox), y «EN (φ=...)» caía
+  // sobre la línea de cota «a = ...» y su marca derecha (3 colisiones).
+  //
+  // Se estima el ancho con el paso de la monoespaciada —0,6 · cuerpo, el mismo
+  // criterio que PileCapSVG y el lienzo de viento y nieve— y se cede en dos
+  // pasos: primero se quita la unidad, y si aún no cabe se reduce el cuerpo
+  // hasta el 70 %. Por debajo no se encoge más: un rótulo ilegible no es mejor
+  // que uno pisado.
+  const anchoEstimado = (t: string, cuerpoPx: number) => t.length * cuerpoPx * 0.6;
+  const sinUnidad = (t: string) => {
+    const corte = t.lastIndexOf(' ');
+    return corte > 0 ? t.slice(0, corte) : t;
+  };
+
   // ─── PLANTA (arriba) ─────────────────────────────────────────────────────
   const pw = pedestalW * escala;
   const ph = pedestalH * escala;
@@ -254,8 +272,21 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
           // coincidía con la cota lateral "b = ..." (también en pCy) y los
           // textos se solapaban.
           const cy_mm = y_min + (y_max - y_min) * 0.3;
-          const lblX = pCx + cx_mm * scalePlanta;
           const lblY = pCy + cy_mm * scalePlanta;
+          // El bloque comprimido suele ser una cuña estrecha contra el borde de
+          // la placa, así que un rótulo centrado en su centroide se salía por
+          // ese borde y se metía en la cota «b». Cede la unidad, luego cuerpo, y
+          // en última instancia se recoloca para quedar dentro de la placa.
+          const fjdLargo = `fjd=${formatQuantity(result.solver.fjd_MPa ?? 0, 'stress', system)}`;
+          const huecoFjd = plateW * 0.9;
+          const fjdTexto = anchoEstimado(fjdLargo, 9) <= huecoFjd ? fjdLargo : sinUnidad(fjdLargo);
+          const anchoFjd = anchoEstimado(fjdTexto, 9);
+          const fjdCuerpo = anchoFjd <= huecoFjd ? 9 : Math.max(9 * 0.7, (huecoFjd * 9) / anchoFjd);
+          const semiFjd = anchoEstimado(fjdTexto, fjdCuerpo) / 2;
+          const lblX = Math.min(
+            Math.max(pCx + cx_mm * scalePlanta, pCx - plateW / 2 + semiFjd + 2),
+            pCx + plateW / 2 - semiFjd - 2,
+          );
           return (
             <>
               <polygon
@@ -273,13 +304,13 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                   x={lblX}
                   y={lblY}
                   fill={C.compression_stroke}
-                  fontSize={9}
+                  fontSize={fjdCuerpo}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   opacity={0.95}
                   style={{ paintOrder: 'stroke', stroke: mode === 'pdf' ? '#ffffff' : 'var(--color-bg-primary)', strokeWidth: 2 }}
                 >
-                  {`fjd=${formatQuantity(result.solver.fjd_MPa, 'stress', system)}`}
+                  {fjdTexto}
                 </text>
               )}
             </>
@@ -326,12 +357,33 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
           const y1 = d * sin - L * cos;
           // Label position: extremo +sin de la línea, ligeramente hacia afuera.
           const labelMm = 1.05 * (inp.plate_a / 2);
-          const lbx = pCx + (d * cos + labelMm * sin) * scalePlanta;
-          const lby = pCy + (d * sin - labelMm * cos) * scalePlanta;
+          const lbxCrudo = pCx + (d * cos + labelMm * sin) * scalePlanta;
+          const lbyCrudo = pCy + (d * sin - labelMm * cos) * scalePlanta;
+          // La banda [plateTop − 16, plateTop] la ocupan la línea de cota «a»,
+          // sus dos marcas y su texto. Si el rótulo del eje neutro cae ahí, se
+          // sube por encima de todo eso en vez de encabalgarse; y en cualquier
+          // caso se mantiene dentro del macizo para no salirse del panel.
           // φ normalizado a [-90°, +90°] para legibilidad ingenieril.
-          let phi_deg = (phi * 180) / Math.PI;
-          while (phi_deg > 90) phi_deg -= 180;
-          while (phi_deg < -90) phi_deg += 180;
+          const enTexto = `EN (φ=${(() => {
+            let g = (phi * 180) / Math.PI;
+            while (g > 90) g -= 180;
+            while (g < -90) g += 180;
+            return g.toFixed(0);
+          })()}°)`;
+          const semiEn = anchoEstimado(enTexto, 9) / 2;
+          const plateTop = pCy - plateH / 2;
+          // El texto va con dominantBaseline="middle", así que su caja va de
+          // lby − semialto a lby + semialto: hay que comparar la CAJA con la
+          // banda, no la línea base (con la línea base sola, las disposiciones
+          // de 6 y 8 barras seguían rozándola).
+          const semiAltoEn = 6;
+          const enBandaCotaA =
+            lbyCrudo + semiAltoEn > plateTop - 16 && lbyCrudo - semiAltoEn < plateTop;
+          const lby = enBandaCotaA ? plateTop - 16 - semiAltoEn - 4 : lbyCrudo;
+          const lbx = Math.min(
+            Math.max(lbxCrudo, pCx - pw / 2 + semiEn),
+            pCx + pw / 2 - semiEn,
+          );
           return (
             <g>
               {/* Clip the NA line to the plate rect — the parametric segment is
@@ -367,7 +419,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
                 textAnchor="middle"
                 dominantBaseline="middle"
               >
-                {`EN (φ=${phi_deg.toFixed(0)}°)`}
+                {enTexto}
               </text>
             </g>
           );
