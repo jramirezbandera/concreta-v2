@@ -100,7 +100,13 @@ export function HelpTooltip({ text, refText, fieldLabel }: HelpTooltipProps) {
           setOpen(true);
         }}
         onBlur={() => setOpen(false)}
-        className="inline-flex items-center justify-center p-1 -m-1 shrink-0 text-text-secondary hover:text-accent focus:text-accent outline-none focus-visible:text-accent transition-colors cursor-help"
+        /* El icono mide 13 px y con `p-1` el objetivo quedaba en 21×21: por
+           debajo del mínimo de 24×24 de WCAG 2.5.8, y hay uno por campo. Por
+           debajo de lg crece a 25 de ancho y 37 de alto — el alto se come la
+           fila entera (min-h-11) y el ancho sólo 6 px por lado, que es lo que
+           cabe sin robarle el toque al input de al lado. Los márgenes negativos
+           cancelan el relleno, así que la maquetación no se mueve. */
+        className="inline-flex items-center justify-center p-1 -m-1 max-lg:px-1.5 max-lg:-mx-1.5 max-lg:py-3 max-lg:-my-3 shrink-0 text-text-secondary hover:text-accent focus:text-accent outline-none focus-visible:text-accent transition-colors cursor-help"
       >
         <Info size={13} strokeWidth={1.75} aria-hidden="true" />
       </button>

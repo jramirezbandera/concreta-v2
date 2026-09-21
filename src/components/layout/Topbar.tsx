@@ -98,7 +98,7 @@ export function Topbar({ moduleLabel, moduleGroup, onMenuOpen, onCopyLink, onOpe
           <button
             type="button"
             onClick={() => openDrawer({ menuObra: true })}
-            className="sm:hidden inline-flex items-center gap-1 max-w-[65%] shrink-0 text-[11px] font-mono uppercase text-text-secondary hover:text-text-primary transition-colors"
+            className="sm:hidden inline-flex items-center gap-1 max-w-[65%] shrink-0 py-1.5 -my-1.5 text-[11px] font-mono uppercase text-text-secondary hover:text-text-primary transition-colors"
             style={{ letterSpacing: '0.06em' }}
             aria-label={`Obra: ${nombreObra ?? 'sin obra'}. Abrir menú de obra`}
           >

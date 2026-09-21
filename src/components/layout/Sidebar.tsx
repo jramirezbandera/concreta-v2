@@ -164,7 +164,7 @@ export function Sidebar({ isOpen = false, onClose, peticionMenuObra = 0 }: Sideb
         <span className="text-[10px] text-text-disabled font-mono" title="Versión de Concreta">
           v{__APP_VERSION__}
         </span>
-        <button title="Búsqueda" className="text-text-disabled hover:text-text-secondary transition-colors" aria-label="Búsqueda">
+        <button title="Búsqueda" className="inline-flex items-center justify-center p-1.5 -m-1.5 text-text-disabled hover:text-text-secondary transition-colors" aria-label="Búsqueda">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
             <circle cx="7" cy="7" r="4" />
             <path d="M10 10l3 3" strokeLinecap="round" />
