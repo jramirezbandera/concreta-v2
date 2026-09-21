@@ -221,7 +221,9 @@ export function ForjadosSVG({ inp, result, section, width, height }: Props) {
     );
 
     cotaInferior = <CotaH x1={ox - bW_px / 2} x2={ox + bW_px / 2} y={botY + 16} texto={`b_w = ${mm(bWeb)}`} color={C.cota} colorTexto={C.cotaTexto} />;
-    leyenda = `● montaje Ø${baseDiam}  ● refuerzo Ø${refDiam}  ○ cara comprimida Ø${conDiam}`;
+    // Sin diámetros: a 10 px la línea se salía del lienzo de móvil (311 px), y
+    // los Ø están a la izquierda, en la columna de entrada, a un palmo.
+    leyenda = '● montaje  ● refuerzo  ○ cara comprimida';
   } else {
     cuerpo = <rect x={secL} y={topY} width={bRef_px} height={h_px} fill={C.hormigon} stroke={C.contorno} strokeWidth={1} />;
 
@@ -273,7 +275,7 @@ export function ForjadosSVG({ inp, result, section, width, height }: Props) {
         {`base Ø${basePhi}/${baseS}${hasRef ? ` + ref Ø${refPhi}/${refS}` : ''}`}
       </Rotulo>
     );
-    leyenda = `● parrilla de tracción  ${hasRef ? '● refuerzo zonal  ' : ''}○ cara comprimida`;
+    leyenda = `● tracción  ${hasRef ? '● refuerzo  ' : ''}○ cara comprimida`;
   }
 
   return (
@@ -314,7 +316,7 @@ export function ForjadosSVG({ inp, result, section, width, height }: Props) {
         <CotaV x={secR + 10} y1={topY} y2={botY} texto={txtH} color={C.cota} colorTexto={C.cotaTexto} anclaTexto={{ x: finRotulo(txtH, secR + 10), ancla: 'end' }} yTexto={yTextoH} />
         {cotaInferior}
 
-        <Rotulo x={PAD_L} y={svgH - 8} tam={9} color={C.atenuado} ancla="start">{leyenda}</Rotulo>
+        <Rotulo x={PAD_L} y={svgH - 8} tam={10} color={C.atenuado} ancla="start">{leyenda}</Rotulo>
       </svg>
     </div>
   );
