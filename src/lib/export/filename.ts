@@ -70,6 +70,21 @@ export function micropiloteFallbackDxf(): string {
   return `concreta-micropilote-${new Date().toISOString().slice(0, 10)}.dxf`;
 }
 
+/** Ídem para los tres planos tipo de muro de contención (con talón, sin talón,
+ *  sin puntera): el tipo va en el nombre porque es como los llama el estudio. */
+export function muroFallbackDxf(tipo: number): string {
+  return `concreta-muro-tipo${tipo}-${new Date().toISOString().slice(0, 10)}.dxf`;
+}
+
+/**
+ * El cuadro de vigas para el CAD. A diferencia de los dos de arriba no es el
+ * plano de UNA pieza sino el de toda la obra, y por eso lleva la fecha y no un
+ * número de tipo: dos exportaciones del mismo día son la misma obra.
+ */
+export function cuadroVigasFallbackDxf(): string {
+  return `concreta-cuadro-de-vigas-${new Date().toISOString().slice(0, 10)}.dxf`;
+}
+
 export const MATERIALES_FALLBACK_DOCX = 'cuadro-de-materiales.docx';
 export const MATERIALES_FALLBACK_XLSX = 'cuadro-de-materiales.xlsx';
 export const MATERIALES_FALLBACK_DXF = 'cuadro-de-materiales.dxf';

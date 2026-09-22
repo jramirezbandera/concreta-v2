@@ -117,13 +117,15 @@ export default defineConfig({
         // para invalidar tras bump (§9.2 #2).
         runtimeCaching: [
           {
-            // Los planos tipo de encepados (public/plantillas/*.dxf, ~860 KB)
-            // tampoco entran en el precache: su extensión no está en el
-            // globPatterns de arriba y sólo los necesita quien exporta el
-            // detalle de un encepado. NetworkFirst y no CacheFirst porque son
-            // dibujo del estudio: con red se baja SIEMPRE el plano tipo vigente
-            // (200 KB por pulsación, nada), y la copia en caché es sólo para
-            // seguir exportando sin red, o si la red tarda más de 5 s.
+            // Los planos del estudio (public/plantillas/*.dxf: los detalles
+            // tipo y el cuadro de vigas) tampoco entran en el precache: su
+            // extensión no está en el globPatterns de arriba, pesan cientos de
+            // kilobytes cada uno y hay más cada vez que el estudio añade un
+            // tipo, y sólo los necesita quien exporta. Se bajan la primera vez
+            // que se pulsa, no en cada visita. NetworkFirst y no CacheFirst
+            // porque son dibujo del estudio: con red se baja SIEMPRE el plano
+            // vigente, y la copia en caché es sólo para seguir exportando sin
+            // red, o si la red tarda más de 5 s.
             urlPattern: ({ url }) => url.pathname.startsWith("/plantillas/"),
             handler: "NetworkFirst",
             options: {

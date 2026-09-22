@@ -10,7 +10,13 @@ import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { rcBeamsAdapter, summarizeRcBeamResults } from '../../lib/ai/modules/rcBeams';
 import { Topbar } from '../../components/layout/Topbar';
-import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
+import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
+import { GRUPO_ANEJO_CALCULO, type IdAnejo } from '../../components/layout/opcionAnejo';
+import { useTitledFileExport } from '../../hooks/useTitledFileExport';
+import { useAnejo } from '../../lib/anejo/useAnejo';
+import { hayTrabajoSinGuardar } from '../../lib/anejo';
+import { cuadroVigasFallbackDxf } from '../../lib/export/filename';
+import { vigasDelAnejo } from './plano';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
@@ -24,6 +30,33 @@ import { RCBeamStrainSVG } from './RCBeamStrainSVG';
 import { RCBeamForcesSVG } from './RCBeamForcesSVG';
 import { pickSectionInputs } from '../../lib/calculations/rcBeams';
 import { solveSectionAtMoment } from '../../lib/calculations/rcBeamsSection';
+
+/**
+ * Dos salidas, y son dos documentos distintos. El PDF es la memoria de ESTA
+ * viga: datos, secciones y comprobaciones. El DXF es el plano de vigas del
+ * estudio con el cuadro de TODA la obra —una sección por cada viga guardada en
+ * el anejo—, para insertarlo en el plano de estructura.
+ *
+ * De ahí que el DXF no dependa de lo que haya en pantalla: la viga que se está
+ * calculando entra en el cuadro cuando se guarda, no antes.
+ */
+type FormatoId = 'pdf' | 'dxf' | IdAnejo;
+
+const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
+  {
+    titulo: 'Cálculo de esta viga',
+    opciones: [{ id: 'pdf', etiqueta: 'PDF', detalle: 'la memoria con las comprobaciones' }],
+  },
+  {
+    titulo: 'Cuadro de plano',
+    opciones: [
+      { id: 'dxf', etiqueta: 'DXF', detalle: 'el cuadro con las vigas de la obra, para el CAD' },
+    ],
+  },
+  GRUPO_ANEJO_CALCULO,
+];
+
+const MODULO = 'concreta-rc-beams';
 
 export function RCBeamsModule() {
   const { state, setField, reset, copyShareLink } = useModuleState('rc-beams', rcBeamDefaults);
@@ -80,6 +113,67 @@ export function RCBeamsModule() {
       onTitleChange: (t) => setField('title', t),
     });
 
+  /**
+   * El cuadro de vigas del plano. Las vigas se leen del índice del anejo, que
+   * es reactivo: guardar una más las recalcula y habilita la opción sin
+   * recargar. Recalcularlas aquí es barato y hace falta para saber si alguna
+   * no verifica.
+   */
+  const anejo = useAnejo();
+  const cuadro = useMemo(() => {
+    // `anejo` se lee para que esto se rehaga al cambiar el índice: la lectura
+    // de verdad la hace `vigasDelAnejo`, que necesita también los datos de
+    // cada pieza y no sólo el índice.
+    void anejo;
+    return vigasDelAnejo();
+  }, [anejo]);
+
+  /**
+   * El cuadro NO sale con una viga que no cumple. Es un plano: dice qué poner
+   * en obra y no lleva comprobaciones, así que la que no verifica saldría
+   * indistinguible de la que sí. Misma regla que el detalle tipo de encepado.
+   */
+  const motivoBloqueoDxf =
+    cuadro.vigas.length === 0
+      ? 'El cuadro sale de las vigas guardadas en el anejo, y esta obra no tiene ninguna todavía'
+      : `No se exporta el cuadro: ${
+          cuadro.noVerifican.length === 1 ? 'no cumple' : 'no cumplen'
+        } ${cuadro.noVerifican.slice(0, 3).join(', ')}${
+          cuadro.noVerifican.length > 3 ? ` y ${cuadro.noVerifican.length - 3} más` : ''
+        }`;
+
+  const dxf = useTitledFileExport({
+    // El `import()` va DENTRO del manejador: ni la plantilla ni el dibujo
+    // pesan nada hasta que alguien pulsa DXF.
+    exportFn: async (titulo) => {
+      const { exportarCuadroVigasDxf } = await import('../../lib/dxf/vigas');
+      const resultado = await exportarCuadroVigasDxf(cuadro.vigas, titulo);
+      // Lo que se ha quedado fuera se dice, no se calla: un cuadro al que le
+      // falta una viga no se nota hasta que el plano está en obra.
+      const avisos: string[] = [];
+      const fuera = cuadro.descartadas;
+      if (fuera.length > 0) {
+        avisos.push(
+          `${fuera.length === 1 ? 'Queda fuera' : 'Quedan fuera'} ${fuera.join(', ')}: ${
+            fuera.length === 1 ? 'se guardó' : 'se guardaron'
+          } con una versión anterior y hay que volver a calcular`,
+        );
+      }
+      if (hayTrabajoSinGuardar(MODULO)) {
+        avisos.push('La viga que tienes abierta no está guardada en el anejo y no entra en el cuadro');
+      }
+      if (avisos.length > 0) showToast(avisos.join(' · '), { autoDismiss: 7000 });
+      return resultado;
+    },
+    valid: cuadro.vigas.length > 0 && cuadro.noVerifican.length === 0,
+    // El nombre del DXF NO es el nombre de la viga: escribirlo en el estado
+    // renombraría el cálculo que está en pantalla y, de paso, lo desataría de
+    // su capítulo del anejo. El cuadro es de la obra, no de esta pieza.
+    onTitleChange: () => {},
+    formatoLabel: 'DXF',
+    invalidMessage: motivoBloqueoDxf,
+  });
+
   // Responsive SVG sizing — two SVGs side by side, stacked below STACK_THRESHOLD
   const [canvasRef, canvasWidth] = useContainerWidth();
   const CANVAS_PAD      = 32;
@@ -107,7 +201,13 @@ export function RCBeamsModule() {
       <Topbar
         moduleLabel="Vigas"
         moduleGroup="Hormigon Armado"
-        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
+        exportMenu={
+          <ExportarMenu
+            grupos={GRUPOS_EXPORTAR}
+            onElegir={(f) => (f === 'dxf' ? dxf.openExport() : openExport(f))}
+            exportando={pdfExporting || dxf.exportando}
+          />
+        }
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -286,6 +386,20 @@ export function RCBeamsModule() {
       )}
       {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
       {anejoDialogo}
+
+      {dxf.titleOpen && (
+        <TitlePromptModal
+          /* Vacío a propósito: lo que se teclea aquí nombra el FICHERO del
+             cuadro de la obra, no la viga que está en pantalla. */
+          initialTitle=""
+          fallbackFilename={cuadroVigasFallbackDxf()}
+          exporting={dxf.exportando}
+          formatLabel="DXF"
+          extension="dxf"
+          onConfirm={dxf.confirmTitle}
+          onCancel={dxf.closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal

@@ -1,6 +1,9 @@
 /**
  * «Guardar en el anejo» desde el desplegable «Exportar» de un módulo de PIEZA,
- * con Vigas de hormigón como representante de los veintiuno.
+ * con Vigas de hormigón como representante de los veintiuno. (Vigas entrega
+ * además el cuadro de plano en DXF, así que la promesa de «dos destinos y nada
+ * más» se comprueba sobre `ExportarPdfMenu`, que es lo que comparten los otros
+ * veinte.)
  *
  * Lo que se comprueba es el atajo entero: la opción está en el desplegable, el
  * modal del título dice a dónde va —y lo recalcula con lo que se teclea, que
@@ -15,6 +18,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { HelmetProvider } from 'react-helmet-async';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { ToastContainer } from '../../components/ui/Toast';
 import { rcBeamDefaults } from '../../data/defaults';
 import { RCBeamsModule } from '../../features/rc-beams';
@@ -95,13 +99,36 @@ afterEach(() => {
 });
 
 describe('Módulo de pieza — «Guardar en el anejo» desde el desplegable', () => {
-  it('el desplegable ofrece los dos destinos del PDF', () => {
-    montar();
+  it('los dos destinos del PDF son los que ofrece `ExportarPdfMenu`', () => {
+    // El desplegable genérico de los módulos de una sola salida, montado
+    // aparte. Antes esto se comprobaba sobre el menú de Vigas, que era uno de
+    // ellos; desde que Vigas entrega además el cuadro de plano en DXF ya no lo
+    // es, y la promesa que hay que guardar es la del componente que sí
+    // comparten los veinte restantes.
+    render(
+      <HelmetProvider>
+        <MemoryRouter initialEntries={['/horm/vigas']}>
+          <ThemeProvider>
+            <ExportarPdfMenu onElegir={vi.fn()} />
+          </ThemeProvider>
+        </MemoryRouter>
+      </HelmetProvider>,
+    );
     fireEvent.click(screen.getByLabelText('Exportar'));
     const opciones = screen.getAllByRole('menuitem').map((o) => o.textContent);
     expect(opciones).toHaveLength(2);
     expect(opciones[0]).toMatch(/^PDF/);
     expect(opciones[1]).toMatch(/^Guardar en el anejo/);
+  });
+
+  it('el de Vigas añade el DXF del cuadro de plano, sin mover los otros dos', () => {
+    montar();
+    fireEvent.click(screen.getByLabelText('Exportar'));
+    const opciones = screen.getAllByRole('menuitem').map((o) => o.textContent);
+    expect(opciones).toHaveLength(3);
+    expect(opciones[0]).toMatch(/^PDF/);
+    expect(opciones[1]).toMatch(/^DXF/);
+    expect(opciones[2]).toMatch(/^Guardar en el anejo/);
   });
 
   it('guarda la pieza con su título y sus páginas, sin previsualizar ni descargar', async () => {
