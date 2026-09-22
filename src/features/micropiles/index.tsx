@@ -429,6 +429,7 @@ export function MicropilesModule() {
           fallbackFilename={micropiloteFallbackDxf()}
           exporting={dxf.exportando}
           formatLabel="DXF"
+          extension="dxf"
           onConfirm={dxf.confirmTitle}
           onCancel={dxf.closeTitle}
         />

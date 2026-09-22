@@ -334,6 +334,7 @@ export function PileCapModule() {
           fallbackFilename={encepadoFallbackDxf(state.n)}
           exporting={dxf.exportando}
           formatLabel="DXF"
+          extension="dxf"
           onConfirm={dxf.confirmTitle}
           onCancel={dxf.closeTitle}
         />
