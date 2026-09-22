@@ -3,15 +3,19 @@ import { retainingWallDefaults, type RetainingWallInputs } from '../../data/defa
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
+import { useTitledFileExport } from '../../hooks/useTitledFileExport';
 import { useDrawer } from '../../components/layout/AppShell';
 import { calcRetainingWall } from '../../lib/calculations/retainingWall';
 import { exportRetainingWallPDF, retainingWallFallbackFilename } from '../../lib/pdf/retainingWall';
+import { muroFallbackDxf } from '../../lib/export/filename';
+import { armadurasSinDefinir, tipoDeMuro } from '../../lib/dxf/muroPlano';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { dec, formatNumber, getUnitLabel } from '../../lib/units/format';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { retainingWallAdapter, summarizeRetainingWallResults } from '../../lib/ai/modules/retainingWall';
 import { Topbar } from '../../components/layout/Topbar';
-import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
+import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
+import { GRUPO_ANEJO_CALCULO, type IdAnejo } from '../../components/layout/opcionAnejo';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
@@ -25,6 +29,26 @@ const VIEW_TABS: { id: RetainingWallView; num: string; label: string; color: str
   { id: 'geometry', num: '1', label: 'Geometría',        color: '#38bdf8' },
   { id: 'loads',    num: '2', label: 'Cargas y empujes', color: '#fcd34d' },
   { id: 'rebar',    num: '3', label: 'Armado',           color: '#64748b' },
+];
+
+/**
+ * Dos salidas, y son dos documentos distintos: el PDF es la memoria del cálculo
+ * —empujes, estabilidad y comprobaciones— y el DXF es el plano tipo del estudio
+ * con la tabla rellena, para insertarlo en el de cimentación. El detalle no
+ * comprueba nada: dice qué hay que poner en obra.
+ */
+type FormatoId = 'pdf' | 'dxf' | IdAnejo;
+
+const GRUPOS_EXPORTAR: GrupoExportar<FormatoId>[] = [
+  {
+    titulo: 'Cálculo',
+    opciones: [{ id: 'pdf', etiqueta: 'PDF', detalle: 'la memoria con las comprobaciones' }],
+  },
+  {
+    titulo: 'Detalle de plano',
+    opciones: [{ id: 'dxf', etiqueta: 'DXF', detalle: 'el plano tipo acotado, para insertar en el CAD' }],
+  },
+  GRUPO_ANEJO_CALCULO,
 ];
 
 function ViewTabButton({
@@ -148,6 +172,45 @@ export function RetainingWallModule() {
       onTitleChange: (t) => setField('title', t),
     });
 
+  /**
+   * El DXF no se previsualiza —no hay visor de CAD en el navegador—, así que
+   * confirmar el título genera y descarga en el mismo gesto. De ahí el segundo
+   * hook: el del PDF abre la previsualización y este no.
+   *
+   * Y no sale con comprobaciones en rojo, ni sin el armado definido. El PDF sí:
+   * enseña el INCUMPLE y el lector lo ve. El DXF sólo dice qué poner en obra, y
+   * un muro que no verifica —o uno en modo dimensionado, con las casillas a
+   * «-»— no debería salir de aquí sin que nadie lo note. Los avisos (warn) no
+   * bloquean: son recomendaciones.
+   */
+  const tipoPlano = tipoDeMuro(state);
+  const faltaArmado = armadurasSinDefinir(state, tipoPlano);
+  const fallos = result.checks.filter((c) => c.status === 'fail');
+  const motivoBloqueo = !result.valid
+    ? (result.error ?? 'Los datos de entrada no son válidos')
+    : fallos.length > 0
+      ? `No se exporta el detalle: no cumple ${fallos
+          .slice(0, 2)
+          .map((c) => c.description)
+          .join('; ')}${fallos.length > 2 ? ` y ${fallos.length - 2} más` : ''}`
+      : `No se exporta el detalle: falta definir la armadura ${
+          faltaArmado.length <= 2
+            ? faltaArmado.join(' y ')
+            : `${faltaArmado.slice(0, 2).join(', ')} y ${faltaArmado.length - 2} más`
+        }`;
+  const dxf = useTitledFileExport({
+    // El `import()` va DENTRO del manejador: la plantilla y el relleno no
+    // pintan nada hasta que alguien pulsa DXF.
+    exportFn: async (titulo) => {
+      const { exportarMuroDxf } = await import('../../lib/dxf/muro');
+      return exportarMuroDxf(state, titulo);
+    },
+    valid: result.valid && fallos.length === 0 && faltaArmado.length === 0,
+    onTitleChange: (t) => setField('title', t),
+    formatoLabel: 'DXF',
+    invalidMessage: motivoBloqueo,
+  });
+
   const [canvasRef, canvasWidth] = useContainerWidth();
   const svgW = canvasWidth !== undefined && canvasWidth > 0
     ? Math.max(200, canvasWidth - 32)
@@ -177,7 +240,13 @@ export function RetainingWallModule() {
       <Topbar
         moduleLabel="Muros"
         moduleGroup="Cimentación"
-        exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
+        exportMenu={
+          <ExportarMenu
+            grupos={GRUPOS_EXPORTAR}
+            onElegir={(f) => (f === 'dxf' ? dxf.openExport() : openExport(f))}
+            exportando={pdfExporting || dxf.exportando}
+          />
+        }
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
         onOpenAssistant={() => setAiOpen(true)}
@@ -324,6 +393,18 @@ export function RetainingWallModule() {
       )}
       {/* El nombre de la obra, si guardar en el anejo tiene que crearla. */}
       {anejoDialogo}
+
+      {dxf.titleOpen && (
+        <TitlePromptModal
+          initialTitle={state.title}
+          fallbackFilename={muroFallbackDxf(tipoPlano)}
+          exporting={dxf.exportando}
+          formatLabel="DXF"
+          extension="dxf"
+          onConfirm={dxf.confirmTitle}
+          onCancel={dxf.closeTitle}
+        />
+      )}
 
       {pdfPreview && (
         <PdfPreviewModal
