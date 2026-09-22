@@ -4,6 +4,7 @@
 
 import { type RetainingWallInputs } from '../../data/defaults';
 import { type RetainingWallResult } from '../../lib/calculations/retainingWall';
+import { anchoEstimado } from '../../components/canvas/primitivas';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { dec, formatQuantity } from '../../lib/units/format';
 
@@ -884,10 +885,6 @@ function LoadsView({ inp, result, mode, width, height }: Required<Omit<Retaining
 function RebarView({ inp, result, mode, width, height }: Required<Omit<RetainingWallSVGProps, 'view'>>) {
   const isPdf = mode === 'pdf';
   const P = isPdf ? PDF_PALETTE : SCREEN_PALETTE;
-  const margin = { top: 50, right: 40, bottom: 110, left: 40 };
-  const g = computeGeom(inp, width, height, margin);
-  const cover_m = (inp.cover as number) / 1000; // stored in mm (schema v2); geometry works in m
-  const cv = cover_m * g.scale;
 
   const fv_int_d = inp.diam_fv_int as number;
   const fv_int_s = inp.sep_fv_int as number;
@@ -905,6 +902,53 @@ function RebarView({ inp, result, mode, width, height }: Required<Omit<Retaining
   const zt_sup_s = inp.sep_zt_sup as number;
   const zt_inf_s_m = zt_inf_s / 1000;
   const zt_sup_s_m = zt_sup_s / 1000;
+
+  const callouts: Array<{ k: string; color: string; label: string; corto: string; spec: string }> = [];
+  if (fv_int_d > 0) callouts.push({ k: 'fv_int', color: P.rebar, label: 'Trasdós (vert.)', corto: 'Trasdós', spec: `Ø${fv_int_d} c/${fv_int_s}` });
+  if (fv_ext_d > 0) callouts.push({ k: 'fv_ext', color: P.rebarSecondary, label: 'Intradós (vert.)', corto: 'Intradós', spec: `Ø${fv_ext_d} c/${fv_ext_s}` });
+  if (fh_d > 0) callouts.push({ k: 'fh', color: P.rebarTransv, label: 'Horizontal', corto: 'Horizontal', spec: `Ø${fh_d} c/${inp.sep_fh}` });
+  if (zs_d > 0) callouts.push({ k: 'zs', color: P.rebar, label: 'Sup. zapata (talón)', corto: 'Sup. talón', spec: `Ø${zs_d} c/${zs_s}` });
+  if (zi_d > 0) callouts.push({ k: 'zi', color: P.rebar, label: 'Inf. zapata (punta)', corto: 'Inf. punta', spec: `Ø${zi_d} c/${zi_s}` });
+  if (zt_sup_d > 0) callouts.push({ k: 'zt_sup', color: P.rebarTransv, label: 'Transv. superior', corto: 'Transv. sup.', spec: `Ø${zt_sup_d} c/${zt_sup_s}` });
+  if (zt_inf_d > 0) callouts.push({ k: 'zt_inf', color: P.rebarTransv, label: 'Transv. inferior', corto: 'Transv. inf.', spec: `Ø${zt_inf_d} c/${zt_inf_s}` });
+  const noRebar = callouts.length === 0;
+
+  // Legend strip. Two things it used to get wrong: three columns whatever the
+  // canvas, so at 340 px «Sup. zapata (talón)» ran over its own «O12 c/200»;
+  // and a fixed 110 px bottom margin, so more rows would have landed on the
+  // wall. Now the widest entry decides how many columns fit — dropping to the
+  // short labels before dropping to a single column — and the strip's own
+  // height is what the drawing gives up. Widths come from `anchoEstimado`,
+  // generous on purpose; the strip spans the full canvas width (as the loads
+  // legend does) so that slack costs no column at PDF size.
+  const LEG = { dot: 12, gap: 6, padR: 6, lineH: 18, padY: 14, baseline: 14, inset: 14 };
+  const legW = width - 2 * LEG.inset;
+  const legSpecW = Math.max(0, ...callouts.map((c) => anchoEstimado(svgText(c.spec, isPdf), 8.5, true)));
+  const legFit = (rotulos: string[]): number => {
+    const need = LEG.dot + Math.max(0, ...rotulos.map((t) => anchoEstimado(svgText(t, isPdf), 9)))
+      + LEG.gap + legSpecW + LEG.padR;
+    return [3, 2, 1].find((n) => (legW - 16) / n >= need) ?? 0;
+  };
+  const legColsFull = legFit(callouts.map((c) => c.label));
+  const legCorto = legColsFull < 2;
+  const legCols = Math.max(1, legCorto ? legFit(callouts.map((c) => c.corto)) : legColsFull);
+  const legRows = Math.ceil(callouts.length / legCols);
+  const legH = noRebar ? 0 : LEG.padY * 2 + (legRows - 1) * LEG.lineH + LEG.baseline;
+
+  const margin = { top: 50, right: 40, bottom: noRebar ? 56 : legH + 32, left: 40 };
+  const g = computeGeom(inp, width, height, margin);
+  const cover_m = (inp.cover as number) / 1000; // stored in mm (schema v2); geometry works in m
+  const cv = cover_m * g.scale;
+
+  // A bar seen end-on is a symbol, not the bar at scale: it keeps a legible
+  // size at the usual scales, but is capped by the drawn spacing so that a tall
+  // wall — where the same c/200 lands a few px apart — never turns the face
+  // into a continuous line. The gap between two bars stays ≥ 30 % of the pitch.
+  const dotR = (d_mm: number, sep_m: number): number => {
+    const sepPx = Math.max(sep_m * g.scale, 0.1);
+    const want = Math.min(3.2, Math.max(1.6, d_mm * 0.22));
+    return Math.min(Math.max(1.1, Math.min(want, sepPx * 0.22)), sepPx * 0.34);
+  };
 
   // Stem horizontal bars (perpendicular to view) — render as dots near both faces
   const stemHorizDots: Array<{ x: number; y: number; side: 'L' | 'R' }> = [];
@@ -940,35 +984,64 @@ function RebarView({ inp, result, mode, width, height }: Required<Omit<Retaining
     }
   }
 
-  const trasdosLine = fv_int_d > 0 ? {
-    x1: g.x_stemR - cv, y1: g.y_top + 6,
-    x2: g.x_stemR - cv, y2: g.y_fb - 4,
-    d: fv_int_d, s: fv_int_s,
-  } : null;
-  const intradosLine = fv_ext_d > 0 ? {
-    x1: g.x_stemL + cv, y1: g.y_top + 6,
-    x2: g.x_stemL + cv, y2: g.y_fb - 4,
-    d: fv_ext_d, s: fv_ext_s,
-  } : null;
-  const footingTop = zs_d > 0 ? { y: g.y_fb + cv, d: zs_d, s: zs_s } : null;
-  const footingBot = zi_d > 0 ? { y: g.y_b - cv, d: zi_d, s: zi_s } : null;
+  // Bars are drawn as they are bent: straight runs joined by 90º corners over a
+  // bend radius. The stem verticals dive into the footing down to the bottom
+  // mat and die there in a patilla — the trasdós one turned toward the punta,
+  // where it laps the bottom reinforcement it anchors against, the intradós one
+  // toward the talón and a hair higher, so both legs read where they cross. The
+  // footing bars run the full width B and die at each edge in a 90º patilla
+  // turned into the section.
+  const hfPx = g.y_b - g.y_fb;                    // footing depth, px
+  const bend = Math.max(2, Math.min(6, hfPx * 0.16));
+  const y_mat_bot = g.y_b - cv;                   // bottom mat
+  const y_mat_top = g.y_fb + cv;                  // top mat
+  const x_fL = g.x_toe + cv;                      // footing edges, inside cover
+  const x_fR = g.x_heel - cv;
+  const y_bar_top = g.y_top + Math.max(cv, 2.5);
+  const y_leg_tras = y_mat_bot - Math.max(3, Math.min(8, hfPx * 0.16));
+  const y_leg_intra = y_leg_tras - Math.max(3, Math.min(7, hfPx * 0.14));
+  const legRef = Math.max(14, Math.min(hfPx * 1.3, 48));  // anchorage leg, px
+  const x_tras = g.x_stemR - cv;
+  const x_intra = g.x_stemL + cv;
+  const leg_tras = Math.min(legRef, Math.max(0, x_tras - x_fL));
+  const leg_intra = Math.min(legRef, Math.max(0, x_fR - x_intra));
 
-  const hookPath = (x: number, y: number, side: 'L' | 'R'): string => {
-    const dy = 18, dx = side === 'R' ? -22 : 22;
-    return `M ${x} ${y} q 0 ${dy / 1.2} ${dx / 2} ${dy} t ${dx / 2} ${dy / 3}`;
+  // Vertical run down the stem, 90º corner, horizontal patilla on the mat.
+  const stemBarPath = (x: number, yLeg: number, dir: -1 | 1, leg: number): string => {
+    const r = Math.min(bend, leg);
+    if (r < 1) return `M ${x} ${y_bar_top} L ${x} ${yLeg}`;
+    return `M ${x} ${y_bar_top} L ${x} ${yLeg - r}`
+      + ` A ${r} ${r} 0 0 ${dir < 0 ? 1 : 0} ${x + dir * r} ${yLeg}`
+      + ` L ${x + dir * leg} ${yLeg}`;
   };
 
-  const callouts: Array<{ k: string; color: string; label: string; spec: string }> = [];
-  if (fv_int_d > 0) callouts.push({ k: 'fv_int', color: P.rebar, label: 'Trasdós (vert.)', spec: `Ø${fv_int_d} c/${fv_int_s}` });
-  if (fv_ext_d > 0) callouts.push({ k: 'fv_ext', color: P.rebarSecondary, label: 'Intradós (vert.)', spec: `Ø${fv_ext_d} c/${fv_ext_s}` });
-  if (fh_d > 0) callouts.push({ k: 'fh', color: P.rebarTransv, label: 'Horizontal', spec: `Ø${fh_d} c/${inp.sep_fh}` });
-  if (zs_d > 0) callouts.push({ k: 'zs', color: P.rebar, label: 'Sup. zapata (talón)', spec: `Ø${zs_d} c/${zs_s}` });
-  if (zi_d > 0) callouts.push({ k: 'zi', color: P.rebar, label: 'Inf. zapata (punta)', spec: `Ø${zi_d} c/${zi_s}` });
-  if (zt_sup_d > 0) callouts.push({ k: 'zt_sup', color: P.rebarTransv, label: 'Transv. superior', spec: `Ø${zt_sup_d} c/${zt_sup_s}` });
-  if (zt_inf_d > 0) callouts.push({ k: 'zt_inf', color: P.rebarTransv, label: 'Transv. inferior', spec: `Ø${zt_inf_d} c/${zt_inf_s}` });
+  // Full-width footing bar, patilla turned into the section at both edges:
+  // up for the bottom mat, down for the top one.
+  // Short enough that the two mats never close into what would read as a stirrup.
+  const patillaV = Math.max(5, Math.min((hfPx - 2 * cv) * 0.38, hfPx * 0.3));
+  const footingBarPath = (y: number, up: boolean): string => {
+    const v = up ? -1 : 1;
+    const sw = up ? 0 : 1;
+    const r = Math.max(0, Math.min(bend, (x_fR - x_fL) / 2, patillaV));
+    if (r < 1) return `M ${x_fL} ${y} L ${x_fR} ${y}`;
+    return `M ${x_fL} ${y + v * patillaV} L ${x_fL} ${y + v * r}`
+      + ` A ${r} ${r} 0 0 ${sw} ${x_fL + r} ${y}`
+      + ` L ${x_fR - r} ${y}`
+      + ` A ${r} ${r} 0 0 ${sw} ${x_fR} ${y + v * r}`
+      + ` L ${x_fR} ${y + v * patillaV}`;
+  };
 
-  // Sizing-mode hint when no rebar specified
-  const noRebar = callouts.length === 0;
+  const trasdosLine = fv_int_d > 0 ? {
+    x: x_tras, d: fv_int_d, s: fv_int_s,
+    path: stemBarPath(x_tras, y_leg_tras, -1, leg_tras),
+  } : null;
+  const intradosLine = fv_ext_d > 0 ? {
+    x: x_intra, d: fv_ext_d, s: fv_ext_s,
+    path: stemBarPath(x_intra, y_leg_intra, 1, leg_intra),
+  } : null;
+  const footingTop = zs_d > 0 ? { y: y_mat_top, d: zs_d, s: zs_s } : null;
+  const footingBot = zi_d > 0 ? { y: y_mat_bot, d: zi_d, s: zi_s } : null;
+
   const elevW = width - margin.left - margin.right;
 
   const cover_display_mm = Math.round(inp.cover as number);
@@ -1010,32 +1083,22 @@ function RebarView({ inp, result, mode, width, height }: Required<Omit<Retaining
       <line x1={g.x_stemL + cv} y1={g.y_top + 4} x2={g.x_stemL + cv} y2={g.y_fb}
         stroke={P.rebarGhost} strokeWidth={0.5} strokeDasharray="2 3" />
 
-      {/* Stem trasdós verticals */}
+      {/* Stem trasdós verticals — into the footing, patilla toward the punta */}
       {trasdosLine && (
-        <g>
-          <line x1={trasdosLine.x1} y1={trasdosLine.y1}
-            x2={trasdosLine.x2} y2={trasdosLine.y2}
-            stroke={P.rebar} strokeWidth={Math.max(1.6, fv_int_d * 0.18)} />
-          <path d={hookPath(trasdosLine.x2, trasdosLine.y2, 'R')}
-            fill="none" stroke={P.rebar} strokeWidth={Math.max(1.4, fv_int_d * 0.18)} strokeLinecap="round" />
-        </g>
+        <path d={trasdosLine.path} fill="none" stroke={P.rebar}
+          strokeWidth={Math.max(1.6, fv_int_d * 0.18)} strokeLinecap="round" strokeLinejoin="round" />
       )}
-      {/* Stem intradós verticals */}
+      {/* Stem intradós verticals — into the footing, patilla toward the talón */}
       {intradosLine && (
-        <g>
-          <line x1={intradosLine.x1} y1={intradosLine.y1}
-            x2={intradosLine.x2} y2={intradosLine.y2}
-            stroke={P.rebarSecondary} strokeWidth={Math.max(1.4, fv_ext_d * 0.16)} />
-          <path d={hookPath(intradosLine.x2, intradosLine.y2, 'L')}
-            fill="none" stroke={P.rebarSecondary} strokeWidth={Math.max(1.2, fv_ext_d * 0.16)} strokeLinecap="round" />
-        </g>
+        <path d={intradosLine.path} fill="none" stroke={P.rebarSecondary}
+          strokeWidth={Math.max(1.4, fv_ext_d * 0.16)} strokeLinecap="round" strokeLinejoin="round" />
       )}
 
       {/* Horizontal bar dots */}
       <g>
         {stemHorizDots.map((p, i) => (
           <circle key={`hd-${i}`} cx={p.x} cy={p.y}
-            r={Math.max(1.1, Math.min(fh_d * g.scale * 0.5, 4.5) / 1.5)} fill={P.rebarTransv} />
+            r={dotR(fh_d, fh_s_m)} fill={P.rebarTransv} />
         ))}
       </g>
 
@@ -1043,37 +1106,29 @@ function RebarView({ inp, result, mode, width, height }: Required<Omit<Retaining
       <g>
         {footingZtSupDots.map((p, i) => (
           <circle key={`zts-${i}`} cx={p.x} cy={p.y}
-            r={Math.max(1.1, Math.min(zt_sup_d * g.scale * 0.5, 4.5) / 1.5)} fill={P.rebarTransv} />
+            r={dotR(zt_sup_d, zt_sup_s_m)} fill={P.rebarTransv} />
         ))}
         {footingZtInfDots.map((p, i) => (
           <circle key={`zti-${i}`} cx={p.x} cy={p.y}
-            r={Math.max(1.1, Math.min(zt_inf_d * g.scale * 0.5, 4.5) / 1.5)} fill={P.rebarTransv} />
+            r={dotR(zt_inf_d, zt_inf_s_m)} fill={P.rebarTransv} />
         ))}
       </g>
 
-      {/* Footing top bars (zs) */}
+      {/* Footing top bars (zs) — full width, patilla down at both edges */}
       {footingTop && (
-        <g>
-          <line x1={g.x_stemR + 2} y1={footingTop.y} x2={g.x_heel - 4} y2={footingTop.y}
-            stroke={P.rebar} strokeWidth={Math.max(1.5, zs_d * 0.18)} />
-          <path d={`M ${g.x_stemR + 2} ${footingTop.y} q -10 0 -14 -16`}
-            fill="none" stroke={P.rebar} strokeWidth={Math.max(1.4, zs_d * 0.18)} strokeLinecap="round" />
-        </g>
+        <path d={footingBarPath(footingTop.y, false)} fill="none" stroke={P.rebar}
+          strokeWidth={Math.max(1.5, zs_d * 0.18)} strokeLinecap="round" strokeLinejoin="round" />
       )}
-      {/* Footing bottom bars (zi) */}
+      {/* Footing bottom bars (zi) — full width, patilla up at both edges */}
       {footingBot && (
-        <g>
-          <line x1={g.x_toe + 4} y1={footingBot.y} x2={g.x_stemL - 2} y2={footingBot.y}
-            stroke={P.rebar} strokeWidth={Math.max(1.5, zi_d * 0.18)} />
-          <path d={`M ${g.x_toe + 4} ${footingBot.y} q -8 0 -10 -10`}
-            fill="none" stroke={P.rebar} strokeWidth={Math.max(1.4, zi_d * 0.18)} strokeLinecap="round" />
-        </g>
+        <path d={footingBarPath(footingBot.y, true)} fill="none" stroke={P.rebar}
+          strokeWidth={Math.max(1.5, zi_d * 0.18)} strokeLinecap="round" strokeLinejoin="round" />
       )}
 
       {/* Spec callouts */}
       {trasdosLine && (
         <g>
-          <line x1={trasdosLine.x1} y1={trasdosLine.y1 + 18} x2={g.x_stemR + 22} y2={g.y_top - 6}
+          <line x1={trasdosLine.x} y1={y_bar_top + 18} x2={g.x_stemR + 22} y2={g.y_top - 6}
             stroke={P.rebar} strokeWidth={0.5} opacity={0.5} />
           <rect x={g.x_stemR + 22} y={g.y_top - 18} width={92} height={14} rx={2}
             fill={P.chipBg} stroke={P.chipBorder} strokeWidth={0.5} />
@@ -1085,7 +1140,7 @@ function RebarView({ inp, result, mode, width, height }: Required<Omit<Retaining
       )}
       {intradosLine && (
         <g>
-          <line x1={intradosLine.x1} y1={(intradosLine.y1 + intradosLine.y2) / 2}
+          <line x1={intradosLine.x} y1={(g.y_top + g.y_fb) / 2}
             x2={g.x_stemL - 22} y2={g.y_top + 30}
             stroke={P.rebarSecondary} strokeWidth={0.5} opacity={0.5} />
           <rect x={g.x_stemL - 114} y={g.y_top + 22} width={92} height={14} rx={2}
@@ -1130,31 +1185,27 @@ function RebarView({ inp, result, mode, width, height }: Required<Omit<Retaining
       )}
 
       {/* Bottom legend strip */}
-      {callouts.length > 0 && (() => {
-        const rows = Math.ceil(callouts.length / 3);
-        const padY = 14, lineH = 18;
-        const rectH = padY * 2 + (rows - 1) * lineH + 14;
-        const rectX = margin.left;
-        const rectW = elevW;
-        const rectY = height - rectH - 14;
-        const colW = (rectW - 16) / 3;
+      {!noRebar && (() => {
+        const rectX = LEG.inset;
+        const rectY = height - legH - LEG.inset;
+        const colW = (legW - 16) / legCols;
         return (
           <g>
-            <rect x={rectX} y={rectY} width={rectW} height={rectH} rx={3}
+            <rect x={rectX} y={rectY} width={legW} height={legH} rx={3}
               fill={P.chipBg} fillOpacity={0.6} stroke={P.chipBorder} strokeWidth={0.5} />
             <text x={rectX + 8} y={rectY + 12} fontSize={9} fontFamily="'Geist Sans', sans-serif"
               fill={P.dim} letterSpacing="0.07em" fontWeight={600}>LEYENDA</text>
             {callouts.map((c, i) => {
-              const col = i % 3;
-              const r = Math.floor(i / 3);
+              const col = i % legCols;
+              const r = Math.floor(i / legCols);
               const cx = rectX + 8 + col * colW;
-              const cy = rectY + padY + 14 + r * lineH;
+              const cy = rectY + LEG.padY + 14 + r * LEG.lineH;
               return (
                 <g key={c.k}>
                   <circle cx={cx + 4} cy={cy} r={2.8} fill={c.color} />
-                  <text x={cx + 12} y={cy + 3.5} fontSize={9} fill={P.label}
-                    fontFamily="'Geist Sans', sans-serif">{svgText(c.label, isPdf)}</text>
-                  <text x={cx + colW - 8} y={cy + 3.5} fontSize={8.5} fill={P.text} textAnchor="end"
+                  <text x={cx + LEG.dot} y={cy + 3.5} fontSize={9} fill={P.label}
+                    fontFamily="'Geist Sans', sans-serif">{svgText(legCorto ? c.corto : c.label, isPdf)}</text>
+                  <text x={cx + colW - LEG.padR} y={cy + 3.5} fontSize={8.5} fill={P.text} textAnchor="end"
                     fontFamily="ui-monospace, 'Geist Mono', monospace">{svgText(c.spec, isPdf)}</text>
                 </g>
               );
