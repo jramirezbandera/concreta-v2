@@ -1348,3 +1348,19 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Context:** `DESIGN.md` §«Tema claro (por defecto) — valores» (la fila `state-neutral`); `src/index.css` (`--color-state-neutral`); informe en `~/.gstack/projects/jramirezbandera-concreta-v2/designs/design-audit-20260917/`.
 
 **Depends on / blocked by:** nada.
+
+## El modo «Ayuda» vive en 5 de 29 pantallas y no está en ningún menú
+
+**Status:** pendiente. Apuntado por `/plan-design-review` el 2026-09-22, auditando la topbar para el plan de «Menú + asistente siempre visible».
+
+**What:** unificar el botón «Ayuda» como conmutador global dentro del grupo PREFERENCIAS del nuevo Menú, en vez de un botón propio en la cabecera de cinco módulos.
+
+**Why:** hoy «Ayuda ✓» vive dentro de la cabecera de `cargas-planta`, `incendio`, `materiales`, `memoria-dbse` y `viento-nieve`, y en ningún sitio más. Es una preferencia del usuario disfrazada de botón de módulo: quien la enciende en viento y nieve la encuentra apagada en vigas, y en los otros 24 módulos ni siquiera existe. El criterio de UX ya escrito («lenguaje llano y modo Ayuda», con botón global) está aterrizado a medias.
+
+**Pros:** el Menú acaba de convertirse en el sitio de las preferencias (Unidades, Tema, Asistente en la esquina) y «Ayuda» es exactamente de esa familia; la preferencia se recordaría entre módulos; y libera sitio en la cabecera de esos cinco.
+
+**Cons:** los 24 módulos sin textos de ayuda escritos enseñarían un conmutador que no hace nada visible. O se redactan esos textos —que es un proyecto en sí— o se acepta que la preferencia no tenga efecto en la mayoría de pantallas.
+
+**Context:** `src/features/{cargas-planta,incendio,materiales,memoria-dbse,viento-nieve}/index.tsx`; `src/components/ui/Campo.tsx` (la nota corta que sólo aparece con el modo Ayuda); plan en `~/.gstack/projects/jramirezbandera-concreta-v2/jramirezbandera-main-design-20260922-menu-asistente.md`.
+
+**Depends on / blocked by:** el Menú agrupado (T1 de ese plan): es donde iría la fila.

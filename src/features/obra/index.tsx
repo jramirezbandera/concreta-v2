@@ -84,11 +84,12 @@ const GRUPOS_EXPORTAR: GrupoExportar<FormatoPlano>[] = [
 /**
  * LA acción primaria: la misma pinta sea enlace o botón.
  *
- * Outline fuerte —tinte acento 12 %, borde 45 %, texto acento—, que es la
- * receta del control más destacado de la app (`AiButton`). No un relleno
- * sólido: la decisión del 2026-07-17 (DESIGN.md) fija la jerarquía por
- * intensidad de acento justamente porque un sólido de SaaS chirría con la
- * tesis «instrumento, no dashboard», y esto está a 40 px de una topbar donde
+ * Outline fuerte —tinte acento 12 %, borde 45 %, texto acento—, que era la
+ * receta del control más destacado de la app: el viejo `AiButton` de la topbar,
+ * retirado el 2026-09-22 cuando el asistente se mudó al Menú (la receta se va
+ * con él a su píldora de la esquina). No un relleno sólido: la jerarquía por
+ * intensidad de acento existe justamente porque un sólido de SaaS chirría con
+ * la tesis «instrumento, no dashboard», y esto está a 40 px de una topbar donde
  * ningún control va relleno.
  */
 const ACCION =

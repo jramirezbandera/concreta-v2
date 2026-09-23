@@ -111,10 +111,11 @@ describe('RCColumnsModule — Rellenar con IA (integración T4.2)', () => {
     expect(document.getElementById('input-h')).not.toBeNull();
     expect(document.getElementById('input-D')).toBeNull();
 
-    // El botón "Asistente IA" de la topbar abre el asistente genérico con el
-    // adapter del módulo. (Hay dos AiButton renderizados —icono móvil + etiqueta
-    // escritorio—; ambos con aria-label "Abrir asistente IA"; cualquiera vale.)
-    await user.click(screen.getAllByRole('button', { name: 'Abrir asistente IA' })[0]);
+    // La fila "Asistente IA" del Menú abre el asistente genérico con el adapter
+    // del módulo. (Desde el 2026-09-22 el asistente no tiene botón propio en la
+    // barra: se mudó al Menú, que sucede al viejo "Ajustes".)
+    await user.click(screen.getAllByLabelText('Menú')[0]);
+    await user.click(screen.getByRole('button', { name: /Asistente IA/ }));
     expect(screen.getByLabelText('Mensaje para el asistente')).toBeInTheDocument();
 
     typeAndSend('Hazlo circular de 40 cm con Nd = 1200 kN');

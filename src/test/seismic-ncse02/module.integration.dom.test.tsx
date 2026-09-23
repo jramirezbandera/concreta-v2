@@ -815,8 +815,8 @@ describe('persistencia y enlace', () => {
     const escribir = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText: escribir } });
     montar();
-    // Vive dentro del menu de Ajustes de la topbar, no suelto.
-    fireEvent.click(screen.getAllByLabelText('Ajustes')[0]);
+    // Vive dentro del «Menu» de la topbar, no suelto (antes «Ajustes»).
+    fireEvent.click(screen.getAllByLabelText('Menú')[0]);
     fireEvent.click(await screen.findByText('Copiar enlace'));
     await waitFor(() => expect(escribir).toHaveBeenCalled());
     expect(String(escribir.mock.calls[0][0])).toContain('?model=');
@@ -884,16 +884,23 @@ describe('exportación a PDF', () => {
 });
 
 describe('asistente IA', () => {
-  it('el botón está en la barra y abre el chat del módulo de sismo', async () => {
+  // Desde el 2026-09-22 el asistente no tiene botón propio en la barra: vive en
+  // la fila «Asistente IA» del Menú (y, cuando aterrice, en su píldora).
+  const abrirAsistente = () => {
+    fireEvent.click(screen.getAllByLabelText('Menú')[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Asistente IA/ }));
+  };
+
+  it('se abre desde el Menú y trae el chat del módulo de sismo', async () => {
     montar();
-    fireEvent.click(screen.getAllByLabelText('Abrir asistente IA')[0]);
+    abrirAsistente();
     const chat = await screen.findByRole('dialog');
     expect(chat.textContent).toContain('Acción sísmica NCSE-02');
   });
 
   it('el placeholder del chat es un enunciado de sismo, no de otro módulo', async () => {
     montar();
-    fireEvent.click(screen.getAllByLabelText('Abrir asistente IA')[0]);
+    abrirAsistente();
     await screen.findByRole('dialog');
     expect(document.body.textContent).toMatch(/plantas/i);
   });

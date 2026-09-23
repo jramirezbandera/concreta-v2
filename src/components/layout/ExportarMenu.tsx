@@ -15,9 +15,14 @@
  * no la vista abierta.
  *
  * El disparador lleva el outline sutil que llevaba el botón «Exportar PDF» al
- * que sustituyó, más el chevron de `AjustesMenu`: es la misma acción con un
- * paso más, no otra distinta. El módulo lo compone y la topbar sólo lo coloca
- * (prop `exportMenu`).
+ * que sustituyó, más el chevron de `MenuApp`: es la misma acción con un paso
+ * más, no otra distinta. El módulo lo compone y la topbar sólo lo coloca (prop
+ * `exportMenu`).
+ *
+ * Y lo CONSERVA tras el rediseño de 2026-09-22: al salir el asistente de la
+ * barra, «Exportar» no hereda el outline fuerte. Nadie es ya la acción primaria
+ * —el acento se muda con el asistente a su píldora— y la barra queda tranquila
+ * a propósito (D-I4).
  *
  * A11y: cierra con Escape y con clic fuera; el disparador expone aria-expanded;
  * cada grupo es un `group` con nombre, y las opciones son `menuitem`. Al elegir

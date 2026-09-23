@@ -122,7 +122,9 @@ export function Sidebar({ isOpen = false, onClose, peticionMenuObra = 0 }: Sideb
           <button
             onClick={onClose}
             className="ml-auto lg:hidden p-3 -mr-2 text-text-disabled hover:text-text-secondary transition-colors"
-            aria-label="Cerrar menú"
+            /* D-I3: la pareja de «Abrir navegación» de la Topbar. Se llamaba
+               «Cerrar menú», que volvía a chocar con el desplegable «Menú». */
+            aria-label="Cerrar navegación"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" />
