@@ -19,9 +19,10 @@
  *   compresión alivia la tracción de los anclajes, que es el fallo que gobierna.
  * - Fuera del payload: `concrete_cracked` (no tiene control en la UI: la IA no
  *   escribe lo que el usuario no puede ver, y desde su default `true` —el lado
- *   conservador— el único movimiento posible sería relajar el cálculo) y
- *   `bar_spacing_x`/`bar_spacing_y` (el motor los IGNORA: el layout sale de la
- *   placa, los bordes y el número de barras).
+ *   conservador— el único movimiento posible sería relajar el cálculo).
+ * - `bar_spacing_x`/`bar_spacing_y` entran desde 2026-09-23 GATEADOS por la
+ *   disposición: sólo con 12 barras son la separación del par central; con 4,
+ *   6 u 8 el layout sale de la placa, los bordes y el número de barras.
  */
 import { AiError } from '../types';
 import type { AiApplyPlan, AiFieldChange, AiModuleAdapter, AiSkippedField } from './types';
@@ -66,7 +67,9 @@ import type { UnitSystem } from '../../units/types';
 // ── Catálogos del módulo ──────────────────────────────────────────────────────
 const SECTION_TYPES: readonly string[] = ['IPE', 'HEA', 'HEB', 'IPN'];
 const PLATE_STEELS: readonly string[] = ['S235', 'S275', 'S355'];
-const BAR_LAYOUTS: readonly number[] = [4, 6, 8, 9];
+// La 9 (retícula 3×3 con una barra bajo el pilar) se retiró el 2026-09-23; la
+// 12 es el anillo con pares. Un 9 en el payload se rechaza con la lista.
+const BAR_LAYOUTS: readonly number[] = [4, 6, 8, 12];
 const RIB_COUNTS: readonly number[] = [0, 2, 4];
 const SURFACES: readonly string[] = ['smooth', 'roughened'];
 
@@ -84,7 +87,8 @@ export const ANCHOR_PLATE_PAYLOAD_SCHEMA: Record<string, unknown> = {
     'sectionType', 'sectionSize',
     'NEd_kN', 'NEd_G_kN', 'Mx_kNm', 'My_kNm', 'Vx_kN', 'Vy_kN',
     'plate_a_mm', 'plate_b_mm', 'plate_t_mm', 'plate_steel',
-    'bar_nLayout', 'bar_diam_mm', 'bar_grade', 'bar_edge_x_mm', 'bar_edge_y_mm', 'bar_hef_mm',
+    'bar_nLayout', 'bar_diam_mm', 'bar_grade', 'bar_edge_x_mm', 'bar_edge_y_mm',
+    'bar_spacing_x_mm', 'bar_spacing_y_mm', 'bar_hef_mm',
     'bottom_anchorage', 'top_connection', 'washer_od_mm',
     'rib_count', 'rib_h_mm', 'rib_t_mm',
     'fck_MPa',
@@ -105,11 +109,13 @@ export const ANCHOR_PLATE_PAYLOAD_SCHEMA: Record<string, unknown> = {
     plate_b_mm: { type: ['number', 'null'], description: 'Dimensión de la placa PARALELA al eje débil, en mm.' },
     plate_t_mm: { type: ['number', 'null'], description: 'Espesor de la placa, en mm.' },
     plate_steel: { type: ['string', 'null'], enum: [...PLATE_STEELS, null], description: 'Acero de la placa (S235, S275 o S355).' },
-    bar_nLayout: { type: ['integer', 'null'], enum: [...BAR_LAYOUTS, null], description: 'Número y disposición de las barras de anclaje: 4 (esquinas), 6 (esquinas + 2 en el centro de los lados del eje fuerte), 8 (esquinas + 4 centradas) o 9 (retícula 3×3).' },
+    bar_nLayout: { type: ['integer', 'null'], enum: [...BAR_LAYOUTS, null], description: 'Número y disposición de las barras de anclaje: 4 (esquinas), 6 (tres en cada extremo del eje fuerte), 8 (anillo: esquinas + una barra centrada en cada lado) o 12 (anillo con pares: esquinas + dos barras en cada lado). Nunca hay barras bajo el pilar.' },
     bar_diam_mm: { type: ['integer', 'null'], enum: [...AVAILABLE_REBAR_DIAMS, null], description: 'Diámetro de las barras de anclaje, en mm.' },
     bar_grade: { type: ['string', 'null'], enum: [...AVAILABLE_REBAR_GRADES, null], description: 'Acero de las barras de anclaje (B400S o B500S).' },
-    bar_edge_x_mm: { type: ['number', 'null'], description: 'Distancia del eje de la barra al borde de la PLACA en el eje fuerte, en mm. Junto con las dimensiones de la placa y el número de barras, define dónde caen las barras (no hay un campo de "separación").' },
+    bar_edge_x_mm: { type: ['number', 'null'], description: 'Distancia del eje de la barra al borde de la PLACA en el eje fuerte, en mm. Junto con las dimensiones de la placa y el número de barras, define dónde caen las barras.' },
     bar_edge_y_mm: { type: ['number', 'null'], description: 'Distancia del eje de la barra al borde de la PLACA en el eje débil, en mm.' },
+    bar_spacing_x_mm: { type: ['number', 'null'], description: 'SOLO con bar_nLayout = 12: separación entre las dos barras de cada par central de los lados paralelos al eje fuerte, en mm.' },
+    bar_spacing_y_mm: { type: ['number', 'null'], description: 'SOLO con bar_nLayout = 12: separación entre las dos barras de cada par central de los lados paralelos al eje débil, en mm.' },
     bar_hef_mm: { type: ['number', 'null'], description: 'Profundidad eficaz de anclaje de las barras en el hormigón, en mm (típico 15–25 veces el diámetro).' },
     bottom_anchorage: { type: ['string', 'null'], enum: [...AVAILABLE_BOTTOM_ANCHORAGES, null], description: 'Anclaje del EXTREMO EMPOTRADO de la barra: "prolongacion_recta", "patilla" (90°), "gancho" (≥135°) o "arandela_tuerca" (cabeza ensanchada, que transfiere por aplastamiento y se comprueba a pull-out).' },
     top_connection: { type: ['string', 'null'], enum: [...AVAILABLE_TOP_CONNECTIONS, null], description: 'Unión de la barra con la placa: "soldada" o "tuerca_arandela". Es un detalle constructivo: no modifica ninguna comprobación.' },
@@ -137,7 +143,7 @@ const PROMPT_RULES = `Reglas específicas del módulo Placas de anclaje:
 1. TODAS las longitudes van en MILÍMETROS (placa, barras, rigidizadores, macizo). Las fuerzas en kN y los momentos en kNm, siempre de CÁLCULO (ELU, ya mayorados).
 2. SIGNO DEL AXIL: NEd_kN es positivo en COMPRESIÓN. NEd_G_kN es la parte cuasi-permanente de ese axil (peso propio y permanentes): es la que da fricción contra el cortante, así que no la infles.
 3. CORTANTE: si el enunciado da un cortante único sin dirección, ponlo en Vx_kN (eje fuerte) y deja Vy_kN = 0.
-4. POSICIÓN DE LAS BARRAS: no hay campo de "separación entre barras". Las barras las coloca la app a partir de la placa (plate_a, plate_b), las distancias al borde de la PLACA (bar_edge_x, bar_edge_y) y el número/disposición (bar_nLayout). Para moverlas, cambia esos campos.
+4. POSICIÓN DE LAS BARRAS: las coloca la app a partir de la placa (plate_a, plate_b), las distancias al borde de la PLACA (bar_edge_x, bar_edge_y) y el número/disposición (bar_nLayout): esquinas (4), tres por extremo del eje fuerte (6), anillo (8) o anillo con pares (12). Solo con 12 existe una separación: bar_spacing_x/y es la distancia entre las dos barras de cada par central. Las barras van SIEMPRE fuera del pilar y de los rigidizadores; si el enunciado las pone sobre un rigidizador, avísalo en warnings en vez de forzarlo.
 5. DOS GEOMETRÍAS DISTINTAS que se confunden con facilidad: bar_edge_* es de la barra al borde de la PLACA; pedestal_cX1..cY2 es de la barra al borde del MACIZO de hormigón (y gobiernan la rotura de cono por borde). Si el macizo es simétrico, cX1 = cX2 y cY1 = cY2.
 6. El anclaje inferior (bottom_anchorage) y la conexión superior (top_connection) son independientes. Solo "arandela_tuerca" activa la comprobación de pull-out y necesita washer_od_mm; los otros tres anclan por adherencia y necesitan un hef suficiente.
 7. En este módulo son DATOS del problema, no variables de diseño: los esfuerzos (Mx, My, Vx, Vy), el axil (NEd y NEd_G) y la geometría real del macizo (pedestal_cX1..cY2, pedestal_h, plate_margin_x/y, surface_type). Para que una placa cumpla actúa SIEMPRE sobre la RESISTENCIA: placa más gruesa o más grande, más barras o de más diámetro, más profundidad de anclaje (hef), rigidizadores, mejor hormigón. Y OJO con una trampa propia de este módulo: SUBIR el axil de compresión "mejora" el resultado (alivia la tracción de los anclajes, que es lo que suele fallar) — no lo toques para hacer cumplir la placa. Tampoco agrandes el macizo ni sus distancias a los bordes, que son medidas de la obra.`;
@@ -166,6 +172,8 @@ interface AnchorPlatePayload {
   bar_grade: string | null;
   bar_edge_x_mm: number | null;
   bar_edge_y_mm: number | null;
+  bar_spacing_x_mm: number | null;
+  bar_spacing_y_mm: number | null;
   bar_hef_mm: number | null;
   bottom_anchorage: string | null;
   top_connection: string | null;
@@ -216,6 +224,8 @@ function parsePayload(raw: unknown): AnchorPlatePayload {
     bar_grade: stringOrNull(r.bar_grade),
     bar_edge_x_mm: finiteNumber(r.bar_edge_x_mm),
     bar_edge_y_mm: finiteNumber(r.bar_edge_y_mm),
+    bar_spacing_x_mm: finiteNumber(r.bar_spacing_x_mm),
+    bar_spacing_y_mm: finiteNumber(r.bar_spacing_y_mm),
     bar_hef_mm: finiteNumber(r.bar_hef_mm),
     bottom_anchorage: stringOrNull(r.bottom_anchorage),
     top_connection: stringOrNull(r.top_connection),
@@ -259,6 +269,8 @@ const LABELS = {
   bar_grade: 'Acero de las barras',
   bar_edge_x_mm: 'Barra al borde de placa (x)',
   bar_edge_y_mm: 'Barra al borde de placa (y)',
+  bar_spacing_x_mm: 'Par central — separación (x)',
+  bar_spacing_y_mm: 'Par central — separación (y)',
   bar_hef_mm: 'Profundidad de anclaje hef',
   bottom_anchorage: 'Anclaje inferior',
   top_connection: 'Conexión superior',
@@ -285,7 +297,8 @@ const KEY_ORDER: readonly PayloadKey[] = [
   'sectionType', 'sectionSize',
   'NEd_kN', 'NEd_G_kN', 'Mx_kNm', 'My_kNm', 'Vx_kN', 'Vy_kN',
   'plate_a_mm', 'plate_b_mm', 'plate_t_mm', 'plate_steel',
-  'bar_nLayout', 'bar_diam_mm', 'bar_grade', 'bar_edge_x_mm', 'bar_edge_y_mm', 'bar_hef_mm',
+  'bar_nLayout', 'bar_diam_mm', 'bar_grade', 'bar_edge_x_mm', 'bar_edge_y_mm',
+  'bar_spacing_x_mm', 'bar_spacing_y_mm', 'bar_hef_mm',
   'bottom_anchorage', 'top_connection', 'washer_od_mm',
   'rib_count', 'rib_h_mm', 'rib_t_mm',
   'fck_MPa',
@@ -302,6 +315,10 @@ export const WASHER_GATE_REASON =
 
 export const RIB_GATE_REASON =
   'Sin rigidizadores (rib_count = 0), la geometría del rigidizador no interviene en el cálculo.';
+
+export const PAIR_GATE_REASON =
+  'La separación del par central solo existe con 12 barras (bar_nLayout = 12); con 4, 6 u 8 las '
+  + 'barras las coloca la app a partir de la placa y las distancias al borde.';
 
 /**
  * Campos que NO son variables de diseño. La placa, las barras, el hef, los
@@ -556,6 +573,13 @@ function buildAnchorPlatePlan(
   }
   applyMm('bar_edge_x_mm', 'bar_edge_x', x.bar_edge_x_mm, 10, 500);
   applyMm('bar_edge_y_mm', 'bar_edge_y', x.bar_edge_y_mm, 10, 500);
+  // La separación del par central sólo existe con 12 barras: la disposición
+  // gatea los dos campos, igual que rib_count gatea la cartela.
+  const layoutFinal = (fields.bar_nLayout ?? current.bar_nLayout) as number;
+  if (x.bar_spacing_x_mm !== null && layoutFinal !== 12) skip('bar_spacing_x_mm', PAIR_GATE_REASON);
+  else applyMm('bar_spacing_x_mm', 'bar_spacing_x', x.bar_spacing_x_mm, 20, 1000);
+  if (x.bar_spacing_y_mm !== null && layoutFinal !== 12) skip('bar_spacing_y_mm', PAIR_GATE_REASON);
+  else applyMm('bar_spacing_y_mm', 'bar_spacing_y', x.bar_spacing_y_mm, 20, 1000);
   applyMm('bar_hef_mm', 'bar_hef', x.bar_hef_mm, 40, 2000);
 
   // --- Anclaje inferior (gatea la arandela) y conexión superior ---
@@ -681,12 +705,12 @@ function buildAnchorPlatePlan(
 // ── Snapshot del estado ───────────────────────────────────────────────────────
 
 // Fuera del snapshot, además de `title`: los campos legacy (`VEd`, `pedestal_cX`,
-// `pedestal_cY`), que son espejo de los canónicos; `concrete_cracked`, que no tiene
-// control en la UI; y `bar_spacing_x`/`bar_spacing_y`, que el motor ignora.
+// `pedestal_cY`), que son espejo de los canónicos, y `concrete_cracked`, que no
+// tiene control en la UI. `bar_spacing_x`/`bar_spacing_y` SÍ entran desde
+// 2026-09-23: son la separación del par central con 12 barras.
 type StateKey = Exclude<
   keyof AnchorPlateInputs,
   'title' | 'VEd' | 'pedestal_cX' | 'pedestal_cY' | 'concrete_cracked'
-  | 'bar_spacing_x' | 'bar_spacing_y'
 >;
 
 const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {
@@ -707,6 +731,8 @@ const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {
   bar_grade: 'bar_grade',
   bar_edge_x_mm: 'bar_edge_x',
   bar_edge_y_mm: 'bar_edge_y',
+  bar_spacing_x_mm: 'bar_spacing_x',
+  bar_spacing_y_mm: 'bar_spacing_y',
   bar_hef_mm: 'bar_hef',
   bottom_anchorage: 'bottom_anchorage',
   top_connection: 'top_connection',

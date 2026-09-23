@@ -1128,11 +1128,14 @@ export interface AnchorPlateInputs {
   plate_steel:  AnchorPlateSteel;
 
   // Barras de anclaje (EHE-08 / EC2)
-  bar_nLayout:    4 | 6 | 8 | 9;
+  // 4 esquinas · 6 tres por extremo del eje fuerte · 8 anillo · 12 anillo con
+  // pares. La 9 (retícula 3×3, con la barra central bajo el pilar) se retiró
+  // el 2026-09-23 y un estado guardado con 9 se lee como 8.
+  bar_nLayout:    4 | 6 | 8 | 12;
   bar_diam:       RebarDiam;
   bar_grade:      RebarGrade;
-  bar_spacing_x:  number;            // mm (eje fuerte)
-  bar_spacing_y:  number;            // mm (eje débil)
+  bar_spacing_x:  number;            // mm — separación entre las dos barras de cada par central de los lados paralelos al eje fuerte (sólo disposición 12)
+  bar_spacing_y:  number;            // mm — ídem, pares de los lados paralelos al eje débil (sólo disposición 12)
   bar_edge_x:     number;            // mm (barra al borde de placa, eje fuerte)
   bar_edge_y:     number;            // mm (idem, eje débil)
   bar_hef:           number;         // mm (profundidad útil de anclaje)
@@ -1163,8 +1166,12 @@ export interface AnchorPlateInputs {
   weld_throat: number;               // mm
 }
 
-// FTUX: HEB-200, placa 400×300×20 S275, 4 barras φ20 B500S en esquinas,
-// prolongación recta, 2 rigidizadores. Axil+biaxial para ejercitar el solver.
+// FTUX: la lámina tipo del estudio para un HEB-200 — placa 350×350×20 S275,
+// 8 barras φ20 B500S en anillo (esquinas + una centrada en cada lado) y los
+// cuatro rigidizadores en «#» pegados a las caras del pilar. Axil+biaxial para
+// ejercitar el solver. Hasta 2026-09-23 era 400×300 con 4 barras y el par de
+// cartelas en las alas: las barras (y = ±100) caían justo sobre las cartelas
+// (y = 100..110), que es lo que se veía en el dibujo.
 export const anchorPlateDefaults: AnchorPlateInputs = {
   title: '',
   sectionType: 'HEB',
@@ -1176,37 +1183,37 @@ export const anchorPlateDefaults: AnchorPlateInputs = {
   My:    10,     // PR-2: biaxial por defecto
   VEd:   50,
 
-  plate_a:     400,
-  plate_b:     300,
+  plate_a:     350,
+  plate_b:     350,
   plate_t:     20,
   plate_steel: 'S275',
 
-  bar_nLayout:   4,
+  bar_nLayout:   8,
   bar_diam:      20,
   bar_grade:     'B500S',
-  bar_spacing_x: 300,
-  bar_spacing_y: 200,
-  bar_edge_x:    50,
-  bar_edge_y:    50,
+  bar_spacing_x: 100,               // sólo cuenta con la disposición 12 (pares centrales)
+  bar_spacing_y: 100,
+  bar_edge_x:    40,                // barras en ±135: 25 mm libres a la cara de las cartelas (100..110)
+  bar_edge_y:    40,
   bar_hef:          300,            // anclaje por adherencia (EC2 §8.4) típico 15–25·φ
   bottom_anchorage: 'prolongacion_recta',
   top_connection:   'soldada',
   washer_od:        50,             // solo aplica si bottom_anchorage='arandela_tuerca'
 
-  rib_count: 2,
+  rib_count: 4,
   rib_h:     120,
   rib_t:     10,
 
   fck:             25,
-  pedestal_cX:     200,   // c1 — bolt a borde (EN 1992-4 cone) (legacy, seeds direccionales)
-  pedestal_cY:     200,   // c2 (legacy, seeds direccionales)
-  pedestal_cX1:    200,   // direccional +x (PR0)
-  pedestal_cX2:    200,   // direccional −x (PR0)
-  pedestal_cY1:    200,   // direccional +y (PR0)
-  pedestal_cY2:    200,   // direccional −y (PR0)
+  pedestal_cX:     190,   // c1 — barra a borde del macizo = 40 (a borde de placa) + 150 (margen) (legacy, seeds direccionales)
+  pedestal_cY:     190,   // c2 (legacy, seeds direccionales)
+  pedestal_cX1:    190,   // direccional +x (PR0)
+  pedestal_cX2:    190,   // direccional −x (PR0)
+  pedestal_cY1:    190,   // direccional +y (PR0)
+  pedestal_cY2:    190,   // direccional −y (PR0)
   pedestal_h:     1000,   // mm canto macizo — default conservador (PR0, usado por splitting PR6)
   concrete_cracked: true, // default conservador EN 1992-4 §7.2.1.5
-  plate_margin_x:  150,   // placa (400) + 2·150 = 700 mm pedestal — α ≈ 1.75
+  plate_margin_x:  150,   // placa (350) + 2·150 = 650 mm pedestal
   plate_margin_y:  150,
   surface_type:    'roughened',
 

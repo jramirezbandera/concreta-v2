@@ -5,11 +5,33 @@ import { describe, expect, it } from 'vitest';
 import { calcAnchorPlate, checkStiffener, solveAxisAligned4 } from '../../lib/calculations/anchorPlate';
 import { anchorPlateDefaults } from '../../data/defaults';
 
-// Axis-aligned-solver tests assume My=0. Defaults have My≠0 for biaxial FTUX,
+// Fixture histórica: los defaults del módulo hasta 2026-09-23 — HEB-200, placa
+// 400×300×20 S275, 4·φ20 B500S en esquinas (ex = ey = 50 → barras en ±150,
+// ±100), pedestal 700×600 con cX = cY = 200. Los hand-calcs de este fichero
+// (cono, splitting, edge breakout, T-stub, anclaje…) están derivados para ESTA
+// geometría, así que se fija aquí en vez de heredar los defaults nuevos (350×350
+// con 8 barras y el «#» de cartelas). Va SIN rigidizadores: con el par de
+// cartelas en las puntas de las alas (y = 100..110) sus barras (y = ±100)
+// pisarían acero y el motor lo marca como no construible. Los tests de
+// rigidizadores pasan su propia geometría.
+export const LEGACY = {
+  ...anchorPlateDefaults,
+  plate_a: 400, plate_b: 300,
+  bar_nLayout: 4 as const,
+  bar_edge_x: 50, bar_edge_y: 50,
+  bar_spacing_x: 300, bar_spacing_y: 200,
+  rib_count: 0 as const,
+  pedestal_cX: 200, pedestal_cY: 200,
+  pedestal_cX1: 200, pedestal_cX2: 200, pedestal_cY1: 200, pedestal_cY2: 200,
+};
+// Axis-aligned-solver tests assume My=0. LEGACY has My≠0 for biaxial FTUX,
 // so we override it here to isolate the axis-aligned solver from the biaxial path.
-const base = { ...anchorPlateDefaults, My: 0 };
+const base = { ...LEGACY, My: 0 };
 // base: HEB-200, placa 400×300×20 S275, 4·φ20 B500S en esquinas,
 //       NEd=200 kN, Mx=45 kNm, My=0, VEd=50 kN, fck=25 MPa, prolongación recta.
+// Geometría con el par de cartelas en las alas sin que las barras las pisen:
+// la placa sube a 400 en y (barras en ±150, cartelas en ±100..110).
+const conCartelas = { ...base, plate_b: 400, rib_count: 2 as const };
 
 describe('anchor plate — zero loads', () => {
   it('result invalid only when NEd=Mx=My=0 AND V=0 (fix auditoría #7)', () => {
@@ -135,41 +157,60 @@ describe('anchor plate — result shape', () => {
 
 // ─── Plate-bending per-axis refinement (PR-4) ────────────────────────────
 
-describe('check 2 — flexión placa: voladizo por eje según rib_count', () => {
-  // HEB-200 (h=b=200), placa 400×300 → c_strong = 100, c_weak = 50.
-  it('rib_count=0 → c_eff = max(c_strong, c_weak) = 100 mm', () => {
+describe('check 2 — flexión placa: voladizo equivalente por líneas de rotura según las cartelas', () => {
+  // HEB-200 (h = bf = 200), placa 400×300 → c_x = 100, c_y = 50; cartelas t = 10.
+  // Los valores están derivados a mano de los mecanismos de
+  // anchor-plate/geometria.ts (ver anchorPlateGeometria.test.ts para k(ρ)).
+  it('rib_count=0 → voladizo desde el perfil, c = max(100, 50) = 100 mm', () => {
     const r = calcAnchorPlate({ ...base, rib_count: 0 });
     const pb = r.checks.find((c) => c.id === 'plate-bending')!;
     expect(pb.limit).toContain('c=100 mm');
   });
-  it('rib_count=2 parte sólo el eje fuerte → c_eff = max(50, 50) = 50 mm', () => {
+  it('rib_count=2 → franja lateral entre cartelas (w=200, c=100, k≈0,0853 → 41) manda sobre el voladizo exterior (50−10=40)', () => {
+    // Las barras pisarían las cartelas con b=300; para esta comprobación da
+    // igual (no mira las barras), pero se usa b=400 para no arrastrar el aviso:
+    // entonces el voladizo exterior es 100−10 = 90 y gobierna él.
     const r = calcAnchorPlate({ ...base, rib_count: 2 });
     const pb = r.checks.find((c) => c.id === 'plate-bending')!;
-    expect(pb.limit).toContain('c=50 mm');
+    expect(pb.limit).toContain('c=41 mm');
+    expect(pb.limit).toContain('franja lateral');
+    const r400 = calcAnchorPlate(conCartelas);
+    expect(r400.checks.find((c) => c.id === 'plate-bending')!.limit).toContain('c=90 mm');
+    expect(r400.checks.find((c) => c.id === 'plate-bending')!.limit).toContain('voladizo exterior');
   });
-  it('rib_count=4 parte ambos ejes → c_eff = max(50, 25) = 50 mm (geometría simétrica)', () => {
+  it('rib_count=4 → lateral (w=200, c=90 → 39) > central (w=200, c=40 → 25) > esquina (90×40 → 24): c = 39 mm', () => {
     const r = calcAnchorPlate({ ...base, rib_count: 4 });
     const pb = r.checks.find((c) => c.id === 'plate-bending')!;
-    expect(pb.limit).toContain('c=50 mm');
+    expect(pb.limit).toContain('c=39 mm');
   });
-  it('rib_count=2 deja el eje débil sin partir cuando es el que manda', () => {
-    // Placa 300×500 con HEB-200 (h=b=200) → c_strong=50, c_weak=150.
-    // rib_count=2 (nervios en eje fuerte): c_eff = max(25, 150) = 150.
+  it('rib_count=2 con placa 300×500: el voladizo exterior a las cartelas (150−10 = 140) es el que manda', () => {
+    // c_x = 50 → franja lateral (w=200, ρ=4, k≈0,167) = 29; exterior = 140.
     const r = calcAnchorPlate({ ...base, plate_a: 300, plate_b: 500, rib_count: 2 });
     const pb = r.checks.find((c) => c.id === 'plate-bending')!;
-    expect(pb.limit).toContain('c=150 mm');
+    expect(pb.limit).toContain('c=140 mm');
   });
-  it('rib_count=4 sí parte el voladizo débil', () => {
-    // Misma placa 300×500: rib_count=4 → c_eff = max(25, 75) = 75 mm.
+  it('rib_count=4 con placa 300×500: la celda central entre cartelas (w=200, c=140, k≈0,057) baja a 47 mm', () => {
+    // lateral (w=200, c=40) = 25; esquina (40×140) = 28; central = 47.
     const r = calcAnchorPlate({ ...base, plate_a: 300, plate_b: 500, rib_count: 4 });
     const pb = r.checks.find((c) => c.id === 'plate-bending')!;
-    expect(pb.limit).toContain('c=75 mm');
+    expect(pb.limit).toContain('c=47 mm');
+    expect(pb.limit).toContain('celda central');
+  });
+  it('con cartelas el voladizo equivalente nunca supera al de la placa sin cartelas', () => {
+    for (const [a, b] of [[400, 300], [300, 500], [500, 500], [260, 260]] as const) {
+      const c = (rib: 0 | 2 | 4) => {
+        const pb = calcAnchorPlate({ ...base, plate_a: a, plate_b: b, rib_count: rib }).checks.find((x) => x.id === 'plate-bending')!;
+        return Number(pb.limit!.match(/c=(\d+) mm/)![1]);
+      };
+      expect(c(2)).toBeLessThanOrEqual(c(0));
+      expect(c(4)).toBeLessThanOrEqual(c(2));
+    }
   });
 });
 
 describe('anchor plate — biaxial solver', () => {
   // Defaults already carry My=10 → biaxial path. Use defaults directly.
-  const biax = { ...anchorPlateDefaults };
+  const biax = { ...LEGACY };
   const r = calcAnchorPlate(biax);
 
   it('dispatcher routes biaxial when My ≠ 0', () => {
@@ -195,9 +236,13 @@ describe('anchor plate — biaxial solver', () => {
     const r8 = calcAnchorPlate({ ...biax, bar_nLayout: 8 });
     expect(r8.solver.bolts).toHaveLength(8);
   });
-  it('supports 9-bar layout', () => {
-    const r9 = calcAnchorPlate({ ...biax, bar_nLayout: 9 });
-    expect(r9.solver.bolts).toHaveLength(9);
+  it('supports 12-bar layout (anillo con pares)', () => {
+    const r12 = calcAnchorPlate({ ...biax, bar_nLayout: 12 });
+    expect(r12.solver.bolts).toHaveLength(12);
+  });
+  it('la retícula 3×3 retirada (9) se lee como el anillo de 8', () => {
+    const r9 = calcAnchorPlate({ ...biax, bar_nLayout: 9 as unknown as 8 });
+    expect(r9.solver.bolts).toHaveLength(8);
   });
 
   it('biaxial degenerates to axis-aligned when My=0', () => {
@@ -341,15 +386,15 @@ describe('check 6 — α1 en patilla/gancho según cd (EC2 §8.4.4 Tab 8.2)', ()
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
     expect(an.value).toContain('α1=0,70');
   });
-  it('H14 (PR5): layout 9 con plate pequeña → barras vecinas próximas → cd pequeño → α1=1.00', () => {
-    // 9-grid 3×3 en placa 300×300 con bar_edge=40 → xs en {−110, 0, +110}.
-    // La barra central tiene vecinas a 110 mm → halfSpacing = (110−20)/2 = 45 < 60 → α1=1.0.
+  it('H14 (PR5): anillo de 8 con plate pequeña → barras vecinas próximas → cd pequeño → α1=1.00', () => {
+    // Anillo de 8 en placa 300×300 con bar_edge=40 → xs en {−110, 0, +110}.
+    // La barra centrada tiene vecinas a 110 mm → halfSpacing = (110−20)/2 = 45 < 60 → α1=1.0.
     // Esto sólo funciona porque generateLayout produce el spacing real (post-H14),
     // no inp.bar_spacing_x.
     const r = calcAnchorPlate({
       ...base,
       bottom_anchorage: 'patilla',
-      bar_nLayout: 9,
+      bar_nLayout: 8,
       plate_a: 300, plate_b: 300,
       bar_edge_x: 40, bar_edge_y: 40,
       My: 5,   // pequeño momento biaxial para que algunas barras estén traccionadas
@@ -431,14 +476,14 @@ describe('check 10 — stiffener (CE Anejo 22 §5.5 + §4.5.3)', () => {
     expect(st.utilization).toBe(0);
     expect(st.value).toBe('Sin rigidizadores');
   });
-  it('rib_count=2 → slenderness or weld governs (real values)', () => {
-    const r = calcAnchorPlate(base);
+  it('rib_count=2 → esbeltez, soldadura o aplastamiento gobiernan (valores reales)', () => {
+    const r = calcAnchorPlate(conCartelas);
     const st = r.checks.find((c) => c.id === 'stiffener')!;
     expect(st.utilization).toBeGreaterThan(0);
-    expect(st.limit).toMatch(/(esbeltez|soldadura)/);
+    expect(st.limit).toMatch(/(esbeltez|soldadura|aplastamiento)/);
   });
   it('slenderness limit tightens for S355 (lower ε)', () => {
-    const rS355 = calcAnchorPlate({ ...base, plate_steel: 'S355' });
+    const rS355 = calcAnchorPlate({ ...conCartelas, plate_steel: 'S355' });
     const st = rS355.checks.find((c) => c.id === 'stiffener')!;
     // ε = √(235/355) ≈ 0.814 → 14·ε ≈ 11.4 < 12 (rib_h/rib_t=120/10), esbeltez NO FAIL pero alta.
     expect(st.limit).toContain('c/t≤11,4');
@@ -446,32 +491,53 @@ describe('check 10 — stiffener (CE Anejo 22 §5.5 + §4.5.3)', () => {
 });
 
 describe('CM#4 — stiffener APLASTAMIENTO (compresión directa en el vuelo)', () => {
+  // Reparto entre cartelas (2026-09-23): cada cartela recoge la parte de Nc
+  // que cae en su franja tributaria (la de ancho 2c + t que aporta al área
+  // eficaz) dentro del bloque comprimido; sin bloque, el bloque es la placa.
   it('con perfil en catálogo el limit expone Fb,Rd y la descripción lo nombra', () => {
-    const st = checkStiffener(base, 100);
+    const st = checkStiffener(conCartelas, 100, undefined);
     expect(st.description).toContain('aplastamiento');
     expect(st.limit).toContain('Fb,Rd=');
   });
-  it('hand-calc: vuelo estrecho + Nc alto → aplastamiento gobierna, util=3.82', () => {
-    // HEB-200 (h=200) con plate_a=220 → c_out = (220−200)/2 = 10 mm.
+  it('hand-calc: vuelo estrecho + Nc alto → aplastamiento gobierna, util=4,38', () => {
+    // HEB-200 (h=200) con placa 220×300 → vuelo del par X = (220−200)/2 = 10 mm.
     // fyd = 275/1.05 = 261.905 → Fb,Rd = 261.905·10·10/1000 = 26.19 kN.
-    // Nc=400, rib_count=2 → F_rib = 400/4 = 100 kN → util = 100/26.19 = 3.82.
-    // (esbeltez 0.927 y soldadura ≪ quedan por debajo)
-    const st = checkStiffener({ ...base, plate_a: 220 }, 400);
+    // Kj = √(520·600/(220·300)) = 2.174 → fjd = (2/3)·2.174·16.667 = 24.16
+    // → c = 20·√(261.905/(3·24.16)) = 38.02. Franja de la cartela y ∈ [100, 110]:
+    // [61.98, 148.02] × 220 = 18 929 mm² de los 66 000 de la placa → 28.68 %.
+    // F_rib = 400·0.2868 = 114.7 kN → util = 114.7/26.19 = 4.38 (esbeltez 0.93
+    // y soldadura 0.34 quedan por debajo).
+    const st = checkStiffener({ ...base, rib_count: 2 as const, plate_a: 220 }, 400, undefined);
     expect(st.limit).toContain('(aplastamiento)');
-    expect(st.utilization).toBeCloseTo(3.82, 1);
+    expect(st.utilization).toBeCloseTo(4.38, 1);
     expect(st.status).toBe('fail');
   });
-  it('rib_count=4 usa el vuelo MÍNIMO de los dos ejes (gobierna el débil)', () => {
-    // HEB-200 (h=b=200), plate 320×220 → c_fuerte=60, c_débil=10 → min=10.
-    // Fb,Rd = 261.905·10·10/1000 = 26.19 kN; F_rib = 400/(4+2) = 66.67 kN
-    // → util = 66.67/26.19 = 2.55 y gobierna aplastamiento.
-    const st = checkStiffener({ ...base, rib_count: 4 as const, plate_a: 320, plate_b: 220 }, 400);
+  it('rib_count=4: cada cartela con SU carga y SU vuelo — gobierna la del eje débil', () => {
+    // HEB-200 (h=b=200), placa 320×220 → vuelo X = 60, vuelo Y = 10.
+    // Kj = √(620·520/(320·220)) = 2.140 → fjd = 23.78 → c = 38.3.
+    // Franja Y (x ∈ [100, 110] ± c, recortada a ±160): 86.6 × 220 = 19 052 mm²
+    // de 70 400 → F_Y = 400·0.2706 = 108.2 kN → 108.2/26.19 = 4.13.
+    // Franja X (y ∈ [100, 110] ± c, recortada a ±110): 48.3 × 320 = 15 456 →
+    // F_X = 87.8 kN frente a Fb,Rd = 157.1 → 0.56. Gobierna la Y con 4.13.
+    const st = checkStiffener({ ...base, rib_count: 4 as const, plate_a: 320, plate_b: 220 }, 400, undefined);
     expect(st.limit).toContain('(aplastamiento)');
-    expect(st.utilization).toBeCloseTo(2.55, 1);
-    // Control: con el eje débil holgado el mínimo vuelve al fuerte (60 mm) y
-    // el aplastamiento deja de gobernar (util_bear = 66.67/157.1 = 0.42 < esbeltez 0.93).
-    const ctrl = checkStiffener({ ...base, rib_count: 4 as const, plate_a: 320, plate_b: 400 }, 400);
+    expect(st.utilization).toBeCloseTo(4.13, 1);
+    // Control: con el eje débil holgado (320×400) el vuelo Y sube a 100 y el
+    // aplastamiento (0.44 y 0.59) queda por debajo de la esbeltez (0.93).
+    const ctrl = checkStiffener({ ...base, rib_count: 4 as const, plate_a: 320, plate_b: 400 }, 400, undefined);
     expect(ctrl.limit).toContain('(esbeltez)');
+  });
+  it('con momento, las cartelas del lado comprimido se llevan la carga y las del lado traccionado casi nada', () => {
+    // Bloque comprimido en +x (la mitad derecha de la placa, a todo el ancho):
+    // las cartelas del par X (ambas a lo largo de x) reparten por igual y la
+    // del par Y en +x recoge su franja entera; la de −x no toca el bloque.
+    const inp = { ...base, plate_b: 400, rib_count: 4 as const };
+    const bloque = [{ x: 0, y: -200 }, { x: 200, y: -200 }, { x: 200, y: 200 }, { x: 0, y: 200 }];
+    const conBloque = checkStiffener(inp, 300, bloque);
+    const uniforme = checkStiffener(inp, 300, undefined);
+    // Con el bloque a medio ancho, la cartela Y de +x recibe el doble que en reparto uniforme.
+    const F = (s: { value?: string }) => Number((s.value ?? '').match(/F_rib=([\d,]+)/)![1].replace(',', '.'));
+    expect(F(conBloque)).toBeGreaterThan(F(uniforme) * 1.5);
   });
 });
 
@@ -487,21 +553,21 @@ describe('D4 — noSolution (sin equilibrio físico ≠ APROX numérico)', () =>
     expect(eq.status).toBe('fail');
   });
   it('FTUX sano (biaxial convergido) → noSolution=false, sin check sintético', () => {
-    const r = calcAnchorPlate({ ...anchorPlateDefaults });
+    const r = calcAnchorPlate({ ...LEGACY });
     expect(r.solver.converged).toBe(true);
     expect(r.noSolution).toBe(false);
     expect(r.checks.find((c) => c.id === 'solver-equilibrium')).toBeUndefined();
   });
   it('tracción pura saturada (|NEd| > n·FtRd) → noSolution', () => {
     // 4 barras φ20 B500S → 4·136.59 = 546.4 kN < 600 → imposible sostener.
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: -600, Mx: 0, My: 0 });
+    const r = calcAnchorPlate({ ...LEGACY, NEd: -600, Mx: 0, My: 0 });
     expect(r.solver.mode).toBe('pure-tension');
     expect(r.solver.noSolution).toBe(true);
     expect(r.noSolution).toBe(true);
     expect(r.overallStatus).toBe('fail');
   });
   it('biaxial muy por encima de capacidad → cap FtRd activo + residuo = noSolution', () => {
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, Mx: 300, My: 200 });
+    const r = calcAnchorPlate({ ...LEGACY, Mx: 300, My: 200 });
     expect(r.solver.converged).toBe(false);
     expect(r.noSolution).toBe(true);
     const eq = r.checks.find((c) => c.id === 'solver-equilibrium')!;
@@ -523,7 +589,7 @@ describe('D4 — noSolution (sin equilibrio físico ≠ APROX numérico)', () =>
 describe('PR10 — H4 NEd<0 pure-tension branch', () => {
   it('Tracción axial pura (M=0) → distribución uniforme entre todas las barras', () => {
     // NEd=-100 kN, 4 barras → Ft_per_bar = 25 kN exacto.
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: -100, Mx: 0, My: 0 });
+    const r = calcAnchorPlate({ ...LEGACY, NEd: -100, Mx: 0, My: 0 });
     expect(r.solver.mode).toBe('pure-tension' as never);
     expect(r.solver.Nc).toBe(0);
     expect(r.solver.Ft_total).toBeCloseTo(100, 1);
@@ -538,7 +604,7 @@ describe('PR10 — H4 NEd<0 pure-tension branch', () => {
     // NEd=-50, Mx=8, My=8 → distribución lineal a+b·x+c·y daría compresión
     // en la barra (-x, -y) diagonal opuesta al pico. Se clava a 0.
     const r = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       sectionType: 'HEA' as const, sectionSize: 160,
       plate_a: 300, plate_b: 300, plate_t: 15, plate_steel: 'S235' as const,
       bar_nLayout: 4 as const, bar_diam: 16 as const,
@@ -564,7 +630,7 @@ describe('PR10 — H4 NEd<0 pure-tension branch', () => {
 
   it('NEd<0: cono / splitting siguen aplicando sobre barras traccionadas', () => {
     const r = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       sectionType: 'HEA' as const, sectionSize: 160,
       plate_a: 300, plate_b: 300, plate_t: 15, plate_steel: 'S235' as const,
       bar_nLayout: 4 as const, bar_diam: 16 as const,
@@ -588,7 +654,7 @@ describe('PR10 — H4 NEd<0 pure-tension branch', () => {
     // PR10 mejora la H4: antes (PR7a fallback) el dispatcher mandaba NEd<0 a
     // solveAxisAligned4 que degradaba a 'partial-lift-saturated'. Ahora el
     // dispatcher detecta NEd<0 al inicio y rutea a solvePureTension.
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: -10, Mx: 5, My: 0 });
+    const r = calcAnchorPlate({ ...LEGACY, NEd: -10, Mx: 5, My: 0 });
     expect(r.solver.mode).toBe('pure-tension' as never);
   });
 
@@ -599,7 +665,7 @@ describe('PR10 — H4 NEd<0 pure-tension branch', () => {
     // Para saturar (Ft_max=136.6): a + b·150 + c·100 = 136.6
     // Con a=50 (uniform), b=Mx·1000/Σx²=200000/(4·150²)=2.22 → b·150=333. Demasiado.
     // Eso da 50+333+0 = 383 → satura. ★
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, NEd: -200, Mx: 200, My: 0 });
+    const r = calcAnchorPlate({ ...LEGACY, NEd: -200, Mx: 200, My: 0 });
     expect(r.solver.mode).toBe('pure-tension' as never);
     expect(r.solver.note).toMatch(/saturada/i);
   });
@@ -607,7 +673,7 @@ describe('PR10 — H4 NEd<0 pure-tension branch', () => {
 
 describe('PR8b — CR6 concrete shear modes', () => {
   it('checks count: 15 (PR8b +3 concrete-shear; auditoría +T-stub +interacción N+V)', () => {
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     expect(r.checks).toHaveLength(15);
     expect(r.checks.find((c) => c.id === 'concrete-edge-breakout')).toBeDefined();
     expect(r.checks.find((c) => c.id === 'concrete-pryout')).toBeDefined();
@@ -627,7 +693,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
     //   VRd,c = 43.29 · 0.90 / 1.5 = 25.97 kN → util = 50/25.97 = 1.925 → FAIL
     // Pre-fix, la fórmula k1=1.6 con exponentes fijos tipo ACI daba
     // VRd,c ≈ 92 kN (×3.5 sobreestimado) y este caso salía verde.
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
     expect(eb.utilization).toBeCloseTo(1.925, 2);
     expect(eb.status).toBe('fail');
@@ -638,8 +704,8 @@ describe('PR8b — CR6 concrete shear modes', () => {
     // altura h y ψh,V = √(1.5c1/h) ≥ 1 la compensa: neto = √(h/1.5c1) < 1.
     // Pre-fix no se recortaba el área Y se aplicaba ψh → error ×(1.5c1/h).
     // h = 150 = 0.75·c1: util debe crecer ×1/√(150/300) = ×1.414.
-    const r1 = calcAnchorPlate(anchorPlateDefaults);                          // h=1000 ≥ 300
-    const r2 = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_h: 150 });  // h < 1.5·c1
+    const r1 = calcAnchorPlate(LEGACY);                          // h=1000 ≥ 300
+    const r2 = calcAnchorPlate({ ...LEGACY, pedestal_h: 150 });  // h < 1.5·c1
     const eb1 = r1.checks.find((c) => c.id === 'concrete-edge-breakout')!;
     const eb2 = r2.checks.find((c) => c.id === 'concrete-edge-breakout')!;
     expect(eb2.utilization).toBeCloseTo(eb1.utilization / Math.sqrt(150 / 300), 2);
@@ -649,7 +715,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
     // Cortante direccional (VEd legacy = 0, Vy = 50): los checks de ACERO
     // evaluaban inp.VEd = 0 → utilización 0, verde con las barras cargadas.
     const r = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       VEd: 0, Vx: 0, Vy: 50,
     });
     const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
@@ -662,14 +728,14 @@ describe('PR8b — CR6 concrete shear modes', () => {
     // utilV = edge breakout 1.925 → 0.663^1.5 + 1.925^1.5 = 0.540 + 2.671
     // = 3.211 (EN 1992-4 §7.2.3.2). Dos modos al 0.85 individual darían
     // 1.57 > 1: la norma exige este check aunque ambos estén en verde.
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const ci = r.checks.find((c) => c.id === 'concrete-interaction')!;
     expect(ci.utilization).toBeCloseTo(3.211, 2);
     expect(ci.status).toBe('fail');
   });
 
   it('interacción N+V hormigón neutral sin concurrencia (V=0)', () => {
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, VEd: 0, Vx: 0, Vy: 0 });
+    const r = calcAnchorPlate({ ...LEGACY, VEd: 0, Vx: 0, Vy: 0 });
     const ci = r.checks.find((c) => c.id === 'concrete-interaction')!;
     expect(ci.status).toBe('neutral');
   });
@@ -677,7 +743,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
   it('bolt-tension comprueba la barra PÉSIMA, no la media (fix auditoría #23)', () => {
     // FTUX biaxial: FtMax = 15.5 kN vs media 10.2 kN. El check de tracción y
     // el T-stub deben coincidir en la barra pésima.
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const bt = r.checks.find((c) => c.id === 'bolt-tension')!;
     const ts = r.checks.find((c) => c.id === 'plate-tension-tstub')!;
     expect(bt.utilization).toBeCloseTo(ts.utilization, 3);  // misma Ft crítica
@@ -687,7 +753,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
   it('fricción con Cf,d = 0.20 (EC3 1-8 §6.2.2(6)) — fix auditoría #26', () => {
     // Junta placa-grout: el 0.4 "rugoso" carecía de respaldo y era el default.
     // FTUX: Nc,G = 195 kN → μ·Nc,G = 39.0 kN (antes 78.0).
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
     expect(bs.limit).toContain('39,0');
   });
@@ -695,11 +761,11 @@ describe('PR8b — CR6 concrete shear modes', () => {
   it('anclaje con suelo lb,min = max(0.3·lb(fyd), 10φ, 100) — fix auditoría #27', () => {
     // FTUX φ20: lb(fyd) = 5·434.78/2.69 = 808 → lb,min = max(242, 200, 100)
     // = 242 mm → util = 242/300 = 0.81 (antes, con Ft baja, lb,rqd→mm y verde).
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const al = r.checks.find((c) => c.id === 'anchorage-length')!;
     expect(al.utilization).toBeCloseTo(0.807, 2);
     // hef escaso con barras casi descargadas ya no pasa: hef=180 < 10φ=200.
-    const r2 = calcAnchorPlate({ ...anchorPlateDefaults, bar_hef: 180 });
+    const r2 = calcAnchorPlate({ ...LEGACY, bar_hef: 180 });
     const al2 = r2.checks.find((c) => c.id === 'anchorage-length')!;
     expect(al2.utilization).toBeGreaterThan(1);
   });
@@ -711,8 +777,8 @@ describe('PR8b — CR6 concrete shear modes', () => {
     // t=10 → Mpl/4 → FT1 = 137.5, FT2 = 102.7 < FT3 → modo 2 (placa+palanca):
     //        la placa delgada pierde capacidad ANTES que la barra — el caso
     //        que pre-fix pasaba todos los checks.
-    const r20 = calcAnchorPlate(anchorPlateDefaults);
-    const r10 = calcAnchorPlate({ ...anchorPlateDefaults, plate_t: 10 });
+    const r20 = calcAnchorPlate(LEGACY);
+    const r10 = calcAnchorPlate({ ...LEGACY, plate_t: 10 });
     const ts20 = r20.checks.find((c) => c.id === 'plate-tension-tstub')!;
     const ts10 = r10.checks.find((c) => c.id === 'plate-tension-tstub')!;
     expect(ts20.limit).toContain('modo 3');
@@ -724,7 +790,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
     // Pre-PR8b: checkBoltShear sólo cubría friction + steel shear → no captaba
     // el fallo del hormigón. Con c=80 y VEd alto, edge breakout debería fallar.
     const r = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       pedestal_cX: 80, pedestal_cY: 80,
       VEd: 100,
     });
@@ -734,13 +800,13 @@ describe('PR8b — CR6 concrete shear modes', () => {
   });
 
   it('Pry-out usa k=2 cuando hef ≥ 60mm (caso típico)', () => {
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const po = r.checks.find((c) => c.id === 'concrete-pryout')!;
     expect(po.limit).toContain('k=2,0');
   });
 
   it('Breakout-V reporta neutral para hef ≥ 60mm (no aplica)', () => {
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const bo = r.checks.find((c) => c.id === 'concrete-breakout-v')!;
     expect(bo.status).toBe('neutral');
     expect(bo.limit).toBe('No aplica');
@@ -749,7 +815,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
   it('sin cortante (Vx=Vy=VEd=0) → todos los modos de hormigón en V neutral', () => {
     // resolveShear da prioridad a Vx/Vy si difieren de VEd: para "sin cortante"
     // hay que setear los tres a 0 explícitamente.
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, VEd: 0, Vx: 0, Vy: 0 });
+    const r = calcAnchorPlate({ ...LEGACY, VEd: 0, Vx: 0, Vy: 0 });
     const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
     const po = r.checks.find((c) => c.id === 'concrete-pryout')!;
     expect(eb.status).toBe('neutral');
@@ -759,7 +825,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
   it('N+V interaction usa EN 1992-4 §7.2.3 (exponente 2, dúctil)', () => {
     // (N/NRd)² + (V/VRd)² ≤ 1.0 — forma cuadrática (no la lineal EC3 Tab 3.4).
     // value string debe contener (ratio)² + (ratio)² format.
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const bi = r.checks.find((c) => c.id === 'bolt-interaction')!;
     expect(bi.value).toMatch(/\(\d+,\d{2}\)² \+ \(\d+,\d{2}\)²/);
     expect(bi.article).toBe('CE Anejo 11 §7.2.3');
@@ -769,7 +835,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
     // Con Vy=50 y Vx=0 (declarando Vy explícito), c1 = cY1 (no cX1).
     // Verificar que el limit string refleja c1 = cY direccional.
     const r = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       VEd: 0,                // legacy desactivado
       Vx: 0, Vy: 50,
       pedestal_cX: 500, pedestal_cY: 100,
@@ -785,20 +851,27 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
   it('legacy compat: pedestal_cX (simétrico) sigue funcionando idéntico', () => {
     // resolveEdges resuelve cX1==cX2==pedestal_cX cuando los direccionales
     // están simétricos (estado pre-PR8a sin asimetría explícita).
-    const r = calcAnchorPlate(anchorPlateDefaults);
-    // Sentinel: worstUtil = 3.211 (post-fixes #8 y #25: interacción N+V con
+    const r = calcAnchorPlate(LEGACY);
+    // Sentinel: interacción N+V del hormigón = 3.211 (post-fixes #8 y #25:
     // cono ψec al baricentro: 0.663^1.5 + 1.925^1.5 = 3.211; antes 3.246,
     // 1.925 con edge breakout solo, y 0.992 pre-auditoría).
-    // NO debe cambiar con resolveEdges sobre defaults simétricos.
-    expect(r.worstUtil).toBeCloseTo(3.211, 2);
+    // NO debe cambiar con resolveEdges sobre defaults simétricos. Se mira la
+    // fila y no worstUtil porque LEGACY va sin cartelas y ahí la flexión de
+    // placa (c = 100 mm) sube a 3.97 y pasa a mandar.
+    const ci = r.checks.find((c) => c.id === 'concrete-interaction')!;
+    expect(ci.utilization).toBeCloseTo(3.211, 2);
+    // Con los direccionales simétricos (150/150) manda el legacy (200): es el
+    // estado persistido pre-PR0, y tiene que dar lo mismo que LEGACY.
+    const rDir = calcAnchorPlate({ ...LEGACY, pedestal_cX1: 150, pedestal_cX2: 150 });
+    expect(rDir.worstUtil).toBeCloseTo(r.worstUtil, 6);
   });
 
   it('asimétrico cX1 << cX2 → Ac/Ac0 menor (proyección más limitada en +x)', () => {
     // cX1=50, cX2=500 → la proyección del cono se limita a 50 en +x.
     // Comparar con simétrico cX=200.
-    const r_sym = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_cX: 200 });
+    const r_sym = calcAnchorPlate({ ...LEGACY, pedestal_cX: 200 });
     const r_asym = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       pedestal_cX1: 50, pedestal_cX2: 500,
     });
     const cone_sym = r_sym.checks.find((c) => c.id === 'concrete-cone')!;
@@ -818,7 +891,7 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
 
   it('asimétrico cY1 = 50 (placa cerca borde y+) → ψs limitado por cY1', () => {
     const r = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       pedestal_cY1: 50, pedestal_cY2: 350,
     });
     const cone = r.checks.find((c) => c.id === 'concrete-cone')!;
@@ -829,7 +902,7 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
   it('helper preserva backward-compat: cambiar legacy pedestal_cX sin direccionales sigue funcionando', () => {
     // Override pedestal_cX (legacy field) sin tocar cX1/cX2 → resolveEdges
     // detecta cX1==cX2==default y usa pedestal_cX. ψs refleja el nuevo valor.
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_cX: 500, pedestal_cY: 500 });
+    const r = calcAnchorPlate({ ...LEGACY, pedestal_cX: 500, pedestal_cY: 500 });
     const cone = r.checks.find((c) => c.id === 'concrete-cone')!;
     // c_min = 500 ≥ c_cr = 450 → ψs = 1.00
     expect(cone.limit).toMatch(/ψs=1,00/);
@@ -837,7 +910,7 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
 
   it('splitting con cY1 cercano al borde → ψs reducido', () => {
     const r = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       pedestal_cY1: 80, pedestal_cY2: 320,
       pedestal_h: 400,    // forzar splitting a aplicar
       Mx: 30, My: 20,
@@ -853,7 +926,7 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
     // Bar en y=+100 con cY1=50 y cY2=350: cover_y+ = 50+(100-100)=50, cover_y- = 350+200=550.
     // min = 50 (cerca de cara +y).
     const r = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       pedestal_cY1: 50, pedestal_cY2: 350,
       bottom_anchorage: 'patilla', My: 5,
     });
@@ -873,7 +946,7 @@ describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', ()
     // Pre-CR3: limit showed ψh based on edge distance (wrong variable).
     // Post-CR3: separa ψh,sp (por h_pedestal), ψec,sp (por excentricidad grupo),
     // ψs,sp (por edge).
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const sp = r.checks.find((c) => c.id === 'splitting')!;
     expect(sp.limit).toMatch(/ψh=\d/);
     expect(sp.limit).toMatch(/ψec=\d/);
@@ -882,7 +955,7 @@ describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', ()
 
   it('ψh,sp por canto del macizo (no por edge): h grande → ψh > 1 (amplifica)', () => {
     // Pedestal profundo (h=2000 > 2·hef=600), edge moderado (200) → ψh > 1 (cap-binding)
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_h: 2000 });
+    const r = calcAnchorPlate({ ...LEGACY, pedestal_h: 2000 });
     const sp = r.checks.find((c) => c.id === 'splitting')!;
     expect(sp.limit).toMatch(/ψh=1,[2-9]\d/);   // amplificación visible
   });
@@ -892,14 +965,14 @@ describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', ()
     // a 1.0 anterior anulaba la penalización JUSTO en el régimen por el que
     // el check se activa (encepados/macizos someros, el caso splitting-crítico):
     // con h=hef la capacidad quedaba ×1.6 sobreestimada.
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, pedestal_h: 400 });
+    const r = calcAnchorPlate({ ...LEGACY, pedestal_h: 400 });
     const sp = r.checks.find((c) => c.id === 'splitting')!;
     expect(sp.limit).toContain('ψh=0,76');
   });
 
   it('h_pedestal ≥ 2·hef y c_min ≥ c_cr,sp → no crítico (neutral)', () => {
     const r = calcAnchorPlate({
-      ...anchorPlateDefaults,
+      ...LEGACY,
       pedestal_cX: 500, pedestal_cY: 500, pedestal_h: 1000,
     });
     const sp = r.checks.find((c) => c.id === 'splitting')!;
@@ -913,8 +986,8 @@ describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', ()
     // bajo CR3-fixed, NRd,sp depende sólo de geometría (Ac/Ac0·ψ's), no de
     // tBars.length. Si la geometría del grupo es similar, NRd,sp no debe
     // diferir por el factor n_t.
-    const r4 = calcAnchorPlate({ ...anchorPlateDefaults, bar_nLayout: 4, My: 10 });
-    const r9 = calcAnchorPlate({ ...anchorPlateDefaults, bar_nLayout: 9, My: 10 });
+    const r4 = calcAnchorPlate({ ...LEGACY, bar_nLayout: 4, My: 10 });
+    const r9 = calcAnchorPlate({ ...LEGACY, bar_nLayout: 8, My: 10 });
     const sp4 = r4.checks.find((c) => c.id === 'splitting')!;
     const sp9 = r9.checks.find((c) => c.id === 'splitting')!;
     // Pre-CR3: NRd_sp_9 ≈ NRd_sp_4 · 9/4 = 2.25× (espurio).
@@ -930,7 +1003,7 @@ describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', ()
 
   it('ψec,sp < 1 cuando el grupo traccionado es excéntrico', () => {
     // FTUX con Mx grande crea grupo tensionado excéntrico.
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, Mx: 80 });
+    const r = calcAnchorPlate({ ...LEGACY, Mx: 80 });
     const sp = r.checks.find((c) => c.id === 'splitting')!;
     const psi_ec_match = sp.limit?.match(/ψec=([\d.,]+)/);
     if (psi_ec_match) {
@@ -947,7 +1020,7 @@ describe('PR7b — CR1 biaxial Ft distribution lineal con cap', () => {
     // = 4·136.6 = 546 kN, cono al 7×.
     // Post-CR1: distribución lineal proporcional al signed dist al NA, capada
     // a FtRd. Hand calc: phi ≈ 12.5°, Ft_total ≈ 27-35 kN.
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     expect(r.solver.mode).toBe('biaxial-plastic');
     expect(r.solver.converged).toBe(true);
     expect(r.solver.Ft_total).toBeGreaterThan(20);
@@ -955,19 +1028,19 @@ describe('PR7b — CR1 biaxial Ft distribution lineal con cap', () => {
   });
 
   it('FTUX biaxial NA orientado al momento externo (phi ≈ atan(My/Mx))', () => {
-    const r = calcAnchorPlate(anchorPlateDefaults);
-    const phi_expected = Math.atan2(anchorPlateDefaults.My, anchorPlateDefaults.Mx);
+    const r = calcAnchorPlate(LEGACY);
+    const phi_expected = Math.atan2(LEGACY.My, LEGACY.Mx);
     expect(r.solver.phi_NA).toBeCloseTo(phi_expected, 1);   // ±0.05 rad ≈ 3°
   });
 
   it('FTUX biaxial residuos de momento ≈ 0 (equilibrio exacto)', () => {
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     expect(Math.abs(r.solver.residuals.SMx_kNm)).toBeLessThan(0.01);
     expect(Math.abs(r.solver.residuals.SMy_kNm)).toBeLessThan(0.01);
   });
 
   it('cargas bajas → Ft_total bajo (no saturado, bolt-tension util < 1)', () => {
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, Mx: 10, My: 2 });
+    const r = calcAnchorPlate({ ...LEGACY, Mx: 10, My: 2 });
     const bt = r.checks.find((c) => c.id === 'bolt-tension')!;
     expect(bt.utilization).toBeLessThan(0.5);
     // El bug pre-CR1 daba util ≡ 1.00 incluso en cargas bajas.
@@ -975,7 +1048,7 @@ describe('PR7b — CR1 biaxial Ft distribution lineal con cap', () => {
 
   it('cargas altas → al menos una barra al cap FtRd', () => {
     // Mx muy alto fuerza saturación al menos en la barra más extrema.
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, Mx: 250, My: 0 });
+    const r = calcAnchorPlate({ ...LEGACY, Mx: 250, My: 0 });
     const maxFt = Math.max(...r.solver.bolts.map((b) => b.Ft));
     // FtRd = 314.16·434.78/1000 ≈ 136.59 kN. Esperar al menos 90% si carga
     // alta. (No siempre llega exactamente a 136.59 por la convergencia
@@ -984,7 +1057,7 @@ describe('PR7b — CR1 biaxial Ft distribution lineal con cap', () => {
   });
 
   it('distribución lineal: Ft proporcional al signed distance al NA', () => {
-    const r = calcAnchorPlate(anchorPlateDefaults);
+    const r = calcAnchorPlate(LEGACY);
     const tBars = r.solver.bolts.filter((b) => b.inTension);
     if (tBars.length < 2) return;
     // Para cada par de barras tensas, Ft_i / sd_i debe ser ~constante.
@@ -1003,7 +1076,7 @@ describe('PR7b — CR1 biaxial Ft distribution lineal con cap', () => {
   });
 
   it('My=0 caso degenerado → axis-aligned y matches PR7a', () => {
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, My: 0 });
+    const r = calcAnchorPlate({ ...LEGACY, My: 0 });
     // Dispatcher rutea a solveAxisAligned4 para nLayout=4 + My=0 (PR5).
     expect(['partial-lift', 'uniform-compression']).toContain(r.solver.mode);
     // Ft_total debe coincidir con PR7a (~25.98 kN, post-H2 Kj real)
@@ -1079,9 +1152,9 @@ describe('PR5 — CR4 dispatcher rutea nLayout>4 a biaxial bajo Mx puro', () => 
     expect(r.solver.bolts).toHaveLength(8);
     expect(['biaxial-plastic', 'biaxial-grid']).toContain(r.solver.mode);
   });
-  it('nLayout=9 + My=0 → solver biaxial, modela 9 barras', () => {
-    const r = calcAnchorPlate({ ...base, bar_nLayout: 9, My: 0 });
-    expect(r.solver.bolts).toHaveLength(9);
+  it('nLayout=12 + My=0 → solver biaxial, modela 12 barras', () => {
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 12, My: 0 });
+    expect(r.solver.bolts).toHaveLength(12);
     expect(['biaxial-plastic', 'biaxial-grid']).toContain(r.solver.mode);
   });
   it('nLayout=4 + My=0 SIGUE en axis-aligned (happy path conservado)', () => {
@@ -1101,10 +1174,10 @@ describe('PR5 — H10 checkBoltShear usa bars.length real (no inp.bar_nLayout)',
     const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
     expect(bs.limit).toContain('6·FvRd');
   });
-  it('nLayout=9 → cortante repartido entre 9 barras', () => {
-    const r = calcAnchorPlate({ ...base, bar_nLayout: 9, My: 5, VEd: 100 });
+  it('nLayout=12 → cortante repartido entre 12 barras', () => {
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 12, My: 5, VEd: 100 });
     const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
-    expect(bs.limit).toContain('9·FvRd');
+    expect(bs.limit).toContain('12·FvRd');
   });
 });
 
@@ -1115,10 +1188,10 @@ describe('PR5 — H14 anchorage cd derivado de coordenadas reales', () => {
     expect(an.limit).toMatch(/cd=\d+ mm/);
   });
   it('barra interior tiene coverX mayor que barra de esquina', () => {
-    // En layout 9, las barras del centro (0,0), (0,±yMax), (±xMax,0) tienen
+    // En el anillo de 8, las barras centradas (0, ±yMax) y (±xMax, 0) tienen
     // mayor recubrimiento horizontal o vertical que las esquinas. El check
     // reporta el peor, que sigue siendo una esquina con cd = pedestal_cX.
-    const r = calcAnchorPlate({ ...base, bar_nLayout: 9, My: 5 });
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 8, My: 5 });
     const an = r.checks.find((c) => c.id === 'anchorage-length')!;
     // Si la peor barra es una esquina, cd ≤ pedestal_cX (200).
     const cdMatch = an.limit?.match(/cd=(\d+) mm/);
@@ -1245,18 +1318,22 @@ describe('H12 (Phase 5) — dispatcher NEd<EPS_N rutea a biaxial (no axis-aligne
   });
 });
 
-describe('H7 (Phase 5) — alzado: layout 9 expone ×N en columnas', () => {
-  it('result.solver.bolts.length === 9 (no se han ocultado)', () => {
-    const r = calcAnchorPlate({ ...base, bar_nLayout: 9, Mx: 30, My: 5 });
-    expect(r.solver.bolts).toHaveLength(9);
-    // Sanity: agrupando por x_round, deben quedar 3 columnas con 3 barras
-    // cada una (el SVG mostrará "×3"). Validamos el grupo aquí.
+describe('H7 (Phase 5) — alzado: el anillo con pares (12) expone ×N en columnas', () => {
+  it('result.solver.bolts.length === 12 (no se han ocultado)', () => {
+    // LEGACY arrastra sx = 300 y sy = 200 (los viejos «separación», que el
+    // motor ignoraba): con la 12 son la separación del par central y 300/2 =
+    // 150 pondría los pares justo sobre las esquinas. Se fijan aquí.
+    const r = calcAnchorPlate({ ...base, bar_nLayout: 12, bar_spacing_x: 100, bar_spacing_y: 80, Mx: 30, My: 5 });
+    expect(r.solver.bolts).toHaveLength(12);
+    // Sanity: agrupando por x_round quedan 4 columnas — las dos de los
+    // extremos (x = ±150) con 4 barras (esquinas + par lateral) y las dos del
+    // par central (x = ±sx/2) con 2 barras cada una. El SVG mostrará ×4 y ×2.
     const byX = new Map<number, number>();
     for (const b of r.solver.bolts) {
       const k = Math.round(b.x);
       byX.set(k, (byX.get(k) ?? 0) + 1);
     }
-    expect(byX.size).toBe(3);
-    for (const n of byX.values()) expect(n).toBe(3);
+    expect(byX.size).toBe(4);
+    expect(Array.from(byX.values()).sort()).toEqual([2, 2, 4, 4]);
   });
 });

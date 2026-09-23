@@ -66,14 +66,16 @@ export interface ProfileRef {
 
 // ─── Bar layout ────────────────────────────────────────────────────────────
 
-export type BarLayoutCount = 4 | 6 | 8 | 9;
+/** 4 esquinas · 6 tres por extremo del eje fuerte · 8 anillo · 12 anillo con
+ *  pares (ver `anchor-plate/geometria.ts`). La retícula 3×3 (9) se retiró. */
+export type BarLayoutCount = 4 | 6 | 8 | 12;
 
 export interface BarLayoutSpec {
   count: BarLayoutCount;
   diameter: RebarDiam;
   grade: RebarGrade;
-  /** mm — separación nominal eje fuerte (input UI). El solver puede usar
-   *  coordenadas reales de `generateLayout` en su lugar — ver H14. */
+  /** mm — separación entre las dos barras de cada par central (sólo con
+   *  count = 12). Las coordenadas reales salen de `generateLayout`. */
   spacingX: number;
   spacingY: number;
   /** mm — distancia barra → borde de placa. */
@@ -90,7 +92,9 @@ export interface BarLayoutSpec {
 // ─── Stiffeners ────────────────────────────────────────────────────────────
 
 export interface Stiffener {
-  /** 0 (sin), 2 (paralelos al eje fuerte), 4 (en ambos ejes). */
+  /** 0 (sin), 2 (par en las puntas de las alas, paralelo al eje fuerte),
+   *  4 («#»: añade el par pegado a las caras de las alas). Siempre de borde
+   *  a borde de la placa — ver `geometria.ts`. */
   count: 0 | 2 | 4;
   /** mm — altura. */
   h: number;

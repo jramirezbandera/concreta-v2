@@ -11,22 +11,23 @@ describe('PR0 — kernel adapter roundtrip', () => {
   it('toKernel projects AnchorPlateInputs onto AnchorGeometry + AnchorLoad', () => {
     const { geometry, load } = toKernel(anchorPlateDefaults);
 
-    // Plate
-    expect(geometry.plate.a).toBe(400);
-    expect(geometry.plate.b).toBe(300);
+    // Plate — defaults desde 2026-09-23: la lámina tipo del estudio para un
+    // HEB-200 (350×350, 8 barras en anillo, «#» de cartelas).
+    expect(geometry.plate.a).toBe(350);
+    expect(geometry.plate.b).toBe(350);
     expect(geometry.plate.t).toBe(20);
     expect(geometry.plate.steel).toBe('S275');
 
     // Pedestal — directional defaults seed from legacy symmetric values
-    expect(geometry.pedestal.cX1).toBe(200);
-    expect(geometry.pedestal.cX2).toBe(200);
-    expect(geometry.pedestal.cY1).toBe(200);
-    expect(geometry.pedestal.cY2).toBe(200);
+    expect(geometry.pedestal.cX1).toBe(190);
+    expect(geometry.pedestal.cX2).toBe(190);
+    expect(geometry.pedestal.cY1).toBe(190);
+    expect(geometry.pedestal.cY2).toBe(190);
     expect(geometry.pedestal.h).toBe(1000);
     expect(geometry.pedestal.fck).toBe(25);
 
     // Bars
-    expect(geometry.bars.count).toBe(4);
+    expect(geometry.bars.count).toBe(8);
     expect(geometry.bars.diameter).toBe(20);
     expect(geometry.bars.grade).toBe('B500S');
     expect(geometry.bars.hef).toBe(300);
@@ -36,7 +37,7 @@ describe('PR0 — kernel adapter roundtrip', () => {
     expect(geometry.profile.size).toBe(200);
 
     // Stiffener
-    expect(geometry.stiffener.count).toBe(2);
+    expect(geometry.stiffener.count).toBe(4);
 
     // Loads — Vx defaults to VEd, Vy defaults to 0 (PR0 backward-compat)
     expect(load.NEd).toBe(200);
@@ -72,8 +73,8 @@ describe('PR0 — kernel adapter roundtrip', () => {
     delete (legacyInputs as Partial<typeof legacyInputs>).Vy;
 
     const { geometry, load } = toKernel(legacyInputs);
-    expect(geometry.pedestal.cX1).toBe(200);     // from legacy pedestal_cX
-    expect(geometry.pedestal.cX2).toBe(200);
+    expect(geometry.pedestal.cX1).toBe(190);     // from legacy pedestal_cX
+    expect(geometry.pedestal.cX2).toBe(190);
     expect(geometry.pedestal.h).toBe(1000);      // default
     expect(load.Vx).toBe(50);                    // from legacy VEd
     expect(load.Vy).toBe(0);                     // default
@@ -90,7 +91,8 @@ describe('PR0 — SolverResult.residuals exposed', () => {
   });
 
   it('partial-lift path: residuals all zero (closed-form exact)', () => {
-    const r = calcAnchorPlate({ ...anchorPlateDefaults, My: 0 });
+    // El solver axial cerrado sólo modela las 4 esquinas; los defaults traen 8.
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, My: 0, bar_nLayout: 4 });
     expect(r.solver.mode).toBe('partial-lift');
     expect(r.solver.residuals.SN_kN).toBe(0);
     expect(r.solver.residuals.SMx_kNm).toBe(0);
@@ -150,10 +152,17 @@ describe('PR0 — backward compatibility: existing behaviour unchanged', () => {
     //     = 3.246 → gobierna el FTUX. Checks 13 → 15 (+T-stub tracción #9).
     //   - Post-auditoría #25 (ψec al baricentro del grupo, por componente):
     //     cono 0.692 → 0.663 → interacción = 0.663^1.5 + 1.925^1.5 = 3.211.
+    //   - 2026-09-23 (geometría real): los defaults pasan a la lámina tipo
+    //     del estudio (350×350, 8Ø20 en anillo a ±135, «#» de cartelas,
+    //     cX = 190). Con 8 barras el grupo traccionado suma Ft = 56 kN y el
+    //     cono sube a 1.160; el edge breakout con c1 = 190 da 1.804:
+    //     interacción = 1.160^1.5 + 1.804^1.5 = 3.672. El ejemplo sigue
+    //     incumpliendo por el hormigón, como antes; la placa va al 44 %.
     const r = calcAnchorPlate(anchorPlateDefaults);
     expect(r.valid).toBe(true);
     expect(r.checks).toHaveLength(15);    // PR8b: 13 · auditoría #8/#9: +2
-    expect(r.worstUtil).toBeCloseTo(3.211, 2);
+    expect(r.worstUtil).toBeCloseTo(3.672, 2);
+    expect(r.warnings).toHaveLength(0);   // ninguna barra pisa acero ni roza una cartela
   });
 
   it('FTUX default check count, IDs and articles unchanged', () => {

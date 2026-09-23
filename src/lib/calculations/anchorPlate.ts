@@ -23,7 +23,6 @@
 // Factores parciales: γc=1.5  γs=1.15  γM0=1.05  γM2=1.25  γMc=1.5  γinst=1.0.
 
 import type { AnchorPlateInputs } from '../../data/defaults';
-import { makeISectionBySize } from '../sections';
 import {
   REBAR_AREAS,
   REBAR_GRADES,
@@ -38,6 +37,19 @@ import {
 import type { CheckRow, CheckStatus } from './types';
 import { toStatus } from './types';
 import { fjd as ec3Fjd, effectiveOverhang, concentrationKj } from './ec3BasePlate';
+import {
+  huellaPerfil,
+  rigidizadores,
+  posicionesBarras,
+  holguras,
+  apoyosBarra,
+  areaEficaz,
+  voladizoEquivalente,
+  recortarPoligonoARect,
+  rectAPoligono,
+  areaPoligono,
+  type Rect as RectPlaca,
+} from './anchor-plate/geometria';
 import { conComaDecimal, formatQuantity } from '../units/format';
 import type { UnitSystem } from '../units/types';
 
@@ -218,28 +230,16 @@ export function fourCornerLayout(
   ];
 }
 
-// ─── Generalised layout for nLayout ∈ {4, 6, 8, 9} ───────────────────────
-// 4: corners. 6: corners + 2 mid-edge along x. 8: corners + 4 mid-edge.
-// 9: 3×3 grid.
+// ─── Disposición de las barras: 4, 6, 8 o 12 ──────────────────────────────
+// Las coordenadas salen de `posicionesBarras` (anchor-plate/geometria.ts),
+// que es exactamente lo que dibuja el SVG: esquinas (4), tres por extremo del
+// eje fuerte (6), anillo con una barra centrada en cada lado (8) y anillo con
+// pares (12). Hasta 2026-09-23 la 6 ponía dos barras en x = 0 (sin brazo para
+// Mx), la 8 repartía cuatro por lado largo y la 9 clavaba una barra bajo el
+// alma del pilar; y ninguna miraba dónde estaban los rigidizadores. La 9 se
+// lee ahora como 8.
 export function generateLayout(inp: AnchorPlateInputs): AnchorBarPosition[] {
-  const { plate_a, plate_b, bar_edge_x, bar_edge_y, bar_nLayout } = inp;
-  const xMax = plate_a / 2 - bar_edge_x;
-  const yMax = plate_b / 2 - bar_edge_y;
-
-  const mk = (xs: number[], ys: number[]): AnchorBarPosition[] => {
-    const out: AnchorBarPosition[] = [];
-    let i = 0;
-    for (const y of ys) for (const x of xs) {
-      out.push({ index: i++, x, y, Ft: 0, inTension: false });
-    }
-    return out;
-  };
-
-  if (bar_nLayout === 4) return mk([-xMax, +xMax], [-yMax, +yMax]);
-  if (bar_nLayout === 6) return mk([-xMax, 0, +xMax], [-yMax, +yMax]);
-  if (bar_nLayout === 8) return mk([-xMax, -xMax / 3, +xMax / 3, +xMax], [-yMax, +yMax]);
-  if (bar_nLayout === 9) return mk([-xMax, 0, +xMax], [-yMax, 0, +yMax]);
-  return fourCornerLayout(plate_a, plate_b, bar_edge_x, bar_edge_y);
+  return posicionesBarras(inp).map((p, index) => ({ index, x: p.x, y: p.y, Ft: 0, inTension: false }));
 }
 
 // ─── Polygon helpers (Sutherland–Hodgman single-edge clip + shoelace) ─────
@@ -348,6 +348,18 @@ export interface SolverResult {
   fjd_MPa?: number;
 }
 
+/** Bloque comprimido del solver axial: profundidad y_c desde el borde
+ *  comprimido (el de +x cuando +Mx tracciona −x) a todo el ancho b. Se expone
+ *  en `block` para que el dibujo y el reparto entre cartelas vean el mismo
+ *  bloque que el solver biaxial. */
+function bloqueAxial(inp: AnchorPlateInputs, y_c: number, sgn: number): Pt[] {
+  const a2 = inp.plate_a / 2, b2 = inp.plate_b / 2;
+  const prof = Math.max(0, Math.min(inp.plate_a, y_c));
+  const x1 = sgn > 0 ? a2 - prof : -a2;
+  const x2 = sgn > 0 ? a2 : -a2 + prof;
+  return [{ x: x1, y: -b2 }, { x: x2, y: -b2 }, { x: x2, y: b2 }, { x: x1, y: b2 }];
+}
+
 // ─── Axis-aligned superposition solver (pure-Mx fast path) ───────────────
 export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
   const bars = fourCornerLayout(inp.plate_a, inp.plate_b, inp.bar_edge_x, inp.bar_edge_y);
@@ -372,6 +384,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
       mode: 'uniform-compression',
       converged: true,
       note: 'Compresión uniforme bajo placa (|e| ≤ a/6)',
+      block: bloqueAxial(inp, inp.plate_a, sgn),
       residuals: { SN_kN: 0, SMx_kNm: 0, SMy_kNm: 0 },
     };
   }
@@ -443,6 +456,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
       note: NEd <= 0
         ? 'NEd≤0 no soportado en solver axial — pendiente PR10 (H4)'
         : 'Sección insuficiente — sin equilibrio plástico para esta combinación',
+      block: bloqueAxial(inp, (Nc_sat * 1000) / A_c, sgn),
       residuals: { SN_kN: 0, SMx_kNm: NaN, SMy_kNm: 0 },
     };
   }
@@ -470,6 +484,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
       converged: false,
       noSolution: true,
       note: `Profundidad bloque y_c=${d(y_c, 1)} mm fuera de rango físico`,
+      block: bloqueAxial(inp, (Nc_sat * 1000) / A_c, sgn),
       residuals: { SN_kN: 0, SMx_kNm: NaN, SMy_kNm: 0 },
     };
   }
@@ -523,6 +538,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
     note: saturated
       ? `Tracción agotada — Ft/barra ${d(Ft_per_bar, 1)} kN > FtRd ${d(FtRd_kN, 1)} kN`
       : 'Tracción parcial — bloque plástico rectangular (CE Anejo 18 §6.2.5)',
+    block: bloqueAxial(inp, saturated ? (Nc * 1000) / A_c : y_c, sgn),
     residuals: { SN_kN: 0, SMx_kNm: SMx_residual_kNm, SMy_kNm: 0 },
   };
 }
@@ -1042,20 +1058,20 @@ export function alphaExtension(inp: AnchorPlateInputs): number {
 //   Web:         x ∈ [-h/2 + tf, h/2 - tf],  y ∈ [-tw/2, tw/2]
 //
 // Each rectangle is expanded by c in all four directions (Minkowski sum with
-// a 2c square), clipped to the plate ±plate_a/2 × ±plate_b/2, and combined:
-//   A_eff = A_top + A_bot + A_web - (A_top ∩ A_web) - (A_bot ∩ A_web) - (A_top ∩ A_bot)
-// All intersections are axis-aligned rectangles, so plate clipping commutes
-// with intersection. M2 (always-two-flanges) is preserved.
+// a 2c square) and clipped to the plate ±plate_a/2 × ±plate_b/2.
+//
+// 2026-09-23 — los RIGIDIZADORES también son líneas de acero soldadas a la
+// placa, así que cada cartela aporta su franja de ancho 2c + t a lo largo de
+// toda la placa (anchor-plate/geometria.ts, `areaEficaz`). Con el «#» completo
+// casi toda la placa es eficaz; sin cartelas el resultado es el de siempre.
+// La unión de rectángulos se calcula por compresión de coordenadas (exacta),
+// en lugar de la inclusión-exclusión a mano de tres rectángulos.
 export function tStubEffectiveArea(
   inp: AnchorPlateInputs,
   fjd_MPa: number,
-): { A_eff: number; c: number } {
-  const section = makeISectionBySize(
-    inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN',
-    inp.sectionSize,
-  );
-  if (!section) return { A_eff: inp.plate_a * inp.plate_b, c: 0 };
-  const p = section;
+): { A_eff: number; c: number; franjas: RectPlaca[] } {
+  const hu = huellaPerfil(inp);
+  if (!hu.catalogo) return { A_eff: inp.plate_a * inp.plate_b, c: 0, franjas: [] };
 
   // EC3 1-8 §6.2.5(4) Eq 6.5: c = t · √(fyd / (3·fjd))
   // donde fyd = fyp / γM0 (resistencia de cálculo de la placa).
@@ -1063,39 +1079,8 @@ export function tStubEffectiveArea(
   const fyd_plate = fyp / GAMMA_M0;
   const c = effectiveOverhang(inp.plate_t, fyd_plate, fjd_MPa);
 
-  const pa2 = inp.plate_a / 2;
-  const pb2 = inp.plate_b / 2;
-
-  // Axis-aligned rectangle clipped to the plate, area only.
-  const clipArea = (x1: number, x2: number, y1: number, y2: number): number => {
-    const dx = Math.min(pa2, x2) - Math.max(-pa2, x1);
-    const dy = Math.min(pb2, y2) - Math.max(-pb2, y1);
-    return Math.max(0, dx) * Math.max(0, dy);
-  };
-
-  const h_2  = p.h / 2;
-  const b_2  = p.b / 2;
-  const tw_2 = p.tw / 2;
-
-  // Expanded source rectangles.
-  const A_top  = clipArea(h_2 - p.tf - c,  h_2 + c,            -b_2  - c, b_2  + c);
-  const A_bot  = clipArea(-h_2 - c,        -h_2 + p.tf + c,    -b_2  - c, b_2  + c);
-  const A_web  = clipArea(-h_2 + p.tf - c, h_2 - p.tf + c,     -tw_2 - c, tw_2 + c);
-
-  // Pairwise intersections of the expanded source rectangles.
-  const A_top_web = clipArea(h_2 - p.tf - c,  h_2 - p.tf + c,  -tw_2 - c, tw_2 + c);
-  const A_bot_web = clipArea(-h_2 + p.tf - c, -h_2 + p.tf + c, -tw_2 - c, tw_2 + c);
-  // Top ∩ Bot is nonzero only when 2c > h - 2tf (very thick sections); the
-  // intersection rectangle's x-bounds are max/min of each flange's expanded
-  // x-range, which already collapses to zero when the ranges don't overlap.
-  const A_top_bot = clipArea(
-    Math.max(h_2 - p.tf - c, -h_2 - c),
-    Math.min(h_2 + c, -h_2 + p.tf + c),
-    -b_2 - c, b_2 + c,
-  );
-
-  const A_eff = A_top + A_bot + A_web - A_top_web - A_bot_web - A_top_bot;
-  return { A_eff: Math.max(0, Math.min(A_eff, inp.plate_a * inp.plate_b)), c };
+  const { A_eff, franjas } = areaEficaz(inp, hu, rigidizadores(inp, hu), c);
+  return { A_eff: Math.max(0, A_eff), c, franjas };
 }
 
 // ─── Check 1 — Compresión bajo placa (T-stub efectivo) ───────────────────
@@ -1123,28 +1108,22 @@ export function checkPlateCompression(
 }
 
 // ─── Check 2 — Flexión de la placa (voladizo plástico) ───────────────────
-// Modelo por eje: cada rigidizador parte el voladizo del eje que cubre.
-//   rib_count=0: sin rigidizadores → voladizo completo por ambos ejes.
-//   rib_count=2: 2 nervios paralelos al eje fuerte (a ambos lados de las alas
-//                del perfil) parten el voladizo del eje fuerte; el eje débil
-//                queda sin rigidizar.
-//   rib_count=4: 4 nervios (2+2) parten el voladizo en los dos ejes.
-// Tomamos el peor (max) de los dos voladizos efectivos por tratarse del
-// panel plástico más crítico.
+// La placa comprimida se comprueba bajo fjd en el panel más desfavorable:
+//   rib_count=0: voladizo completo desde la cara del perfil, por ambos ejes
+//                (c = max(c_fuerte, c_débil), como siempre).
+//   rib_count=2: el par de cartelas en las puntas de las alas convierte las
+//                franjas laterales (más allá de las alas, entre cartelas) en
+//                paneles apoyados en tres lados, y deja un voladizo puro más
+//                allá de las cartelas.
+//   rib_count=4: el «#» completo: franjas laterales y celdas centrales
+//                apoyadas en tres lados, y las esquinas en dos bordes contiguos.
+// Cada panel se resuelve por LÍNEAS DE ROTURA (anchor-plate/geometria.ts) y
+// devuelve un voladizo equivalente c_eq con q·c_eq²/2 = m requerido. Hasta
+// 2026-09-23 se «partía» c por la mitad por cada eje rigidizado, sin mirar
+// dónde estaban las cartelas.
 export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number, system: UnitSystem = 'si'): CheckRow {
-  const p = makeISectionBySize(
-    inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN',
-    inp.sectionSize,
-  );
-  const bf = p?.b ?? inp.plate_b * 0.6;
-  const hc = p?.h ?? inp.plate_a * 0.6;
-
-  const c_strong = Math.max(0, (inp.plate_a - hc) / 2);
-  const c_weak   = Math.max(0, (inp.plate_b - bf) / 2);
-
-  const c_s_eff = inp.rib_count >= 2 ? c_strong / 2 : c_strong;
-  const c_w_eff = inp.rib_count >= 4 ? c_weak   / 2 : c_weak;
-  const c_eff = Math.max(c_s_eff, c_w_eff);
+  const hu = huellaPerfil(inp);
+  const { c: c_eff, zona } = voladizoEquivalente(inp, hu);
 
   const m_Ed_Nmm_per_mm = (fjd_MPa * c_eff * c_eff) / 2;
 
@@ -1156,7 +1135,7 @@ export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number, syste
     id: 'plate-bending',
     description: 'Flexión de la placa',
     value: `mEd=${fmtM(m_Ed_Nmm_per_mm / 1000, system)}`,
-    limit: `mRd=${fmtM(m_Rd_Nmm_per_mm / 1000, system)} (c=${c_eff.toFixed(0)} mm)`,
+    limit: `mRd=${fmtM(m_Rd_Nmm_per_mm / 1000, system)} (c=${c_eff.toFixed(0)} mm · ${zona})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 18 §6.2.5',
@@ -1201,29 +1180,26 @@ export function checkPlateTensionTStub(
   let crit = tBars[0];
   for (const b of tBars) if (b.Ft > crit.Ft) crit = b;
 
-  const p = makeISectionBySize(
-    inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN',
-    inp.sectionSize,
-  );
-  const bf = p?.b ?? inp.plate_b * 0.6;
-  const hc = p?.h ?? inp.plate_a * 0.6;
-
-  // m por dirección: distancia de la barra a la cara del perfil (>0 si la
-  // barra queda fuera de la huella del perfil en esa dirección).
-  const m_x = Math.abs(crit.x) - hc / 2;
-  const m_y = Math.abs(crit.y) - bf / 2;
-  const e_x = inp.plate_a / 2 - Math.abs(crit.x);
-  const e_y = inp.plate_b / 2 - Math.abs(crit.y);
-
-  // Dirección gobernante: la de menor m positivo (línea de rotura más corta).
-  let m: number, e: number;
-  if (m_x > 0 && (m_y <= 0 || m_x <= m_y)) { m = m_x; e = e_x; }
-  else if (m_y > 0) { m = m_y; e = e_y; }
-  else return neutral('Barra bajo la huella del perfil');
+  // m: de la barra al APOYO más próximo — cara del perfil o cara exterior de
+  // una cartela, que sostiene la placa igual que un ala (2026-09-23; antes
+  // sólo se miraba el perfil, y una barra pegada a un rigidizador se
+  // calculaba con el m largo hasta el ala). La dirección que gobierna es la
+  // del menor m positivo (línea de rotura más corta); e es la distancia al
+  // borde de placa en esa dirección. La anchura libre del panel en el eje
+  // perpendicular acota la longitud eficaz: entre dos cartelas juntas el
+  // patrón no cabe entero.
+  const hu = huellaPerfil(inp);
+  const ap = apoyosBarra({ x: crit.x, y: crit.y }, inp, hu, rigidizadores(inp, hu));
+  if (!ap) return neutral('Barra bajo el perfil o sobre un rigidizador');
+  const { m, e } = ap;
 
   const { FtRd_kN } = barStrengths(inp);
   const fyd_plate = PLATE_FY[inp.plate_steel] / GAMMA_M0;
-  const leff = Math.min(2 * Math.PI * m, 4 * m + 1.25 * e);
+  const leff = Math.min(
+    2 * Math.PI * m,
+    4 * m + 1.25 * e,
+    ap.anchoPanel > 0 ? ap.anchoPanel : Infinity,
+  );
   const Mpl_Nmm = 0.25 * leff * inp.plate_t * inp.plate_t * fyd_plate;
   const n_lever = Math.min(e, 1.25 * m);
 
@@ -1238,7 +1214,9 @@ export function checkPlateTensionTStub(
     id: 'plate-tension-tstub',
     description: 'Flexión de placa lado tracción (T-stub)',
     value: `Ft=${fmtF(crit.Ft, system)}`,
-    limit: `FT,Rd=${fmtF(FTRd_kN, system)} (modo ${mode} · m=${m.toFixed(0)} · leff=${leff.toFixed(0)})`,
+    limit: `FT,Rd=${fmtF(FTRd_kN, system)} (modo ${mode} · m=${m.toFixed(0)}${
+      ap.apoyo === 'rigidizador' ? ' al rigidizador' : ''
+    } · leff=${leff.toFixed(0)})`,
     utilization: util,
     status: toStatus(util),
     article: 'CE Anejo 18 §6.2.4',
@@ -1778,10 +1756,20 @@ export function checkSplitting(
   };
 }
 
-// ─── Check 10 — Rigidizadores (esbeltez + soldadura) ─────────────────────
+// ─── Check 10 — Rigidizadores (esbeltez + soldadura + aplastamiento) ─────
+//
+// Reparto de la compresión entre cartelas (2026-09-23): cada cartela recoge la
+// parte de Nc que cae en su franja tributaria —la franja de ancho 2c + t que
+// aporta al área eficaz— dentro del bloque comprimido que ha resuelto el
+// solver. Con momento, el bloque está en un lado y las cartelas de ese lado
+// se llevan la carga; las del lado traccionado, casi nada. Hasta ahora se
+// repartía Nc a partes iguales entre «rib_count + 2», sin mirar dónde
+// estaban las cartelas ni dónde estaba el bloque. Sin bloque (o perfil fuera
+// de catálogo) se vuelve al reparto uniforme.
 export function checkStiffener(
   inp: AnchorPlateInputs,
   Nc_kN: number,
+  bloque: Pt[] | undefined,
   system: UnitSystem = 'si',
 ): CheckRow {
   if (inp.rib_count === 0) {
@@ -1806,31 +1794,43 @@ export function checkStiffener(
   const util_slend = slend / slend_lim;
 
   const Fw_Rd_rib_kN = (2 * inp.weld_throat * inp.rib_h * fu) / (Math.sqrt(3) * betaW * GAMMA_M2) / 1000;
-  const F_rib_kN = Math.max(0, Nc_kN) / (inp.rib_count + 2);
+
+  const hu = huellaPerfil(inp);
+  const rigs = rigidizadores(inp, hu);
+  const Nc = Math.max(0, Nc_kN);
+  const fjd = ec3Fjd(inp.fck / GAMMA_C, alphaExtension(inp));
+  const { franjas } = tStubEffectiveArea(inp, fjd);
+  const placa = rectAPoligono({ x1: -inp.plate_a / 2, x2: inp.plate_a / 2, y1: -inp.plate_b / 2, y2: inp.plate_b / 2 });
+  const poly = bloque && bloque.length >= 3 ? bloque : placa;
+  const A_bloque = areaPoligono(poly);
+  const uniforme = Nc / (inp.rib_count + 2);
+  const F_kN = rigs.map((_, i) => {
+    const franja = franjas[i];
+    if (!franja || !(A_bloque > 0)) return uniforme;
+    return (Nc * areaPoligono(recortarPoligonoARect(poly, franja))) / A_bloque;
+  });
+  const F_rib_kN = F_kN.length ? Math.max(...F_kN) : 0;
   const util_weld = F_rib_kN / Math.max(Fw_Rd_rib_kN, 1e-6);
 
   // CM#4 (design review 2026-04-19) — APLASTAMIENTO del rigidizador: la
-  // cartela recoge F_rib y lo entrega a la placa por compresión directa en su
-  // sección de apoyo. Sección crítica = vuelo desde la cara del perfil hasta
-  // el borde de placa (c_out, la misma longitud que dibuja el alzado) ×
-  // espesor rib_t. Resistencia plástica directa Fb,Rd = fyd·t·c_out (CE
-  // Anejo 22 §6.2.4). Los rigidizadores ∥ eje fuerte vuelan (plate_a − h)/2;
-  // con rib_count=4 los ∥ eje débil vuelan (plate_b − b)/2 — gobierna el
-  // menor (F_rib se reparte por igual). Perfil fuera de catálogo → se omite
-  // (misma degradación que tStubEffectiveArea).
-  const section = makeISectionBySize(inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN', inp.sectionSize);
+  // cartela entrega su F a la placa por compresión directa en su sección de
+  // apoyo. Sección crítica = vuelo desde la cara del perfil hasta el borde de
+  // placa (el mismo que dibuja el alzado) × espesor rib_t. Resistencia
+  // plástica directa Fb,Rd = fyd·t·vuelo (CE Anejo 22 §6.2.4). Cada cartela
+  // se comprueba con SU carga y SU vuelo (las paralelas al eje fuerte vuelan
+  // (a − h)/2; las del eje débil, (b − bf)/2) y gobierna la peor. Perfil fuera
+  // de catálogo → se omite (misma degradación que tStubEffectiveArea).
   let util_bear = 0;
   let Fb_Rd_kN: number | undefined;
-  if (section) {
-    const cStrong = (inp.plate_a - section.h) / 2;
-    const cOut = inp.rib_count === 4
-      ? Math.min(cStrong, (inp.plate_b - section.b) / 2)
-      : cStrong;
+  if (hu.catalogo) {
     const fyd_plate = fyp / GAMMA_M0;
-    // c_out ≤ 0 (placa menor que el perfil) → capacidad ~0 y util dispara:
-    // el caso imposible falla ruidosamente en lugar de pasar en silencio.
-    Fb_Rd_kN = (fyd_plate * inp.rib_t * Math.max(cOut, 1e-6)) / 1000;
-    util_bear = F_rib_kN / Fb_Rd_kN;
+    rigs.forEach((r, i) => {
+      // vuelo ≤ 0 (placa menor que el perfil) → capacidad ~0 y util dispara:
+      // el caso imposible falla ruidosamente en lugar de pasar en silencio.
+      const Fb = (fyd_plate * inp.rib_t * Math.max(r.vuelo, 1e-6)) / 1000;
+      const u = F_kN[i] / Fb;
+      if (u >= util_bear) { util_bear = u; Fb_Rd_kN = Fb; }
+    });
   }
 
   const util = Math.max(util_slend, util_weld, util_bear);
@@ -2104,6 +2104,39 @@ export function validateAnchorPlate(inp: AnchorPlateInputs): ValidationWarning[]
   if (inp.rib_count > 0 && inp.weld_throat < 3) {
     w.push({ field: 'weld_throat', message: 'Garganta de soldadura < 3 mm (mínimo práctico EN 1993-1-8 §4.5.2)', severity: 'fail' });
   }
+  // Holguras (2026-09-23): una barra no puede caer bajo el perfil ni dentro
+  // de una cartela, y pegada a una cara de acero no deja sitio ni a su
+  // soldadura ni a la tuerca. Se avisa por el campo que la movería.
+  const hu = huellaPerfil(inp);
+  const hol = holguras(posicionesBarras(inp), hu, rigidizadores(inp, hu));
+  const phi = inp.bar_diam;
+  const porCampo = new Map<string, { pisan: number; rozan: number; contra: Set<string> }>();
+  for (const h of hol) {
+    if (h.acero >= 0.75 * phi) continue;
+    const g = porCampo.get(h.campo) ?? { pisan: 0, rozan: 0, contra: new Set<string>() };
+    if (h.acero < phi / 2 + 2) g.pisan += 1; else g.rozan += 1;
+    g.contra.add(h.contra === 'rigidizador' ? 'un rigidizador' : 'el perfil');
+    porCampo.set(h.campo, g);
+  }
+  for (const [campo, g] of porCampo) {
+    const que = Array.from(g.contra).join(' y ');
+    if (g.pisan > 0) {
+      w.push({
+        field: campo,
+        message: `${g.pisan} barra${g.pisan === 1 ? '' : 's'} pisa${g.pisan === 1 ? '' : 'n'} ${que}: no es construible`,
+        severity: 'fail',
+      });
+    } else {
+      w.push({
+        field: campo,
+        message: `${g.rozan} barra${g.rozan === 1 ? '' : 's'} a menos de 0,75·φ de ${que}: sin sitio para la soldadura o la tuerca`,
+        severity: 'warn',
+      });
+    }
+  }
+  if (hol.some((h) => h.vecina < 2 * phi)) {
+    w.push({ field: 'bar_spacing_x', message: 'Barras a menos de 2·φ entre ejes', severity: 'warn' });
+  }
   return w;
 }
 
@@ -2274,7 +2307,7 @@ export function calcAnchorPlate(
     checkConcreteBreakoutV(inp, solver.bolts, system),       // PR8b CR6
     checkPullout(inp, solver.bolts, system),
     checkSplitting(inp, solver.bolts, solver.Ft_total, system),
-    checkStiffener(inp, solver.Nc, system),
+    checkStiffener(inp, solver.Nc, solver.block, system),
   ];
   checks.push(checkConcreteNVInteraction(checks, system));   // AUDIT-8 N+V hormigón
 

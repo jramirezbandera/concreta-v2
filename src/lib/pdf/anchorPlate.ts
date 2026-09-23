@@ -10,6 +10,7 @@
 import { crearPdf } from './fuente';
 import type { AnchorPlateInputs, PedestalSurface } from '../../data/defaults';
 import { BOTTOM_ANCHORAGE_LABEL, TOP_CONNECTION_LABEL } from '../../data/anchorBars';
+import { normalizarDisposicion, type DisposicionBarras } from '../calculations/anchor-plate/geometria';
 import type { AnchorPlateResult } from '../calculations/anchorPlate';
 import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr, STATUS_LABEL, titledFilename, drawElementTitle, type PdfResult } from './utils';
 import { formatQuantity } from '../units/format';
@@ -26,6 +27,16 @@ const CW = PAGE_W - 2 * M;
 const SURF_LABEL: Record<PedestalSurface, string> = {
   smooth:    'Lisa (mu = 0.20)',
   roughened: 'Rugosa (mu = 0.40)',
+};
+
+// Versión corta de DISPOSICION_LABEL (geometria.ts): la columna derecha de la
+// ficha de entradas mide 85 mm y «anillo (una barra centrada en cada lado)» se
+// salía del margen. ASCII: pasa por pdfStr igualmente.
+const DISPOSICION_PDF: Record<DisposicionBarras, string> = {
+  4: 'esquinas',
+  6: 'tres por extremo',
+  8: 'anillo',
+  12: 'anillo con pares',
 };
 
 // M11 (Phase 3) — etiquetas humanas del modo del solver. ASCII para PDF.
@@ -124,13 +135,23 @@ export async function exportAnchorPlatePDF(
   sectionHeader(COL_L, 'PLACA Y RIGIDIZADORES', 'l');
   lRow('Placa a x b x t', `${inp.plate_a} x ${inp.plate_b} x ${inp.plate_t} mm`);
   lRow('Acero placa', inp.plate_steel);
-  lRow('Rigidizadores', `${inp.rib_count} x (${inp.rib_h} x ${inp.rib_t}) mm`);
+  // Las cartelas van pegadas a las caras del pilar, de borde a borde y
+  // achaflanadas a 45° (ver geometria.ts): con 2 es el par de las puntas de
+  // las alas; con 4, el «#».
+  lRow('Rigidizadores', inp.rib_count === 0 ? 'Sin rigidizadores' : `${inp.rib_count} x (${inp.rib_h} x ${inp.rib_t}) mm`);
+  if (inp.rib_count > 0) {
+    lRow('Cartelas', inp.rib_count === 2 ? 'en las puntas de las alas' : 'en las cuatro caras');
+  }
   lRow('Cordon soldadura', `a = ${inp.weld_throat} mm`);
 
   sectionHeader(COL_R, 'BARRAS DE ANCLAJE', 'r');
-  rRow('Disposicion', `${inp.bar_nLayout} barras`);
+  const disposicion = normalizarDisposicion(inp.bar_nLayout);
+  rRow('Disposicion', pdfStr(`${disposicion} barras, ${DISPOSICION_PDF[disposicion]}`));
   rRow('Diametro / calidad', `O${inp.bar_diam}  ${inp.bar_grade}`);
-  rRow('Separacion x / y', `${inp.bar_spacing_x} / ${inp.bar_spacing_y} mm`);
+  // La separación sólo existe con 12 barras (par central de cada lado).
+  if (disposicion === 12) {
+    rRow('Par central sx / sy', `${inp.bar_spacing_x} / ${inp.bar_spacing_y} mm`);
+  }
   rRow('Borde x / y', `${inp.bar_edge_x} / ${inp.bar_edge_y} mm`);
   rRow('Empotramiento hef', `${inp.bar_hef} mm`);
   rRow('Anclaje inferior', pdfStr(BOTTOM_ANCHORAGE_LABEL[inp.bottom_anchorage]));

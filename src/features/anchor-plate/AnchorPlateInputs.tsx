@@ -15,6 +15,7 @@ import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import { edgeAxisPatch, shearPatch, type ValidationWarning } from '../../lib/calculations/anchorPlate';
+import { normalizarDisposicion } from '../../lib/calculations/anchor-plate/geometria';
 
 interface Props {
   state: Inputs;
@@ -199,84 +200,79 @@ function IconGrid<T extends number>({
 }
 
 // ── Bolt-layout glyphs (D11: schematic stroke-only) ───────────────────────
+// Cada glifo es la placa (rectángulo apaisado: a lo largo del eje fuerte),
+// el pilar en el centro (cuadrado tenue) y las barras donde las pone
+// `posicionesBarras` (lib/calculations/anchor-plate/geometria.ts): fuera
+// del pilar y en las celdas que dejan las cartelas.
+function BoltGlyphPlaca({ puntos }: { puntos: ReadonlyArray<readonly [number, number]> }) {
+  return (
+    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <rect x="3" y="6" width="26" height="20" rx="1.5" />
+      <rect x="12" y="11" width="8" height="10" rx="0.5" opacity={0.45} strokeWidth={1} />
+      {puntos.map(([x, y]) => (
+        <circle key={`${x},${y}`} cx={x} cy={y} r="1.4" />
+      ))}
+    </svg>
+  );
+}
+/** Esquinas. */
 function BoltGlyph4() {
-  return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <rect x="4" y="6" width="24" height="20" rx="1.5" />
-      <circle cx="9" cy="11" r="1.5" />
-      <circle cx="23" cy="11" r="1.5" />
-      <circle cx="9" cy="21" r="1.5" />
-      <circle cx="23" cy="21" r="1.5" />
-    </svg>
-  );
+  return <BoltGlyphPlaca puntos={[[7, 10], [25, 10], [7, 22], [25, 22]]} />;
 }
+/** Tres por extremo del eje fuerte. */
 function BoltGlyph6() {
-  return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <rect x="4" y="6" width="24" height="20" rx="1.5" />
-      <circle cx="8" cy="11" r="1.5" />
-      <circle cx="16" cy="11" r="1.5" />
-      <circle cx="24" cy="11" r="1.5" />
-      <circle cx="8" cy="21" r="1.5" />
-      <circle cx="16" cy="21" r="1.5" />
-      <circle cx="24" cy="21" r="1.5" />
-    </svg>
-  );
+  return <BoltGlyphPlaca puntos={[[7, 10], [25, 10], [7, 16], [25, 16], [7, 22], [25, 22]]} />;
 }
+/** Anillo: esquinas + una barra centrada en cada lado. */
 function BoltGlyph8() {
-  // 4 puntos por fila × 2 filas. Rectángulo de x=4 a x=28 (ancho 24).
-  // Para márgenes simétricos: spacing 6 → x = 7, 13, 19, 25.
   return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <rect x="4" y="6" width="24" height="20" rx="1.5" />
-      {[7, 13, 19, 25].flatMap((x) => [
-        <circle key={`t${x}`} cx={x} cy="11" r="1.3" />,
-        <circle key={`b${x}`} cx={x} cy="21" r="1.3" />,
-      ])}
-    </svg>
+    <BoltGlyphPlaca
+      puntos={[[7, 10], [16, 9], [25, 10], [7, 16], [25, 16], [7, 22], [16, 23], [25, 22]]}
+    />
   );
 }
-function BoltGlyph9() {
+/** Anillo con pares: esquinas + dos barras en cada lado. */
+function BoltGlyph12() {
   return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <rect x="4" y="6" width="24" height="20" rx="1.5" />
-      {[8, 16, 24].flatMap((x) => [
-        <circle key={`t${x}`} cx={x} cy="10" r="1.3" />,
-        <circle key={`m${x}`} cx={x} cy="16" r="1.3" />,
-        <circle key={`b${x}`} cx={x} cy="22" r="1.3" />,
-      ])}
-    </svg>
+    <BoltGlyphPlaca
+      puntos={[
+        [7, 9], [13.5, 9], [18.5, 9], [25, 9],
+        [7, 13.5], [25, 13.5], [7, 18.5], [25, 18.5],
+        [7, 23], [13.5, 23], [18.5, 23], [25, 23],
+      ]}
+    />
   );
 }
 
 // ── Rib-count glyphs ──────────────────────────────────────────────────────
-function RibGlyph0() {
+// La placa con el pilar en el centro y las cartelas donde las pone
+// `rigidizadores()`: pegadas a las caras del pilar y de borde a borde. Con 2,
+// el par de las puntas de las alas (paralelo al eje fuerte, horizontal en el
+// glifo); con 4, el «#». El glifo anterior dibujaba dos rayas verticales para
+// «2», que era el par contrario al que calculaba el motor.
+function RibGlyphPlaca({ pares }: { pares: 0 | 2 | 4 }) {
   return (
     <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <rect x="4" y="4" width="24" height="24" rx="1.5" />
+      <rect x="3" y="6" width="26" height="20" rx="1.5" />
+      <rect x="12" y="11" width="8" height="10" rx="0.5" opacity={0.45} strokeWidth={1} />
+      {pares >= 2 && (
+        <>
+          <line x1="3" y1="11" x2="29" y2="11" />
+          <line x1="3" y1="21" x2="29" y2="21" />
+        </>
+      )}
+      {pares >= 4 && (
+        <>
+          <line x1="12" y1="6" x2="12" y2="26" />
+          <line x1="20" y1="6" x2="20" y2="26" />
+        </>
+      )}
     </svg>
   );
 }
-function RibGlyph2() {
-  return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <rect x="4" y="4" width="24" height="24" rx="1.5" />
-      <line x1="12" y1="4" x2="12" y2="28" />
-      <line x1="20" y1="4" x2="20" y2="28" />
-    </svg>
-  );
-}
-function RibGlyph4() {
-  return (
-    <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <rect x="4" y="4" width="24" height="24" rx="1.5" />
-      <line x1="12" y1="4" x2="12" y2="28" />
-      <line x1="20" y1="4" x2="20" y2="28" />
-      <line x1="4" y1="12" x2="28" y2="12" />
-      <line x1="4" y1="20" x2="28" y2="20" />
-    </svg>
-  );
-}
+function RibGlyph0() { return <RibGlyphPlaca pares={0} />; }
+function RibGlyph2() { return <RibGlyphPlaca pares={2} />; }
+function RibGlyph4() { return <RibGlyphPlaca pares={4} />; }
 
 // ── Advanced toggle: directional edges + Vx/Vy ────────────────────────────
 //
@@ -318,16 +314,16 @@ const HELP = {
   plateSteel: 'Grado del acero de la placa.',
   barDiam: 'Diámetro de las barras de anclaje.',
   barGrade: 'Grado del acero de las barras de anclaje.',
-  sx: 'Separación entre barras en el eje fuerte.',
-  sy: 'Separación entre barras en el eje débil.',
-  ex: 'Distancia de las barras al borde de la placa (eje fuerte).',
+  sx: 'Separación entre las dos barras de cada par central de los lados paralelos al eje fuerte (sólo con 12 barras).',
+  sy: 'Separación entre las dos barras de cada par central de los lados paralelos al eje débil (sólo con 12 barras).',
+  ex: 'Distancia de las barras al borde de la placa (eje fuerte). Las barras se colocan fuera del pilar y de las cartelas; si pisan acero, la app avisa.',
   ey: 'Distancia de las barras al borde de la placa (eje débil).',
   hef: 'Profundidad efectiva de anclaje de la barra en el hormigón.',
   bottomAnchorage: 'Dispositivo de anclaje en el extremo inferior de la barra (gancho, patilla, arandela+tuerca…).',
   topConnection: 'Forma de conexión de la barra con la placa.',
   washerOd: 'Diámetro exterior de la arandela bajo tuerca.',
-  ribH: 'Altura del rigidizador (cartela).',
-  ribT: 'Espesor del rigidizador.',
+  ribH: 'Altura de la cartela en la cara del pilar. Hacia el borde de la placa se achaflana a 45°, como en el plano de arranque de pilar.',
+  ribT: 'Espesor de las cartelas. Van pegadas a las caras del pilar y recorren la placa de borde a borde.',
   fck: 'Resistencia característica del hormigón del pedestal.',
   pedestalH: 'Canto del macizo de hormigón bajo la placa.',
   cX: 'Distancia de la barra al borde del pedestal en el eje X.',
@@ -449,14 +445,14 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
           <p className="text-[10px] uppercase tracking-widest text-text-disabled mb-1">Disposición</p>
           <IconGrid
             groupLabel="Disposición de barras"
-            active={state.bar_nLayout as 4 | 6 | 8 | 9}
+            active={normalizarDisposicion(state.bar_nLayout as number)}
             onSelect={(v) => setField('bar_nLayout', v)}
             disabled={false}
             options={[
-              { value: 4, label: '4', ariaLabel: '4 barras, 2 por lado', glyph: <BoltGlyph4 /> },
-              { value: 6, label: '6', ariaLabel: '6 barras, 3 por lado mayor', glyph: <BoltGlyph6 /> },
-              { value: 8, label: '8', ariaLabel: '8 barras en perímetro',     glyph: <BoltGlyph8 /> },
-              { value: 9, label: '9', ariaLabel: '9 barras en perímetro 3×3', glyph: <BoltGlyph9 /> },
+              { value: 4, label: '4', ariaLabel: '4 barras en las esquinas', glyph: <BoltGlyph4 /> },
+              { value: 6, label: '6', ariaLabel: '6 barras, tres en cada extremo del eje fuerte', glyph: <BoltGlyph6 /> },
+              { value: 8, label: '8', ariaLabel: '8 barras en anillo, una centrada en cada lado', glyph: <BoltGlyph8 /> },
+              { value: 12, label: '12', ariaLabel: '12 barras en anillo, dos en cada lado', glyph: <BoltGlyph12 /> },
             ]}
           />
         </div>
@@ -476,8 +472,18 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
           options={AVAILABLE_REBAR_GRADES.map((g) => ({ value: g, label: g }))}
           setField={setField}
         />
-        <NumField label="sx" sub="sep. eje fuerte" help={HELP.sx} field="bar_spacing_x" value={state.bar_spacing_x as number} unit="mm" integer setField={setField} />
-        <NumField label="sy" sub="sep. eje débil"  help={HELP.sy} field="bar_spacing_y" value={state.bar_spacing_y as number} unit="mm" integer setField={setField} />
+        {/* La separación sólo existe con 12 barras: es la de los dos pernos
+            de cada par central. Con 4, 6 y 8 las barras las coloca la app a
+            partir de la placa y las distancias al borde, y el campo no
+            intervenía en nada (el motor lo ignoraba desde H14). */}
+        {normalizarDisposicion(state.bar_nLayout as number) === 12 && (
+          <>
+            <NumField label="sx" sub="par central, eje fuerte" help={HELP.sx} field="bar_spacing_x" value={state.bar_spacing_x as number} unit="mm" integer setField={setField} />
+            <FieldWarn field="bar_spacing_x" warnings={warnings} />
+            <NumField label="sy" sub="par central, eje débil"  help={HELP.sy} field="bar_spacing_y" value={state.bar_spacing_y as number} unit="mm" integer setField={setField} />
+            <FieldWarn field="bar_spacing_y" warnings={warnings} />
+          </>
+        )}
         <NumField label="ex" sub="dist. borde placa" help={HELP.ex} field="bar_edge_x" value={state.bar_edge_x as number} unit="mm" integer setField={setField} />
         <FieldWarn field="bar_edge_x" warnings={warnings} />
         <NumField label="ey" sub="dist. borde placa" help={HELP.ey} field="bar_edge_y" value={state.bar_edge_y as number} unit="mm" integer setField={setField} />
@@ -525,9 +531,9 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
             active={state.rib_count as 0 | 2 | 4}
             onSelect={(v) => setField('rib_count', v)}
             options={[
-              { value: 0, label: '0', ariaLabel: 'Sin rigidizadores',                       glyph: <RibGlyph0 /> },
-              { value: 2, label: '2', ariaLabel: '2 rigidizadores en eje fuerte',           glyph: <RibGlyph2 /> },
-              { value: 4, label: '4', ariaLabel: '4 rigidizadores (2 en cada eje)',         glyph: <RibGlyph4 /> },
+              { value: 0, label: '0', ariaLabel: 'Sin rigidizadores',                                              glyph: <RibGlyph0 /> },
+              { value: 2, label: '2', ariaLabel: '2 rigidizadores en las puntas de las alas, de borde a borde',    glyph: <RibGlyph2 /> },
+              { value: 4, label: '4', ariaLabel: '4 rigidizadores en «#»: en las puntas y en las caras de las alas', glyph: <RibGlyph4 /> },
             ]}
           />
         </div>

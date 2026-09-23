@@ -1,7 +1,13 @@
 import { useId } from 'react';
 import type { AnchorPlateInputs } from '../../data/defaults';
 import type { AnchorPlateResult } from '../../lib/calculations/anchorPlate';
-import { makeISectionBySize } from '../../lib/sections';
+import { makeISectionBySize, sectionOutline, outlinePathD } from '../../lib/sections';
+import {
+  huellaPerfil,
+  rigidizadores,
+  DISPOSICION_LABEL,
+  normalizarDisposicion,
+} from '../../lib/calculations/anchor-plate/geometria';
 import { formatQuantity } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 
@@ -96,6 +102,12 @@ const MONO = { fontFamily: 'var(--font-mono, monospace)' } as const;
 export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si' }: Props) {
   const C = COLORS[mode];
   const profile = makeISectionBySize(inp.sectionType, inp.sectionSize)?.profile;
+  // La MISMA geometría que usa el motor (anchor-plate/geometria.ts): huella
+  // del perfil y cartelas de borde a borde pegadas a sus caras. Dibujo y
+  // cálculo no pueden discrepar sobre dónde está el acero.
+  const hu = huellaPerfil(inp);
+  const rigs = rigidizadores(inp, hu);
+  const disposicion = normalizarDisposicion(inp.bar_nLayout);
   // L15 (Phase 4) — IDs estables para aria-labelledby.
   //
   // El sufijo era `mode`, pensado para separar el SVG de pantalla del oculto
@@ -215,7 +227,10 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
       <title id={titleId}>Placa de anclaje — planta y alzado</title>
       <desc id={descId}>
         {`${inp.sectionType} ${inp.sectionSize}, placa ${inp.plate_a}×${inp.plate_b}×${inp.plate_t} mm, `}
-        {`${inp.bar_nLayout} barras Ø${inp.bar_diam} ${inp.bar_grade}. `}
+        {`${disposicion} barras Ø${inp.bar_diam} ${inp.bar_grade} (${DISPOSICION_LABEL[disposicion]}). `}
+        {inp.rib_count >= 2
+          ? `${inp.rib_count} rigidizadores de ${inp.rib_h}×${inp.rib_t} mm pegados a las caras del pilar, de borde a borde y achaflanados a 45°. `
+          : 'Sin rigidizadores. '}
         {result.valid
           ? `Modo solver: ${result.solver.mode}, ${result.solver.n_t} barras traccionadas. `
               + `Veredicto global: ${result.overallStatus.toUpperCase()} `
@@ -239,6 +254,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
 
         {/* Plate */}
         <rect
+          data-role="placa-planta"
           x={pCx - plateW / 2}
           y={pCy - plateH / 2}
           width={plateW}
@@ -324,30 +340,10 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
             </>
           );
         })()}
-        {result.valid && result.solver.lifted && !result.solver.block && (() => {
-          // Axis-aligned fallback rectangle (no solver polygon available).
-          const mxSign = Math.sign(inp.Mx) || 1;
-          const blockW = plateW * 0.35;
-          const blockX = mxSign > 0 ? pCx + plateW / 2 - blockW : pCx - plateW / 2;
-          return (
-            <>
-              <rect
-                x={blockX}
-                y={pCy - plateH / 2}
-                width={blockW}
-                height={plateH}
-                fill={C.compression}
-                stroke={C.compression_stroke}
-                strokeWidth={1}
-                strokeDasharray="2 2"
-              />
-              {mode === 'pdf' && (
-                <rect x={blockX} y={pCy - plateH / 2} width={blockW} height={plateH}
-                      fill={`url(#hatch-compression-${uid})`} stroke="none" />
-              )}
-            </>
-          );
-        })()}
+        {/* El solver axial también publica su bloque (rectángulo de profundidad
+            y_c desde el borde comprimido) desde 2026-09-23, así que ya no hay
+            que inventar un rectángulo al 35 % cuando falta el polígono: si no
+            hay bloque es que no hay compresión (tracción pura). */}
 
         {/* Neutral axis line (biaxial only — phi_NA + d_NA in plate coords).
             M9 (Phase 4) — color distinto del compression_stroke (que era
@@ -434,62 +430,68 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
           );
         })()}
 
-        {/* Profile footprint (I-section) centered on plate.
-            Depth h runs along eje fuerte (X, plate a) → web HORIZONTAL spanning h,
-            flanges VERTICAL (width b) at the two depth ends x = ±h/2.
-            (Previously flanges were drawn horizontal spanning h, conflating h↔b:
-            invisible for HEB where h=b, but wrong for IPN/IPE.) */}
-        {profile && (
-          <g>
-            {/* Left flange (depth end x = −h/2) */}
-            <rect x={pCx - profH / 2}            y={pCy - profB / 2} width={profTf} height={profB} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-            {/* Right flange (depth end x = +h/2) */}
-            <rect x={pCx + profH / 2 - profTf}   y={pCy - profB / 2} width={profTf} height={profB} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-            {/* Web (spans the depth h between flanges) */}
-            <rect x={pCx - profH / 2 + profTf}   y={pCy - profTw / 2} width={profH - 2 * profTf} height={profTw} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-          </g>
-        )}
+        {/* Rigidizadores (planta) — los que devuelve `rigidizadores()`, que son
+            los que usa el motor: chapas de espesor rib_t pegadas a las caras
+            del perfil y continuas de borde a borde de la placa. Van DEBAJO del
+            perfil y de las barras; con la geometría real ninguna barra puede
+            caer sobre una cartela sin que el motor lo marque como no
+            construible. rib_h (altura) sólo se ve en el alzado. */}
+        {rigs.map((r) => (
+          <rect
+            key={`rib-planta-${r.eje}${r.lado}`}
+            data-role="rigidizador-planta"
+            data-eje={r.eje}
+            x={pCx + r.rect.x1 * scalePlanta}
+            y={pCy + r.rect.y1 * scalePlanta}
+            width={(r.rect.x2 - r.rect.x1) * scalePlanta}
+            height={(r.rect.y2 - r.rect.y1) * scalePlanta}
+            fill={C.rib}
+            stroke={C.rib_hatch}
+            strokeWidth={1}
+          />
+        ))}
 
-        {/* Rigidizadores (planta).
-            Convención real (matches RibGlyph2/RibGlyph4 icons): hay 2 nervios
-            POR DIRECCIÓN, soldados al exterior de cada ala / extremo del perfil.
-              rib_count=2: 2 nervios paralelos al eje fuerte → uno pegado al
-                           exterior de cada ala del perfil (y = −profB/2 y
-                           y = +profB/2). Cada nervio cruza el voladizo del eje
-                           fuerte (extendido en X de borde a borde de la placa).
-              rib_count=4: + 2 nervios paralelos al eje débil → uno pegado al
-                           extremo de cada ala (x = ±profH/2), extendido en Y
-                           de borde a borde de la placa. Total 4 nervios.
-            rib_h (altura vertical) NO se muestra en planta — solo en alzado. */}
-        {inp.rib_count >= 2 && profile && (() => {
-          const ribT = inp.rib_t * scalePlanta;
-          const profH_px = profile.h * scalePlanta;
-          const profB_px = profile.b * scalePlanta;
-          return (
-            <g>
-              {/* 2 nervios paralelos al eje fuerte, pegados a la cara externa
-                  de cada ala (uno en y = −profB/2 − ribT, otro en y = +profB/2). */}
-              <rect x={pCx - plateW / 2} y={pCy - profB_px / 2 - ribT}
-                    width={plateW} height={ribT}
-                    fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-              <rect x={pCx - plateW / 2} y={pCy + profB_px / 2}
-                    width={plateW} height={ribT}
-                    fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-              {inp.rib_count === 4 && (
-                <>
-                  {/* 2 nervios paralelos al eje débil, pegados al extremo de
-                      cada ala (uno en x = −profH/2 − ribT, otro en x = +profH/2). */}
-                  <rect x={pCx - profH_px / 2 - ribT} y={pCy - plateH / 2}
-                        width={ribT} height={plateH}
-                        fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-                  <rect x={pCx + profH_px / 2} y={pCy - plateH / 2}
-                        width={ribT} height={plateH}
-                        fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-                </>
-              )}
+        {/* Huella del perfil, centrada en la placa, con sus acuerdos alma-ala
+            (contorno compartido de lib/sections/outline, el mismo que dibujan
+            vigas y pilares). El contorno se genera con el canto h vertical;
+            aquí h corre a lo largo del eje fuerte (x), así que se gira 90°: las
+            alas quedan verticales en x = ±h/2 y el alma horizontal. Sin
+            catálogo (perfil desconocido) se pinta la caja estimada. */}
+        {profile && (() => {
+          const outline = sectionOutline({ kind: 'I', ...profile });
+          const d = outline
+            ? outlinePathD(outline, (mm) => mm * scalePlanta, (mm) => mm * scalePlanta, (mm) => mm * scalePlanta)
+            : '';
+          return d ? (
+            <path
+              d={d}
+              transform={`translate(${pCx} ${pCy}) rotate(90)`}
+              fill={C.profile}
+              stroke={C.profile_stroke}
+              strokeWidth={1}
+              data-role="perfil-planta"
+            />
+          ) : (
+            <g data-role="perfil-planta">
+              <rect x={pCx - profH / 2}            y={pCy - profB / 2} width={profTf} height={profB} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
+              <rect x={pCx + profH / 2 - profTf}   y={pCy - profB / 2} width={profTf} height={profB} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
+              <rect x={pCx - profH / 2 + profTf}   y={pCy - profTw / 2} width={profH - 2 * profTf} height={profTw} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
             </g>
           );
         })()}
+        {!profile && (
+          <rect
+            data-role="perfil-planta"
+            x={pCx - (hu.h / 2) * scalePlanta}
+            y={pCy - (hu.bf / 2) * scalePlanta}
+            width={hu.h * scalePlanta}
+            height={hu.bf * scalePlanta}
+            fill={C.profile}
+            stroke={C.profile_stroke}
+            strokeWidth={1}
+            strokeDasharray="3 2"
+          />
+        )}
 
         {/* Barras (planta: círculo según diámetro real) */}
         {result.solver.bolts.map((b) => {
@@ -500,6 +502,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
           return (
             <circle
               key={b.index}
+              data-role="barra-planta"
               cx={bx}
               cy={by}
               r={r}
@@ -602,33 +605,60 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
           );
         })()}
 
-        {/* Rigidizadores (alzado).
-            En el alzado vemos el plano X-Z, donde X = eje fuerte (plate_a) y
-            Z = vertical. Los nervios paralelos al eje fuerte (rib_count ≥ 2)
-            tienen su SILUETA completa visible: ancho = c_strong (extensión en
-            x desde el ala hasta el borde de la placa), alto = rib_h.
-            Los nervios paralelos al eje débil (rib_count == 4) son perpen-
-            diculares al plano del alzado — su silueta se solapa con el alma
-            del perfil. Para no clutter visual, no se dibujan aquí. */}
-        {inp.rib_count >= 2 && profile && (() => {
-          const ribH = inp.rib_h * scaleAlzado;
-          const profH_px = profile.h * scaleAlzado;
-          const cStrongPx = Math.max(0, (aPlateW - profH_px) / 2);
-          const ribY = plateYrect - ribH;
+        {/* Rigidizadores (alzado). Se mira a lo largo de y, así que se ve de
+            frente la cartela del par X más cercana (la de y = −bf/2 − t): UNA
+            chapa continua de borde a borde de la placa, de altura rib_h sobre
+            el pilar y ACHAFLANADA A 45° hacia cada borde, como en la lámina de
+            arranque de pilar del estudio. El chaflán arranca en la cara del
+            ala y muere a hRes del pie en el borde de la placa; si el vuelo es
+            más corto que la caída, muere donde el 45° lo lleve. Las cartelas
+            del par Y (rib_count = 4) se ven de canto: dos tiras de espesor
+            rib_t pegadas a las caras de las alas, detrás de la del frente. */}
+        {inp.rib_count >= 2 && (() => {
+          const X = (mm: number) => aCx + mm * scaleAlzado;
+          const Z = (mm: number) => plateYrect - mm * scaleAlzado;
+          const a2 = inp.plate_a / 2;
+          const h2 = hu.h / 2;
+          const ribH = Math.max(0, inp.rib_h);
+          const hRes = Math.max(20, 0.3 * ribH);
+          const caida = Math.max(0, ribH - hRes);
+          const vuelo = Math.max(0, a2 - h2);
+          const xInicio = vuelo >= caida ? a2 - caida : h2;
+          const zFin = vuelo >= caida ? hRes : ribH - vuelo;
+          const puntos = [
+            [-a2, 0], [-a2, zFin], [-xInicio, ribH], [xInicio, ribH], [a2, zFin], [a2, 0],
+          ] as const;
+          const t = Math.max(0, inp.rib_t);
           return (
             <g>
-              <rect x={aCx - aPlateW / 2} y={ribY}
-                    width={cStrongPx} height={ribH}
-                    fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
-              <rect x={aCx + profH_px / 2} y={ribY}
-                    width={cStrongPx} height={ribH}
-                    fill={C.rib} stroke={C.rib_hatch} strokeWidth={1} />
+              {inp.rib_count >= 4 && [1, -1].map((lado) => (
+                <rect
+                  key={`rib-canto-${lado}`}
+                  data-role="rigidizador-alzado-canto"
+                  x={X(lado > 0 ? h2 : -h2 - t)}
+                  y={Z(ribH)}
+                  width={Math.max(1, t * scaleAlzado)}
+                  height={ribH * scaleAlzado}
+                  fill={C.rib}
+                  stroke={C.rib_hatch}
+                  strokeWidth={1}
+                />
+              ))}
+              <polygon
+                data-role="rigidizador-alzado"
+                points={puntos.map(([x, z]) => `${X(x)},${Z(z)}`).join(' ')}
+                fill={C.rib}
+                stroke={C.rib_hatch}
+                strokeWidth={1}
+                strokeLinejoin="round"
+              />
             </g>
           );
         })()}
 
         {/* Placa */}
         <rect
+          data-role="placa-alzado"
           x={aPlateX}
           y={plateYrect}
           width={aPlateW}

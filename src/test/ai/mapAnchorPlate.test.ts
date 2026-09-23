@@ -6,8 +6,9 @@
 // el veredicto sin ser checks.
 //
 // current = anchorPlateDefaults: HEB-200 · N=200 (G=120) · Mx=45 · My=10 · V=50 ·
-// placa 400×300×20 S275 · 4Ø20 B500S · prolongación recta · 2 rigidizadores ·
-// HA-25 · macizo 200/200/200/200, canto 1000 · superficie rugosa.
+// placa 350×350×20 S275 · 8Ø20 B500S en anillo · prolongación recta · 4
+// rigidizadores en «#» · HA-25 · macizo 190/190/190/190, canto 1000 ·
+// superficie rugosa (desde 2026-09-23; antes 400×300 con 4Ø20 y 2 cartelas).
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -15,6 +16,7 @@ import {
   summarizeAnchorPlateResults,
   RIB_GATE_REASON,
   WASHER_GATE_REASON,
+  PAIR_GATE_REASON,
 } from '../../lib/ai/modules/anchorPlate';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { AiError } from '../../lib/ai/types';
@@ -116,7 +118,7 @@ describe('anchorPlate adapter — sincronización de los BORDES del macizo', () 
   it('tocar solo un borde completa el par con el vigente', () => {
     const p = plan({ pedestal_cX1_mm: 500 });
     expect(p.fields.pedestal_cX2).toBe(anchorPlateDefaults.pedestal_cX2);
-    expect(p.fields.pedestal_cX).toBe(200);
+    expect(p.fields.pedestal_cX).toBe(anchorPlateDefaults.pedestal_cX);
   });
 });
 
@@ -135,6 +137,20 @@ describe('anchorPlate adapter — gates', () => {
     const current: AnchorPlateInputs = { ...anchorPlateDefaults, rib_count: 0 };
     expect(skipFor(plan({ rib_h_mm: 150 }, current), 'Rigidizador — altura')?.reason).toBe(RIB_GATE_REASON);
   });
+
+  it('la separación del par central sin 12 barras → skip (con 8, los defaults)', () => {
+    const p = plan({ bar_spacing_x_mm: 120, bar_spacing_y_mm: 90 });
+    expect(skipFor(p, 'Par central — separación (x)')?.reason).toBe(PAIR_GATE_REASON);
+    expect(skipFor(p, 'Par central — separación (y)')?.reason).toBe(PAIR_GATE_REASON);
+    expect(p.fields.bar_spacing_x).toBeUndefined();
+  });
+
+  it('bar_nLayout=12 en el mismo turno abre el gate del par central', () => {
+    const p = plan({ bar_nLayout: 12, bar_spacing_x_mm: 120, bar_spacing_y_mm: 90 });
+    expect(p.fields.bar_nLayout).toBe(12);
+    expect(p.fields.bar_spacing_x).toBe(120);
+    expect(p.fields.bar_spacing_y).toBe(90);
+  });
 });
 
 describe('anchorPlate adapter — catálogos y campos excluidos', () => {
@@ -146,22 +162,30 @@ describe('anchorPlate adapter — catálogos y campos excluidos', () => {
     expect(skipFor(plan({ bar_nLayout: 5 }), 'Disposición de barras')?.reason).toContain('no es una disposición');
   });
 
+  it('la retícula 3×3 (9) se retiró: el payload la rechaza con la lista de disposiciones', () => {
+    const s = skipFor(plan({ bar_nLayout: 9 }), 'Disposición de barras');
+    expect(s?.reason).toContain('no es una disposición');
+    expect(s?.reason).toContain('12');
+  });
+
   it('valor igual al actual → skip ALREADY (nunca se aplica en silencio)', () => {
     expect(skipFor(plan({ plate_t_mm: 20 }), 'Placa — espesor t')?.reason).toBe(ALREADY);
   });
 
-  it('concrete_cracked y bar_spacing NO viajan al modelo (no los puede corregir / no los usa el motor)', () => {
+  it('concrete_cracked NO viaja al modelo (no lo puede corregir); la separación del par central sí, con su clave _mm', () => {
     const snap = JSON.parse(anchorPlateAdapter.snapshot(anchorPlateDefaults));
     expect(snap.valores.concrete_cracked).toBeUndefined();
     expect(snap.valores.bar_spacing_x).toBeUndefined();
     expect(snap.valores.bar_spacing_y).toBeUndefined();
+    expect(snap.valores.bar_spacing_x_mm).toBe(anchorPlateDefaults.bar_spacing_x);
+    expect(snap.valores.bar_spacing_y_mm).toBe(anchorPlateDefaults.bar_spacing_y);
     expect(snap.valores.VEd_kN).toBeUndefined();     // legacy: solo viaja Vx/Vy
     expect(snap.valores.title).toBeUndefined();
   });
 
-  it('defaults → 34 claves sin confirmar', () => {
+  it('defaults → 36 claves sin confirmar (34 + la separación del par central, desde 2026-09-23)', () => {
     const snap = JSON.parse(anchorPlateAdapter.snapshot(anchorPlateDefaults));
-    expect(snap.sin_confirmar).toHaveLength(34);
+    expect(snap.sin_confirmar).toHaveLength(36);
   });
 });
 

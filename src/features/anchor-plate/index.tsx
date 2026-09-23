@@ -1,5 +1,6 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { anchorPlateDefaults, type AnchorPlateInputs } from '../../data/defaults';
+import { normalizarDisposicion } from '../../lib/calculations/anchor-plate/geometria';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -38,6 +39,15 @@ export function AnchorPlateModule() {
   // el último resultado válido sigue visible pero se lee como obsoleto.
   const isStale = state !== deferredState;
 
+  // La retícula 3×3 (9 barras) se retiró el 2026-09-23: un estado guardado o
+  // un enlace con 9 se normaliza al anillo de 8 al abrir, que son sus mismas
+  // ocho barras exteriores. El motor ya lo lee así aunque el efecto no haya
+  // corrido; esto sólo deja la UI (selector, PDF) diciendo lo mismo.
+  useEffect(() => {
+    const n = normalizarDisposicion(state.bar_nLayout as number);
+    if (n !== state.bar_nLayout) setField('bar_nLayout', n);
+  }, [state.bar_nLayout, setField]);
+
   // "Rellenar con IA" (ola 2)
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -51,7 +61,8 @@ export function AnchorPlateModule() {
       'sectionType', 'sectionSize',
       'NEd', 'NEd_G', 'Mx', 'My', 'Vx', 'Vy', 'VEd',
       'plate_a', 'plate_b', 'plate_t', 'plate_steel',
-      'bar_nLayout', 'bar_diam', 'bar_grade', 'bar_edge_x', 'bar_edge_y', 'bar_hef',
+      'bar_nLayout', 'bar_diam', 'bar_grade', 'bar_edge_x', 'bar_edge_y',
+      'bar_spacing_x', 'bar_spacing_y', 'bar_hef',
       'bottom_anchorage', 'top_connection', 'washer_od',
       'rib_count', 'rib_h', 'rib_t',
       'fck',
