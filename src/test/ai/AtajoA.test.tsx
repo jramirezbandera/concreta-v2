@@ -30,7 +30,7 @@ function PantallaSinAsistente() {
 function montar(ui: React.ReactNode) {
   render(
     <ThemeProvider>
-      <AsistenteProvider>{ui}</AsistenteProvider>
+      <AsistenteProvider avisarAlSalir={false}>{ui}</AsistenteProvider>
     </ThemeProvider>,
   );
 }
@@ -91,7 +91,7 @@ describe('atajo «A» — vive en el provider, no en ningún botón', () => {
   it('sigue al módulo: deja de responder cuando el módulo se va', () => {
     const { rerender } = render(
       <ThemeProvider>
-        <AsistenteProvider>
+        <AsistenteProvider avisarAlSalir={false}>
           <ModuloConAsistente />
         </AsistenteProvider>
       </ThemeProvider>,
@@ -99,7 +99,7 @@ describe('atajo «A» — vive en el provider, no en ningún botón', () => {
 
     rerender(
       <ThemeProvider>
-        <AsistenteProvider>
+        <AsistenteProvider avisarAlSalir={false}>
           <PantallaSinAsistente />
         </AsistenteProvider>
       </ThemeProvider>,

@@ -51,7 +51,7 @@ function renderMenu(o: Opciones = {}) {
     <MemoryRouter initialEntries={[o.ruta ?? '/horm/vigas']}>
       <ThemeProvider>
         <UnitSystemProvider>
-          <AsistenteProvider>
+          <AsistenteProvider avisarAlSalir={false}>
             {conAsistente && <ModuloConAsistente />}
             <MenuApp onCopyLink={onCopyLink} onOpenCalculator={onOpenCalculator} />
           </AsistenteProvider>

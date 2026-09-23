@@ -18,6 +18,12 @@ interface ConfirmDialogProps {
   children: ReactNode;
   /** Etiqueta del botón de acción (en acento). */
   confirmLabel: string;
+  /**
+   * Etiqueta del botón de salida. Por defecto «Cancelar», que vale casi
+   * siempre; se cambia cuando «cancelar» sería ambiguo — en un diálogo sobre
+   * una petición en vuelo, «Cancelar» parece cancelar la petición.
+   */
+  cancelLabel?: string;
   /** Icono del header (opcional). */
   icon?: LucideIcon;
   onConfirm: () => void;
@@ -28,6 +34,7 @@ export function ConfirmDialog({
   title,
   children,
   confirmLabel,
+  cancelLabel = 'Cancelar',
   icon: Icon,
   onConfirm,
   onCancel,
@@ -103,7 +110,7 @@ export function ConfirmDialog({
             onClick={onCancel}
             className="px-4 py-1.5 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
           >
-            Cancelar
+            {cancelLabel}
           </button>
           <button
             ref={confirmRef}

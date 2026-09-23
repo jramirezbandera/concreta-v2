@@ -71,6 +71,11 @@ export interface AsistenteContextValue {
   minimizar: () => void;
   /** Enciende o apaga la píldora. Persiste en esta máquina (D-I9). */
   cambiarEsquina: (encendida: boolean) => void;
+  /**
+   * El usuario acaba de decir que sí a abandonar una petición en vuelo (T10).
+   * Se lo hemos preguntado a la cara, así que el aviso de después sobra.
+   */
+  salidaYaAvisada: () => void;
   /** Tira la conversación y empieza de cero. La confirmación la pide la cabecera (D-I21). */
   reiniciar: () => void;
   /** Lo llama el módulo al montar/desmontar; lo llama el chat para publicar su estado. */
@@ -92,6 +97,7 @@ const SIN_PROVIDER: AsistenteContextValue = {
   abrir: () => {},
   minimizar: () => {},
   cambiarEsquina: () => {},
+  salidaYaAvisada: () => {},
   reiniciar: () => {},
   registrarModulo: () => {},
   publicar: () => {},

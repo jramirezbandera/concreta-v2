@@ -115,6 +115,7 @@ function contextoAsistente(over: Partial<AsistenteContextValue> = {}): Asistente
     esquinaEncendida: true,
     hayEsquina: true,
     cambiarEsquina: vi.fn(),
+    salidaYaAvisada: vi.fn(),
     abrir: vi.fn(),
     minimizar: vi.fn(),
     reiniciar: vi.fn(),

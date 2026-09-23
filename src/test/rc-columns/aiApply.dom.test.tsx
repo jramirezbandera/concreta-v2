@@ -73,7 +73,7 @@ function renderModule() {
               provider del shell, que es lo que permite que la píldora siga
               puesta con el chat sin montar (T3, 2026-09-22). */}
           <AiSettingsProvider>
-            <AsistenteProvider>
+            <AsistenteProvider avisarAlSalir={false}>
               <RCColumnsModule />
               <ToastContainer />
             </AsistenteProvider>

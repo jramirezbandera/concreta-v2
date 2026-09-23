@@ -14,6 +14,7 @@ import { showToast } from '../ui/Toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { escribirClave, leerClave } from '../../lib/storage/seguro';
 import { AiPill } from './AiPill';
+import { AvisoDeSalida } from './AvisoDeSalida';
 import {
   AsistenteContext,
   type AsistenteContextValue,
@@ -43,9 +44,16 @@ const CLAVE_ESQUINA = 'concreta-ai-esquina';
 
 interface AsistenteProviderProps {
   children: ReactNode;
+  /**
+   * Avisar antes de abandonar una petición en vuelo (T10). Viene encendido: es
+   * el comportamiento bueno. Se apaga sólo donde no se puede, porque
+   * `useBlocker` EXIGE un data router y este provider también se monta suelto
+   * — los tests que no levantan un router lo apagan.
+   */
+  avisarAlSalir?: boolean;
 }
 
-export function AsistenteProvider({ children }: AsistenteProviderProps) {
+export function AsistenteProvider({ children, avisarAlSalir = true }: AsistenteProviderProps) {
   const [disponible, setDisponible] = useState(false);
   const [sesion, setSesion] = useState(false);
   const [minimizado, setMinimizado] = useState(false);
@@ -66,6 +74,12 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
     vivo.current = { sesion, estado: publicado.estado };
   });
 
+  /** Puesta por `AvisoDeSalida` justo antes de dejar pasar la navegación. */
+  const yaPreguntado = useRef(false);
+  const salidaYaAvisada = useCallback(() => {
+    yaPreguntado.current = true;
+  }, []);
+
   /**
    * D-I8 — al cambiar de módulo la conversación muere. Es lo correcto (el
    * asistente construye su contexto con los datos de ESE módulo: arrastrar un
@@ -76,7 +90,14 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
   const avisarDelReinicio = useCallback(() => {
     if (!vivo.current.sesion) return;
     if (vivo.current.estado === 'cargando') {
-      // Este sí se cuenta siempre: se está perdiendo una respuesta concreta.
+      // Si ya se ha preguntado antes de salir (T10), no se repite: quien acaba
+      // de contestar «salir igualmente» no necesita que se lo cuenten.
+      if (yaPreguntado.current) {
+        yaPreguntado.current = false;
+        return;
+      }
+      // Red de seguridad: el módulo se ha ido sin pasar por el aviso (una ruta
+      // que revienta, un remonte). Se está perdiendo una respuesta concreta.
       showToast(
         'La pregunta que tenías en vuelo se ha cancelado: el asistente empieza de cero en cada módulo.',
         { autoDismiss: 7000 },
@@ -94,6 +115,11 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
       if (hayAsistente) return;
       // Se va el módulo: muere la conversación y la píldora vuelve a reposo.
       avisarDelReinicio();
+      // El espejo, al día EN EL ACTO y no cuando corra su efecto. Con
+      // StrictMode el módulo que LLEGA monta su efecto dos veces, y su limpieza
+      // vuelve a pasar por aquí antes de que el espejo se haya enterado de que
+      // la sesión murió: con «sesion: true» rancio, el aviso se daba DOS veces.
+      vivo.current = { sesion: false, estado: 'reposo' };
       setSesion(false);
       setMinimizado(false);
       setPublicado({ estado: 'reposo', turnos: 0 });
@@ -182,6 +208,7 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
     abrir,
     minimizar,
     cambiarEsquina,
+    salidaYaAvisada,
     reiniciar,
     registrarModulo,
     publicar,
@@ -190,6 +217,7 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
   return (
     <AsistenteContext.Provider value={ctx}>
       {children}
+      {avisarAlSalir && <AvisoDeSalida />}
       {hayPildora && (
         <AiPill
           estado={publicado.estado}

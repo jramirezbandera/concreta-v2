@@ -51,7 +51,7 @@ function ModuloSinAsistente() {
 function montar(ui: React.ReactNode) {
   return render(
     <ThemeProvider>
-      <AsistenteProvider>
+      <AsistenteProvider avisarAlSalir={false}>
         {ui}
         <ToastContainer />
       </AsistenteProvider>
@@ -139,7 +139,7 @@ describe('el asistente se reinicia en cada módulo (D-I8)', () => {
   it('al irse el módulo, la conversación muere y la píldora vuelve a reposo', () => {
     const { rerender } = render(
       <ThemeProvider>
-        <AsistenteProvider>
+        <AsistenteProvider avisarAlSalir={false}>
           <Pantallas mostrar />
           <ToastContainer />
         </AsistenteProvider>
@@ -150,7 +150,7 @@ describe('el asistente se reinicia en cada módulo (D-I8)', () => {
 
     rerender(
       <ThemeProvider>
-        <AsistenteProvider>
+        <AsistenteProvider avisarAlSalir={false}>
           <Pantallas mostrar={false} />
           <ToastContainer />
         </AsistenteProvider>
@@ -167,7 +167,7 @@ describe('el asistente se reinicia en cada módulo (D-I8)', () => {
   it('con una pregunta en vuelo, el aviso es el de la pregunta cancelada', () => {
     const { rerender } = render(
       <ThemeProvider>
-        <AsistenteProvider>
+        <AsistenteProvider avisarAlSalir={false}>
           <ModuloConAsistente estado="cargando" />
           <ToastContainer />
         </AsistenteProvider>
@@ -177,7 +177,7 @@ describe('el asistente se reinicia en cada módulo (D-I8)', () => {
 
     rerender(
       <ThemeProvider>
-        <AsistenteProvider>
+        <AsistenteProvider avisarAlSalir={false}>
           <ModuloSinAsistente />
           <ToastContainer />
         </AsistenteProvider>
@@ -250,7 +250,7 @@ describe('los avisos se apartan de la píldora (T8 · D-I12)', () => {
   it('al irse el módulo el hueco se va con la píldora', () => {
     const { rerender } = render(
       <ThemeProvider>
-        <AsistenteProvider>
+        <AsistenteProvider avisarAlSalir={false}>
           <ModuloConAsistente />
           <ToastContainer />
         </AsistenteProvider>
@@ -262,7 +262,7 @@ describe('los avisos se apartan de la píldora (T8 · D-I12)', () => {
 
     rerender(
       <ThemeProvider>
-        <AsistenteProvider>
+        <AsistenteProvider avisarAlSalir={false}>
           <ModuloSinAsistente />
           <ToastContainer />
         </AsistenteProvider>
