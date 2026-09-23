@@ -13,6 +13,7 @@ import { anchorPlateAdapter, summarizeAnchorPlateResults } from '../../lib/ai/mo
 import { Topbar } from '../../components/layout/Topbar';
 import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -49,7 +50,7 @@ export function AnchorPlateModule() {
   }, [state.bar_nLayout, setField]);
 
   // "Rellenar con IA" (ola 2)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // ORDER del contrato: familia antes que tamaño, y los gates (`bottom_anchorage`,
   // `rib_count`) antes que sus dependientes. Los campos legacy (`VEd`,
@@ -152,7 +153,7 @@ export function AnchorPlateModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -246,13 +247,13 @@ export function AnchorPlateModule() {
         </div>
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={anchorPlateAdapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

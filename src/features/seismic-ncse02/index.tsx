@@ -15,6 +15,7 @@ import { ViewTabs } from '../../components/ui/ViewTabs';
 import { useDrawer } from '../../components/layout/AppShell';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { showToast } from '../../components/ui/Toast';
@@ -332,7 +333,7 @@ export function SeismicNCSE02Module() {
   // el plan nunca los toca. Las direcciones sí llegan enteras —L y B viven
   // dentro de ellas—, y por eso el estado vivo se mezcla en `aplicarPlanSismo`
   // en vez de a spread: la copia que trae el plan quedó congelada al proponerlo.
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   const aiResults = useMemo(() => summarizeSeismicResults(evaluacion), [evaluacion]);
 
   const handleAiApply = (plan: AiApplyPlan<SeismicState>) => {
@@ -373,7 +374,7 @@ export function SeismicNCSE02Module() {
             detalleAnejo={DETALLE_ANEJO_MEMORIA}
           />
         }
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -555,13 +556,13 @@ export function SeismicNCSE02Module() {
         />
       )}
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={seismicNCSE02Adapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

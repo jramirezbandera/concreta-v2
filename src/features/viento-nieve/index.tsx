@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { vientoNieveAdapter, summarizeVientoNieveResults } from '../../lib/ai/modules/vientoNieve';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { showToast } from '../../components/ui/Toast';
@@ -170,7 +171,7 @@ export function VientoNieveModule() {
   // Los faldones REEMPLAZAN a los vigentes (ver `lib/ai/modules/vientoNieve`),
   // así que el plan los lleva reconstruidos sobre el estado que había al
   // proponerlos: lo que se teclee entre proponer y aplicar se pisa.
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   const aiResults = useMemo(() => summarizeVientoNieveResults(evaluacion), [evaluacion]);
 
   const aplicarPlanIa = (plan: AiApplyPlan<VientoNieveState>) => {
@@ -335,7 +336,7 @@ export function VientoNieveModule() {
         moduleLabel="Viento y nieve"
         moduleGroup="Acciones"
         onMenuOpen={openDrawer}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
         exportMenu={
           <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
         }
@@ -463,13 +464,13 @@ export function VientoNieveModule() {
       </div>
 
       {anejo.dialogo}
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={vientoNieveAdapter}
           current={state}
           results={aiResults}
           onApply={aplicarPlanIa}
-          onClose={() => setAiOpen(false)}
         />
       )}
       {titleOpen && (

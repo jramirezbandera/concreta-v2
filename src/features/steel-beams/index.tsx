@@ -18,6 +18,7 @@ import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { showToast } from '../../components/ui/Toast';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { SteelBeamsInputs } from './SteelBeamsInputs';
 import { SteelBeamsSVG } from './SteelBeamsSVG';
 import { SteelBeamsResults } from './SteelBeamsResults';
@@ -30,7 +31,7 @@ export function SteelBeamsModule() {
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   // "Rellenar con IA" (T3.1)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   // Cuando la IA aplica una Lcr explícita junto a un cambio de L/beamType, el
   // efecto de reset de abajo debe saltarse UNA vez para no pisar el override.
   const skipLcrResetRef = useRef(false);
@@ -161,7 +162,7 @@ export function SteelBeamsModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -295,8 +296,8 @@ export function SteelBeamsModule() {
         </div>
       </div>
 
-      {aiOpen && (
-        <AiChatModal adapter={steelBeamsAdapter} current={state} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      {asistente.sesion && (
+        <AiChatModal key={asistente.claveSesion} adapter={steelBeamsAdapter} current={state} results={aiResults} onApply={handleAiApply} />
       )}
 
       {titleOpen && (

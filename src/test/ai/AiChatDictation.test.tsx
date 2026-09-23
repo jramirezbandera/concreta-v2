@@ -80,7 +80,6 @@ function renderModal() {
             current={steelBeamDefaults}
             results={OK_RESULTS}
             onApply={vi.fn()}
-            onClose={vi.fn()}
           />
         </AiSettingsProvider>
       </UnitSystemProvider>

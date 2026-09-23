@@ -12,6 +12,7 @@ import { timberBeamsAdapter, summarizeTimberBeamResults } from '../../lib/ai/mod
 import { Topbar } from '../../components/layout/Topbar';
 import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -27,7 +28,7 @@ export function TimberBeamsModule() {
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   // "Rellenar con IA" (ola 1)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // ORDER del contrato: los gates antes que sus dependientes — `loadType` antes
   // que `psi2Custom` y `fireResistance` antes que `exposedFaces`.
@@ -80,7 +81,7 @@ export function TimberBeamsModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -153,13 +154,13 @@ export function TimberBeamsModule() {
         </div>
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={timberBeamsAdapter}
           current={state as TimberBeamInputs}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

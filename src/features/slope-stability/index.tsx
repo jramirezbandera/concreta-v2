@@ -24,6 +24,7 @@ import type { AiApplyPlan } from "../../lib/ai/modules/types";
 import type { SlopeInputs as SlopeInputsModel } from "../../data/defaults";
 import { slopeStabilityAdapter, summarizeSlopeResults } from "../../lib/ai/modules/slopeStability";
 import { AiChatModal } from "../../components/ai/AiChatModal";
+import { useAsistenteDeModulo } from "../../components/ai/useAsistenteDeModulo";
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -85,7 +86,7 @@ export function SlopeStabilityModule() {
   // "Rellenar con IA" (ola 3). Este módulo es el único con cálculo MANUAL:
   // el adapter declara resultsRecalc:'manual' y el resumen refleja el estado
   // del solver (sin calcular / fresco / desactualizado).
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   const aiResults = useMemo(
     () => summarizeSlopeResults(solver.result, solver.isStale),
     [solver.result, solver.isStale],
@@ -174,7 +175,7 @@ export function SlopeStabilityModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onCopyLink={handleShare}
         onMenuOpen={openDrawer}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -277,8 +278,8 @@ export function SlopeStabilityModule() {
         </div>
       </div>
 
-      {aiOpen && (
-        <AiChatModal adapter={slopeStabilityAdapter} current={state} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      {asistente.sesion && (
+        <AiChatModal key={asistente.claveSesion} adapter={slopeStabilityAdapter} current={state} results={aiResults} onApply={handleAiApply} />
       )}
 
       {titleOpen && (

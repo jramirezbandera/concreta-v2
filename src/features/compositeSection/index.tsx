@@ -3,6 +3,7 @@ import { compositeSectionDefaults, type CompositeSectionInputs, type PlateEntry 
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { compositeSectionAdapter, summarizeCompositeSectionResults } from '../../lib/ai/modules/compositeSection';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
 import { useDrawer } from '../../components/layout/AppShell';
@@ -114,7 +115,7 @@ export function CompositeSectionModule() {
   const result = useMemo(() => calcCompositeSection(inputs), [inputs]);
 
   // "Rellenar con IA" (ola 3 — piloto de arrays en el payload)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   const aiResults = useMemo(() => summarizeCompositeSectionResults(result), [result]);
 
   // Aplica el plan confirmado en AiChatModal. ORDER del contrato: mode PRIMERO
@@ -162,7 +163,7 @@ export function CompositeSectionModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -249,8 +250,8 @@ export function CompositeSectionModule() {
         </div>
       </div>
 
-      {aiOpen && (
-        <AiChatModal adapter={compositeSectionAdapter} current={inputs} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      {asistente.sesion && (
+        <AiChatModal key={asistente.claveSesion} adapter={compositeSectionAdapter} current={inputs} results={aiResults} onApply={handleAiApply} />
       )}
 
       {titleOpen && (

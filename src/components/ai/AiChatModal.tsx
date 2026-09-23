@@ -67,7 +67,7 @@ import { runChatTurn } from '../../lib/ai/providers';
 import type { AiResultsSummary, AiVerdict } from '../../lib/ai/resultsSummary';
 import { useAiSettings } from '../../lib/ai/useAiSettings';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
-import { useIsMobile } from '../../hooks/useIsMobile';
+import { useAsistente, type EstadoAsistente } from './asistente-context';
 import { useSpeechDictation } from '../../hooks/useSpeechDictation';
 import { useTheme } from '../../lib/theme/useTheme';
 import { showToast } from '../ui/Toast';
@@ -81,7 +81,13 @@ export interface AiChatModalProps<TInputs> {
   current: TInputs; // estado VIVO del módulo — snapshot por turno
   results: AiResultsSummary; // serializado por el padre; prop viva → frescura por turno
   onApply: (plan: AiApplyPlan<TInputs>) => void; // el padre aplica; la ventana NO se cierra
-  onClose: () => void;
+  /*
+    Aquí hubo un `onClose`. Murió con el rediseño de 2026-09-22 (D-I6): con la
+    píldora siempre puesta, «cerrar» y «minimizar» dejaban la MISMA pantalla
+    —la píldora— y uno de los dos borraba la conversación sin avisar. Ahora
+    salir es siempre minimizar (lo manda el provider) y tirar el hilo es
+    «Reiniciar», con nombre propio y confirmación.
+  */
 }
 
 type ChatItem<TInputs> =
@@ -203,8 +209,18 @@ function readUi(): UiState {
     return { mode: 'panel', pos: null };
   }
 }
-function persistUi(v: UiState): void {
-  if (typeof window !== 'undefined') escribirClave(UI_KEY, JSON.stringify(v));
+/**
+ * Guarda SÓLO lo que se le pasa, fusionando con lo que ya había.
+ *
+ * Antes guardaba modo y posición juntos, y eso ya no vale: la píldora fuerza el
+ * modo flotante para esta apertura (D-I1), pero eso NO es la preferencia del
+ * usuario —lo es el modo que eligió a mano en la cabecera—. Con el guardado
+ * conjunto, arrastrar la ventana un pixel después de abrir desde la esquina le
+ * habría reescrito la preferencia por la espalda.
+ */
+function persistUi(v: Partial<UiState>): void {
+  if (typeof window === 'undefined') return;
+  escribirClave(UI_KEY, JSON.stringify({ ...readUi(), ...v }));
 }
 
 const VERDICT_LABEL: Record<AiVerdict, string | null> = {
@@ -228,12 +244,22 @@ export function AiChatModal<TInputs>({
   current,
   results,
   onApply,
-  onClose,
 }: AiChatModalProps<TInputs>) {
   const { settings, activeKey } = useAiSettings();
   const { system: unitSystem } = useUnitSystem();
-  const isMobile = useIsMobile();
   const isDark = useTheme().theme === 'dark';
+  /*
+    El contenedor ya no se manda solo: quién está minimizado, desde dónde se
+    abrió y a partir de qué ancho hay píldora lo decide el provider del shell,
+    porque la píldora tiene que sobrevivir a que este componente no esté
+    montado. Aquí queda lo que es del chat: el hilo y su presentación.
+
+    `esEstrecho` sustituye al viejo `useIsMobile()` (1023 px). El asistente
+    tiene umbral propio en 768 px (D-I20): por encima hay píldora y la ventana
+    es flotante; por debajo, hoja inferior y sin píldora.
+  */
+  const { minimizado, desdeLaEsquina, flotante, minimizar, reiniciar, publicar } = useAsistente();
+  const esEstrecho = !flotante;
 
   const [items, setItems] = useState<ChatItem<TInputs>[]>([]);
   const [text, setText] = useState('');
@@ -278,9 +304,20 @@ export function AiChatModal<TInputs>({
   );
 
   // ── Estado del contenedor (modo, posición flotante, minimizado) ──
-  const [mode, setMode] = useState<WindowMode>(() => readUi().mode);
+  /*
+    D-I1 — abierto desde la píldora, SIEMPRE flotante. El modo por defecto es
+    `panel`, que es un slide-over con `aria-modal` y bloqueo de scroll del
+    body: una píldora que promete «estoy aquí al lado» y entrega una ventana
+    que congela la página es justo lo contrario de por qué está siempre puesta.
+    El modo guardado sigue mandando cuando se abre desde el Menú o con la «A».
+
+    El componente se monta de nuevo en cada apertura (el provider monta y
+    desmonta la sesión), así que este inicializador corre una vez por apertura.
+  */
+  const [mode, setMode] = useState<WindowMode>(() => (desdeLaEsquina ? 'floating' : readUi().mode));
   const [pos, setPos] = useState<{ x: number; y: number } | null>(() => readUi().pos);
-  const [minimized, setMinimized] = useState(false);
+  /** Confirmación en línea de «Reiniciar» (D-I21): el daño no tiene vuelta atrás. */
+  const [confirmandoReinicio, setConfirmandoReinicio] = useState(false);
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
   const [sheetDrag, setSheetDrag] = useState<{ startY: number; dy: number } | null>(null);
   const [vp, setVp] = useState(() => ({
@@ -315,10 +352,19 @@ export function AiChatModal<TInputs>({
     },
   });
 
-  // Persistir modo + posición flotante entre sesiones.
+  // La POSICIÓN sí se guarda siempre: la mueve el usuario arrastrando, así que
+  // es su preferencia se mire por donde se mire. El MODO se guarda sólo cuando
+  // lo cambia a mano (`cambiarModo`), para que abrir desde la esquina no le
+  // reescriba la preferencia.
   useEffect(() => {
-    persistUi({ mode, pos });
-  }, [mode, pos]);
+    persistUi({ pos });
+  }, [pos]);
+
+  /** Cambio de modo a mano desde la cabecera: eso sí es preferencia. */
+  const cambiarModo = useCallback((m: WindowMode) => {
+    setMode(m);
+    persistUi({ mode: m });
+  }, []);
 
   // Seguir el tamaño del viewport (dock de la ventana flotante + móvil).
   useEffect(() => {
@@ -333,7 +379,7 @@ export function AiChatModal<TInputs>({
 
   // Bloqueo de scroll del body SOLO en modos "modales" (slide-over o hoja
   // inferior). En flotante/píldora el usuario sigue trabajando con la app.
-  const scrollLocked = isMobile ? !minimized : mode === 'panel' && !minimized;
+  const scrollLocked = esEstrecho ? !minimizado : mode === 'panel' && !minimizado;
   useEffect(() => {
     if (!scrollLocked) return;
     const prev = document.body.style.overflow;
@@ -363,8 +409,8 @@ export function AiChatModal<TInputs>({
 
   // Autofocus del composer al montar y al terminar cada petición.
   useEffect(() => {
-    if (!loading && !minimized) textareaRef.current?.focus();
-  }, [loading, minimized]);
+    if (!loading && !minimizado) textareaRef.current?.focus();
+  }, [loading, minimizado]);
 
   // Auto-ajuste de altura del composer a su contenido (1 línea vacío → ~5 máx):
   // sin esto el textarea forzaba un mínimo de 2 filas y, con la caja alineada
@@ -376,13 +422,13 @@ export function AiChatModal<TInputs>({
     if (!ta) return;
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
-  }, [text, mode, minimized, isMobile]);
+  }, [text, mode, minimizado, esEstrecho]);
 
   // Autoscroll al fondo del hilo con cada ítem nuevo (o pseudo-ítem de carga).
   useEffect(() => {
     const el = threadRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [items, loading, minimized, mode]);
+  }, [items, loading, minimizado, mode]);
 
   // Arrastre de la ventana flotante (mecánica portada de Calculator.tsx).
   useEffect(() => {
@@ -659,31 +705,23 @@ export function AiChatModal<TInputs>({
     );
   };
 
-  // Escape: con petición en vuelo cancela (no cierra); en reposo cierra.
+  // Escape: con petición en vuelo cancela; en reposo BAJA A LA PÍLDORA. Ya no
+  // cierra, porque cerrar ya no existe: la conversación sólo se tira con
+  // «Reiniciar» (D-I6).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (loading) cancelInFlight();
-      else onClose();
+      else minimizar();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [loading, onClose, cancelInFlight]);
+  }, [loading, minimizar, cancelInFlight]);
 
-  // Atajo "A" para restaurar desde la píldora (solo minimizado y sin foco en
-  // un campo de texto, para no secuestrar la escritura en la app).
-  useEffect(() => {
-    if (!minimized) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== 'a' || e.metaKey || e.ctrlKey || e.altKey) return;
-      const el = document.activeElement as HTMLElement | null;
-      const tag = el?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
-      setMinimized(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [minimized]);
+  // Aquí hubo un segundo listener de «A» para restaurar desde la píldora. Se
+  // fue con el rediseño: la «A» la escucha ahora la Topbar, y abrir con la
+  // sesión ya montada ES restaurar. Dos listeners para la misma tecla era una
+  // carrera esperando a pasar.
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -747,6 +785,35 @@ export function AiChatModal<TInputs>({
   const sinComprobaciones = results.verdict === 'none';
   const hasPending = findPendingPayload(items) != null;
 
+  /*
+    Lo que la píldora enseña cuando esta ventana no está a la vista (D-I5). El
+    orden importa y es el de urgencia: sin clave no se puede hacer nada;
+    pensando manda sobre todo lo demás; una propuesta esperando pesa más que un
+    error viejo del hilo.
+
+    Esto cierra un agujero real: hasta ahora se podía minimizar con una
+    pregunta en vuelo y la respuesta —y el error— quedaban invisibles, porque
+    los errores se pintan DENTRO del hilo. Mientras llegar a la píldora costaba
+    tres gestos era una rareza; como estado normal del asistente, no lo es.
+  */
+  const ultimoEsError = items.length > 0 && items[items.length - 1].kind === 'error';
+  const estadoParaLaPildora: EstadoAsistente =
+    activeKey === null
+      ? 'sin-clave'
+      : loading
+        ? 'cargando'
+        : hasPending
+          ? 'propuesta'
+          : ultimoEsError
+            ? 'error'
+            : items.length > 0
+              ? 'viva'
+              : 'reposo';
+  const turnosDelUsuario = items.reduce((n, i) => (i.kind === 'user' ? n + 1 : n), 0);
+  useEffect(() => {
+    publicar(estadoParaLaPildora, turnosDelUsuario);
+  }, [estadoParaLaPildora, turnosDelUsuario, publicar]);
+
   // Geometría de la ventana flotante (dock abajo-derecha si no hay posición
   // guardada; clamp al viewport para que un resize no la deje fuera).
   const floatW = Math.max(320, Math.min(400, vp.w - 32));
@@ -770,7 +837,9 @@ export function AiChatModal<TInputs>({
   };
   const onSheetTouchEnd = () => {
     if (!sheetDrag) return;
-    if (sheetDrag.dy > 90) onClose();
+    // Arrastrar la hoja hacia abajo la ESCONDE, no la cierra: la conversación
+    // sigue viva y se recupera desde el Menú (D-I19).
+    if (sheetDrag.dy > 90) minimizar();
     setSheetDrag(null);
   };
 
@@ -1182,43 +1251,86 @@ export function AiChatModal<TInputs>({
     </div>
   );
 
-  // ── Píldora minimizada (escritorio) ──
-  if (minimized && !isMobile) {
-    return (
+  /*
+    «Reiniciar» (D-I6 + D-I21). Sustituye a la ✕, que murió porque con la
+    píldora siempre puesta dejaba la MISMA pantalla que «minimizar» y encima
+    borraba la conversación. Ahora tirar el hilo tiene nombre propio, icono
+    propio y confirmación en línea: es raro hacerlo y no tiene vuelta atrás —el
+    hilo vive sólo en memoria y no se reenvía nada—, así que ahí la fricción no
+    se paga. Con el hilo vacío no hay nada que tirar y el botón va apagado.
+  */
+  const controlReiniciar = confirmandoReinicio ? (
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-text-secondary shrink-0">
+      ¿Reiniciar?
       <button
         type="button"
-        onClick={() => setMinimized(false)}
-        aria-label="Restaurar asistente"
-        className="fixed z-50 inline-flex items-center gap-2.5 h-[38px] px-3.5 rounded-md bg-bg-surface border border-border-main text-[12px] text-text-primary hover:border-accent/40 transition-colors"
-        style={{
-          right: 16,
-          bottom: 16,
-          background: floatBg,
-          boxShadow: isDark
-            ? '0 14px 30px -8px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.06)'
-            : '0 12px 24px -8px rgba(15,23,42,0.28)',
+        onClick={() => {
+          setConfirmandoReinicio(false);
+          reiniciar();
         }}
+        className="px-1.5 py-0.5 rounded border border-state-fail/40 text-state-fail hover:bg-state-fail/10 transition-colors"
       >
-        <span
-          className="w-[7px] h-[7px] rounded-full shrink-0"
-          style={{
-            background: 'var(--color-accent)',
-            boxShadow: hasPending
-              ? '0 0 0 3px color-mix(in srgb, var(--color-accent) 30%, transparent)'
-              : '0 0 6px color-mix(in srgb, var(--color-accent) 60%, transparent)',
-          }}
-        />
-        <Sparkles size={14} className="text-accent" aria-hidden="true" />
-        <span className="font-medium">Asistente</span>
-        <span className="font-mono text-[10px] text-text-disabled border border-border-sub rounded px-1">
-          A
-        </span>
+        Sí
       </button>
-    );
-  }
+      <button
+        type="button"
+        onClick={() => setConfirmandoReinicio(false)}
+        className="px-1.5 py-0.5 rounded border border-border-main hover:bg-bg-elevated transition-colors"
+      >
+        No
+      </button>
+    </span>
+  ) : (
+    <button
+      type="button"
+      title="Reiniciar la conversación"
+      aria-label="Reiniciar la conversación"
+      disabled={items.length === 0}
+      onClick={() => setConfirmandoReinicio(true)}
+      className={`${HEADER_BTN} disabled:opacity-30 disabled:hover:bg-transparent`}
+    >
+      <RotateCcw size={14} />
+    </button>
+  );
 
-  // ── Móvil: hoja inferior (bottom sheet) ──
-  if (isMobile) {
+  /*
+    Salir. Por encima de 768 px baja a la píldora, que es donde vive el
+    asistente. Por debajo no hay píldora, así que la ✕ se queda —es la única
+    salida— pero ESCONDE en vez de descartar (D-I19): un solo contrato sobre la
+    conversación en toda la app, se mire en la pantalla que se mire.
+  */
+  const controlSalir = esEstrecho ? (
+    <button
+      type="button"
+      onClick={minimizar}
+      title="Esconder — la conversación se recupera desde el Menú"
+      aria-label="Esconder el asistente"
+      className={HEADER_BTN}
+    >
+      <X size={16} />
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={minimizar}
+      title="Bajar a la esquina"
+      aria-label="Bajar a la esquina"
+      className={HEADER_BTN}
+    >
+      <Minus size={14} />
+    </button>
+  );
+
+  /*
+    Minimizado: aquí no se pinta nada. La píldora la pone el provider del
+    shell, que es lo que le permite seguir puesta cuando este componente ni
+    siquiera está montado. Este componente se queda vivo pero mudo, que es lo
+    que mantiene la conversación en pie.
+  */
+  if (minimizado) return null;
+
+  // ── Pantalla estrecha (<768 px): hoja inferior ──
+  if (esEstrecho) {
     return (
       <>
         <div
@@ -1255,9 +1367,8 @@ export function AiChatModal<TInputs>({
           <div className="flex items-center gap-2.5 px-4 pb-2.5 border-b border-border-sub shrink-0">
             {headerBrand}
             <div className="flex-1" />
-            <button type="button" onClick={onClose} aria-label="Cerrar" className={HEADER_BTN}>
-              <X size={16} />
-            </button>
+            {controlReiniciar}
+            {controlSalir}
           </div>
           {providerArea}
           {anthropicWarning}
@@ -1310,31 +1421,20 @@ export function AiChatModal<TInputs>({
             title="Expandir a panel"
             aria-label="Expandir a panel"
             onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => setMode('panel')}
+            onClick={() => cambiarModo('panel')}
             className={HEADER_BTN}
           >
             <PanelRight size={14} />
           </button>
-          <button
-            type="button"
-            title="Minimizar"
-            aria-label="Minimizar"
+          {/* La cabecera entera es el asa de arrastre: los controles paran el
+              mousedown para que pulsarlos no empiece a mover la ventana. */}
+          <span
+            className="inline-flex items-center gap-1"
             onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => setMinimized(true)}
-            className={HEADER_BTN}
           >
-            <Minus size={14} />
-          </button>
-          <button
-            type="button"
-            title="Cerrar"
-            aria-label="Cerrar"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={onClose}
-            className={HEADER_BTN}
-          >
-            <X size={14} />
-          </button>
+            {controlReiniciar}
+            {controlSalir}
+          </span>
         </div>
         {providerArea}
         {anthropicWarning}
@@ -1377,14 +1477,16 @@ export function AiChatModal<TInputs>({
             type="button"
             title="Reducir a esquina"
             aria-label="Reducir a esquina"
-            onClick={() => setMode('floating')}
+            onClick={() => cambiarModo('floating')}
             className={HEADER_BTN}
           >
             <PictureInPicture2 size={15} />
           </button>
-          <button type="button" title="Cerrar" aria-label="Cerrar" onClick={onClose} className={HEADER_BTN}>
-            <X size={15} />
-          </button>
+          {/* El panel también sabe bajar a la píldora. Antes no: sólo ofrecía
+              «Reducir a esquina» y «Cerrar», y por eso la píldora estaba a tres
+              gestos del arranque y casi nadie la había visto. */}
+          {controlReiniciar}
+          {controlSalir}
         </div>
         {providerArea}
         {anthropicWarning}

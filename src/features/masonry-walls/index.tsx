@@ -36,6 +36,7 @@ import { exportMasonryWallsPDF, masonryWallsFallbackFilename } from '../../lib/p
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { showToast } from '../../components/ui/Toast';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { masonryWallsAdapter, summarizeMasonryResults } from '../../lib/ai/modules/masonryWalls';
 import { buildShareUrl, decodeShareStringWithMeta } from './serialize';
@@ -190,7 +191,7 @@ export function MasonryWallsModule() {
   // puntuales, son contexto de solo lectura para el asistente, así que el merge
   // plano nunca las toca. Tampoco hace falta limpiar la selección: si la key del
   // machón queda huérfana, el panel cae al crítico.
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   const aiResults = useMemo(() => summarizeMasonryResults(edificioResult), [edificioResult]);
 
   const handleAiApply = (plan: AiApplyPlan<MasonryWallState>) => {
@@ -391,7 +392,7 @@ export function MasonryWallsModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={handleCopyLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -592,13 +593,13 @@ export function MasonryWallsModule() {
         </div>
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={masonryWallsAdapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

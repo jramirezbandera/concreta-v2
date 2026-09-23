@@ -16,6 +16,7 @@ import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { showToast } from '../../components/ui/Toast';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { IsolatedFootingInputsPanel } from './IsolatedFootingInputsPanel';
 import { IsolatedFootingResults } from './IsolatedFootingResults';
 import { IsolatedFootingSVG, type IsolatedFootingView } from './IsolatedFootingSVG';
@@ -72,7 +73,7 @@ export function IsolatedFootingModule() {
   const [view, setView] = useState<IsolatedFootingView>('terreno');
 
   // "Rellenar con IA" (T4.3)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // Aplica el plan confirmado en AiChatModal. ORDER del contrato:
   // loadsAreFactored PRIMERO (el toggle condiciona la interpretación de las cargas).
@@ -127,7 +128,7 @@ export function IsolatedFootingModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -235,8 +236,8 @@ export function IsolatedFootingModule() {
         </div>
       </div>
 
-      {aiOpen && (
-        <AiChatModal adapter={isolatedFootingAdapter} current={state} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      {asistente.sesion && (
+        <AiChatModal key={asistente.claveSesion} adapter={isolatedFootingAdapter} current={state} results={aiResults} onApply={handleAiApply} />
       )}
 
       {titleOpen && (

@@ -13,6 +13,7 @@ import { steelColumnsAdapter, summarizeSteelColumnResults } from '../../lib/ai/m
 import { Topbar } from '../../components/layout/Topbar';
 import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -29,7 +30,7 @@ export function SteelColumnsModule() {
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   // "Rellenar con IA" (ola 1)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // ORDER del contrato: `sectionType` PRIMERO (decide el catálogo de tamaños y
   // si el perfil se define con size o con D/t), y `bcType` antes que β (el plan
@@ -110,7 +111,7 @@ export function SteelColumnsModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -214,13 +215,13 @@ export function SteelColumnsModule() {
         )}
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={steelColumnsAdapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

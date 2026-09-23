@@ -18,6 +18,7 @@ import { hayTrabajoSinGuardar } from '../../lib/anejo';
 import { cuadroVigasFallbackDxf } from '../../lib/export/filename';
 import { vigasDelAnejo } from './plano';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -67,7 +68,7 @@ export function RCBeamsModule() {
   const isSimple = state.mode === 'simple';
 
   // "Rellenar con IA" (ola 2)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // ORDER del contrato: `mode` PRIMERO (decide si la sección de apoyo existe para
   // el usuario), y `loadType` antes que `psi2Custom` (lo gatea).
@@ -210,7 +211,7 @@ export function RCBeamsModule() {
         }
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar
         tab={isSimple && tab === 'diagramas' ? 'results' : tab}
@@ -364,13 +365,13 @@ export function RCBeamsModule() {
         })()}
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={rcBeamsAdapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

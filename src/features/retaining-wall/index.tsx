@@ -17,6 +17,7 @@ import { Topbar } from '../../components/layout/Topbar';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { GRUPO_ANEJO_CALCULO, type IdAnejo } from '../../components/layout/opcionAnejo';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -134,7 +135,7 @@ export function RetainingWallModule() {
   const result = useMemo(() => calcRetainingWall(state), [state]);
 
   // "Rellenar con IA" (ola 2)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // ORDER del contrato: `hasWater` antes que `hw` y `Ab` antes que `S` (los gatean).
   const handleAiApply = (plan: AiApplyPlan<RetainingWallInputs>) => {
@@ -249,7 +250,7 @@ export function RetainingWallModule() {
         }
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -371,13 +372,13 @@ export function RetainingWallModule() {
         </div>
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={retainingWallAdapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

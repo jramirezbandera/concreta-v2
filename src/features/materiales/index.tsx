@@ -25,6 +25,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { materialesAdapter, summarizeMaterialesResults } from '../../lib/ai/modules/materiales';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { showToast } from '../../components/ui/Toast';
@@ -168,7 +169,7 @@ export function MaterialesModule() {
   // Las listas del cuadro REEMPLAZAN a las vigentes (ver `lib/ai/modules/
   // materiales`), así que el plan lleva las filas reconstruidas sobre el estado
   // que había al proponerlas: lo que se teclee entre proponer y aplicar se pisa.
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   const aiResults = useMemo(() => summarizeMaterialesResults(evaluacion), [evaluacion]);
 
   const aplicarPlanIa = (plan: AiApplyPlan<MaterialesState>) => {
@@ -389,7 +390,7 @@ export function MaterialesModule() {
         moduleLabel="Cuadro de materiales"
         moduleGroup="Memorias"
         onMenuOpen={openDrawer}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
         exportMenu={
           <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
         }
@@ -626,13 +627,13 @@ export function MaterialesModule() {
       </div>
 
       {anejo.dialogo}
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={materialesAdapter}
           current={state}
           results={aiResults}
           onApply={aplicarPlanIa}
-          onClose={() => setAiOpen(false)}
         />
       )}
       {titleOpen && (

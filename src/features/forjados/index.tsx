@@ -18,6 +18,7 @@ import { forjadosAdapter, summarizeForjadoResults } from '../../lib/ai/modules/f
 import { Topbar } from '../../components/layout/Topbar';
 import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -68,7 +69,7 @@ export function ForjadosModule() {
   };
 
   // "Rellenar con IA" (ola 2)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // Los dos gates de este módulo NO son un setField suelto, y por eso el apply no
   // es un bucle plano: `variant` reinicia los 16 campos de armado
@@ -127,7 +128,7 @@ export function ForjadosModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -204,13 +205,13 @@ export function ForjadosModule() {
         </div>
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={forjadosAdapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

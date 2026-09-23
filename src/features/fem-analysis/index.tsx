@@ -23,6 +23,7 @@ import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ViewTabs, type ViewTab } from '../../components/ui/ViewTabs';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { femAnalysisAdapter, summarizeFemResults } from '../../lib/ai/modules/femAnalysis';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { useDrawer } from '../../components/layout/AppShell';
@@ -230,7 +231,7 @@ export function FemAnalysisModule() {
   // Asistente IA (ola 5). Con model === null (pantalla de plantillas) el chat
   // arranca sobre una SEMILLA de plantilla que no se persiste ni entra en la
   // historia hasta que el usuario aplica una propuesta (handleAiApply).
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   const aiSeed = useMemo(() => cloneDesignPreset('beam'), []);
   const aiCurrent = model ?? aiSeed;
   const [view, setView] = useState<ViewState>({
@@ -339,7 +340,7 @@ export function FemAnalysisModule() {
   // re-runs synchronously on every model change once loaded.
   // Con el chat abierto desde la landing se calcula la SEMILLA: sin esto el
   // asistente vería status 'neutral' en vez de resultados reales.
-  const { result, ensureSolver } = useLazyDesignSolver(model ?? (aiOpen ? aiSeed : null));
+  const { result, ensureSolver } = useLazyDesignSolver(model ?? (asistente.sesion ? aiSeed : null));
 
   // Resumen de resultados para el prompt del chat (prop viva: se rehace por turno).
   const aiResults = useMemo(() => summarizeFemResults(aiCurrent, result), [aiCurrent, result]);
@@ -402,15 +403,15 @@ export function FemAnalysisModule() {
   if (!model) {
     return (
       <div className="fem-root flex flex-col h-full min-h-0 overflow-hidden">
-        <Topbar moduleLabel="FEM 1D" moduleGroup="Análisis" onMenuOpen={openDrawer} onOpenAssistant={() => setAiOpen(true)} />
-        <Landing onPick={pickPreset} recientes={loadRecent()} onStartAi={() => setAiOpen(true)} />
-        {aiOpen && (
+        <Topbar moduleLabel="FEM 1D" moduleGroup="Análisis" onMenuOpen={openDrawer} onOpenAssistant={asistente.abrir} />
+        <Landing onPick={pickPreset} recientes={loadRecent()} onStartAi={asistente.abrir} />
+        {asistente.sesion && (
           <AiChatModal
+            key={asistente.claveSesion}
             adapter={femAnalysisAdapter}
             current={aiCurrent}
             results={aiResults}
             onApply={handleAiApply}
-            onClose={() => setAiOpen(false)}
           />
         )}
       </div>
@@ -425,7 +426,7 @@ export function FemAnalysisModule() {
         onMenuOpen={openDrawer}
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onCopyLink={handleShare}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -659,13 +660,13 @@ export function FemAnalysisModule() {
         />
       )}
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={femAnalysisAdapter}
           current={aiCurrent}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
     </div>

@@ -12,7 +12,7 @@
 // (historial con rawEnvelope verbatim + snapshot en el system), acumulación de
 // propuestas no aplicadas (fusión en cliente: la tarjeta nueva acumula, las
 // anteriores pasan a superseded; proposal null no toca nada; lo aplicado no se
-// arrastra; el historial NUNCA se fusiona), Escape en reposo → onClose, bloque
+// arrastra; el historial NUNCA se fusiona), Escape en reposo → minimizar, bloque
 // de resultados en el system (prop `results` viva → frescura tras rerender) y
 // tarjeta "¿Por qué no cumple?" del estado vacío (solo con veredicto fail;
 // 'invalid' no la muestra).
@@ -25,6 +25,7 @@ const chatMock = vi.hoisted(() => vi.fn());
 vi.mock('../../lib/ai/providers', () => ({ runChatTurn: chatMock }));
 
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { AsistenteContext, type AsistenteContextValue } from '../../components/ai/asistente-context';
 import { AiSettingsProvider } from '../../lib/ai/AiSettingsProvider';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
@@ -95,20 +96,46 @@ function makePayload(over: Record<string, unknown> = {}): Record<string, unknown
   };
 }
 
+/**
+ * Contexto del asistente de mentira. Desde el rediseño de 2026-09-22 el
+ * contenedor lo manda el provider del shell, no el propio modal: aquí se
+ * inyecta con espías para poder comprobar que salir BAJA A LA PÍLDORA
+ * (`minimizar`) en vez de cerrar, que es lo que ya no existe.
+ */
+function contextoAsistente(over: Partial<AsistenteContextValue> = {}): AsistenteContextValue {
+  return {
+    disponible: true,
+    sesion: true,
+    minimizado: false,
+    estado: 'reposo',
+    turnos: 0,
+    claveSesion: 0,
+    desdeLaEsquina: false,
+    flotante: true,
+    abrir: vi.fn(),
+    minimizar: vi.fn(),
+    reiniciar: vi.fn(),
+    registrarModulo: vi.fn(),
+    publicar: vi.fn(),
+    ...over,
+  };
+}
+
 function renderModal(results: AiResultsSummary = OK_RESULTS) {
   const onApply = vi.fn();
-  const onClose = vi.fn();
+  const ctx = contextoAsistente();
   const ui = (r: AiResultsSummary) => (
     <ThemeProvider>
       <UnitSystemProvider>
         <AiSettingsProvider>
-          <AiChatModal
-            adapter={steelBeamsAdapter}
-            current={steelBeamDefaults}
-            results={r}
-            onApply={onApply}
-            onClose={onClose}
-          />
+          <AsistenteContext.Provider value={ctx}>
+            <AiChatModal
+              adapter={steelBeamsAdapter}
+              current={steelBeamDefaults}
+              results={r}
+              onApply={onApply}
+            />
+          </AsistenteContext.Provider>
         </AiSettingsProvider>
       </UnitSystemProvider>
     </ThemeProvider>
@@ -117,7 +144,8 @@ function renderModal(results: AiResultsSummary = OK_RESULTS) {
   return {
     ...utils,
     onApply,
-    onClose,
+    minimizar: ctx.minimizar,
+    reiniciar: ctx.reiniciar,
     /** Rerender con OTRO resumen de resultados (prop viva → frescura por turno). */
     rerenderWithResults: (r: AiResultsSummary) => utils.rerender(ui(r)),
   };
@@ -192,7 +220,7 @@ describe('AiChatModal — envío', () => {
   it('propuesta {L_m:8, tipo:HEB, size:200} → reply + "Aplicar 3 cambios" → onApply SI + "Aplicado" + modal abierto', async () => {
     const deferred = deferChatOnce();
     seedKey();
-    const { onApply, onClose } = renderModal();
+    const { onApply, minimizar } = renderModal();
     const user = userEvent.setup();
 
     typeAndSend('Viga biapoyada HEB 200 de 8 m de luz');
@@ -218,10 +246,10 @@ describe('AiChatModal — envío', () => {
     expect(plan.fields).toEqual({ tipo: 'HEB', size: 200, L: 8000 });
     expect(plan.changes).toHaveLength(3);
 
-    // La tarjeta pasa a "Aplicado" (deshabilitado) y la ventana NO se cierra
+    // La tarjeta pasa a "Aplicado" (deshabilitado) y la ventana NO se va
     // (el composer sigue montado: el asistente permanece abierto).
     expect(await screen.findByRole('button', { name: 'Aplicado' })).toBeDisabled();
-    expect(onClose).not.toHaveBeenCalled();
+    expect(minimizar).not.toHaveBeenCalled();
     expect(screen.getByLabelText('Mensaje para el asistente')).toBeInTheDocument();
   });
 
@@ -837,12 +865,15 @@ describe('AiChatModal — tarjeta "¿Por qué no cumple?" (estado vacío)', () =
   });
 });
 
-describe('AiChatModal — cierre', () => {
-  it('Escape en reposo llama a onClose', () => {
+describe('AiChatModal — salir', () => {
+  // Ya no hay «cerrar»: con la pildora siempre puesta, cerrar y minimizar
+  // dejaban la MISMA pantalla y uno de los dos borraba la conversacion
+  // (D-I6). Escape baja a la pildora; tirar el hilo es «Reiniciar».
+  it('Escape en reposo baja a la pildora, no cierra', () => {
     seedKey();
-    const { onClose } = renderModal();
+    const { minimizar } = renderModal();
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(minimizar).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -867,7 +898,6 @@ describe('AiChatModal — límite de Anthropic (módulos grandes)', () => {
               current={isolatedFootingDefaults}
               results={OK_RESULTS}
               onApply={vi.fn()}
-              onClose={vi.fn()}
             />
           </AiSettingsProvider>
         </UnitSystemProvider>

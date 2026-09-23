@@ -12,6 +12,7 @@ import { punchingAdapter, summarizePunchingResults } from '../../lib/ai/modules/
 import { Topbar } from '../../components/layout/Topbar';
 import { ExportarPdfMenu } from '../../components/layout/ExportarPdfMenu';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -27,7 +28,7 @@ export function PunchingModule() {
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   // "Rellenar con IA" (ola 1)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // ORDER del contrato: `mode` PRIMERO (decide qué campos existen), luego
   // `position` (gate de isCircular y de los bordes) y `hasShearReinf` antes que
@@ -83,7 +84,7 @@ export function PunchingModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -154,13 +155,13 @@ export function PunchingModule() {
         </div>
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={punchingAdapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

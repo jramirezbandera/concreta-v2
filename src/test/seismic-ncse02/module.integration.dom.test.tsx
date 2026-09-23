@@ -18,6 +18,7 @@ import { MemoryRouter } from 'react-router';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { ToastContainer } from '../../components/ui/Toast';
+import { AsistenteProvider } from '../../components/ai/AsistenteProvider';
 import { AiSettingsProvider } from '../../lib/ai/AiSettingsProvider';
 
 import { SeismicNCSE02Module } from '../../features/seismic-ncse02';
@@ -54,8 +55,13 @@ function montar({ caso = ejemploSeismicState() }: { caso?: SeismicState | null }
               perezosa de la ruta, que monta el módulo mucho más tarde. */}
           <ToastContainer />
           {/* El chat del asistente lee sus ajustes del contexto. */}
+          {/* El asistente ya no es del módulo: su contenedor lo manda el
+              provider del shell, que es lo que permite que la píldora siga
+              puesta con el chat sin montar (T3, 2026-09-22). */}
           <AiSettingsProvider>
-            <SeismicNCSE02Module />
+            <AsistenteProvider>
+              <SeismicNCSE02Module />
+            </AsistenteProvider>
           </AiSettingsProvider>
         </UnitSystemProvider>
       </ThemeProvider>

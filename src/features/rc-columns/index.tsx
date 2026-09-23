@@ -16,6 +16,7 @@ import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
 import { showToast } from '../../components/ui/Toast';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { RCColumnsInputs } from './RCColumnsInputs';
 import { RCColumnsSVG } from './RCColumnsSVG';
 import { RCColumnInteractionSVG } from './RCColumnInteractionSVG';
@@ -28,7 +29,7 @@ export function RCColumnsModule() {
   const [tab, setTab] = useState<MobileTab>('inputs');
 
   // "Rellenar con IA" (T4.2)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // Aplica el plan confirmado en AiChatModal. ORDER del contrato con
   // sectionType PRIMERO: el gate de forma (b/h vs D, armado rect vs anillo)
@@ -106,7 +107,7 @@ export function RCColumnsModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -220,13 +221,13 @@ export function RCColumnsModule() {
         )}
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={rcColumnsAdapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

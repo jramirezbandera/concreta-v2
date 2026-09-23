@@ -3,6 +3,7 @@ import { useRemonte } from '../../lib/anejo/remonte';
 import { Outlet } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { CalculatorProvider } from '../calculator/CalculatorProvider';
+import { AsistenteProvider } from '../ai/AsistenteProvider';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import { BandaAlmacen } from './BandaAlmacen';
@@ -79,6 +80,10 @@ export function AppShell() {
   return (
     <DrawerContext.Provider value={{ openDrawer }}>
       <CalculatorProvider>
+        {/* El asistente, como la calculadora, se manda desde el shell: su
+            píldora tiene que seguir puesta cuando el chat no está montado, y
+            eso no se puede hacer desde dentro del módulo. */}
+        <AsistenteProvider>
         <div className="flex h-screen bg-bg-primary text-text-primary overflow-hidden">
 
           {/* Mobile backdrop */}
@@ -107,6 +112,7 @@ export function AppShell() {
             </ChunkErrorBoundary>
           </div>
         </div>
+        </AsistenteProvider>
       </CalculatorProvider>
     </DrawerContext.Provider>
   );

@@ -32,6 +32,7 @@ import { NavLink } from 'react-router';
 import { Building2, ChevronDown, Link2, MoreHorizontal, Sparkles } from 'lucide-react';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { UnitSystemToggle } from '../units/UnitSystemToggle';
+import { useAsistente, type EstadoAsistente } from '../ai/asistente-context';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { getRouteLoader } from '../../data/routeLoaders';
 import { useRoutePrefetch } from '../../hooks/useRoutePrefetch';
@@ -92,6 +93,56 @@ function Razon({ children, sangria = false }: { children: string; sangria?: bool
   );
 }
 
+/**
+ * El mismo punto de estado que lleva la píldora, aquí en la fila (D-I19).
+ *
+ * Por debajo de 768 px NO hay píldora, así que esta fila es el único sitio
+ * donde se ve que el asistente dejó algo esperando: una propuesta sin aplicar,
+ * un error, o una conversación viva escondida con la ✕. Sin esto, en el
+ * teléfono «esconder en vez de descartar» sería un estado invisible, que es
+ * peor que descartar.
+ */
+function PuntoEstado({ estado }: { estado: EstadoAsistente }) {
+  if (estado === 'reposo') return null;
+  const color =
+    estado === 'error'
+      ? 'var(--color-state-fail)'
+      : estado === 'sin-clave'
+        ? 'var(--color-state-neutral)'
+        : 'var(--color-accent)';
+  return (
+    <span
+      className="w-[7px] h-[7px] rounded-full shrink-0"
+      aria-hidden="true"
+      style={{
+        background: color,
+        boxShadow:
+          estado === 'propuesta'
+            ? `0 0 0 3px color-mix(in srgb, ${color} 30%, transparent)`
+            : `0 0 6px color-mix(in srgb, ${color} 60%, transparent)`,
+      }}
+    />
+  );
+}
+
+/** Lo mismo que dice el punto, para quien no lo ve. */
+function textoEstado(estado: EstadoAsistente): string {
+  switch (estado) {
+    case 'cargando':
+      return ' (pensando)';
+    case 'propuesta':
+      return ' (propuesta sin aplicar)';
+    case 'error':
+      return ' (el último turno falló)';
+    case 'sin-clave':
+      return ' (falta la clave)';
+    case 'viva':
+      return ' (conversación abierta)';
+    default:
+      return '';
+  }
+}
+
 export function MenuApp({ onCopyLink, onOpenAssistant, onOpenCalculator }: MenuAppProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -100,6 +151,10 @@ export function MenuApp({ onCopyLink, onOpenAssistant, onOpenCalculator }: MenuA
   // ahora la fila se queda y se apaga en vez de desaparecer.
   const { toggleDisabled } = useUnitSystem();
   const { prefetch } = useRoutePrefetch();
+  // Sólo para el punto de estado de la fila del asistente (D-I19). Si no hay
+  // provider —tests del menú aislado—, el contexto devuelve «reposo» y no se
+  // pinta ningún punto.
+  const { estado } = useAsistente();
   const base = useId();
   const idHerramientas = `${base}-herramientas`;
   const idPreferencias = `${base}-preferencias`;
@@ -175,10 +230,12 @@ export function MenuApp({ onCopyLink, onOpenAssistant, onOpenCalculator }: MenuA
               <button
                 type="button"
                 onClick={() => abrirHerramienta(onOpenAssistant)}
+                aria-label={`Asistente IA${textoEstado(estado)}`}
                 className={`${FILA_HERRAMIENTA} text-text-primary hover:bg-bg-elevated`}
               >
                 <Sparkles size={14} className="text-accent shrink-0" aria-hidden="true" />
                 Asistente IA
+                <PuntoEstado estado={estado} />
                 {/* D-I15 / R6: el atajo sigue a la vista aunque el botón ya no
                     esté en la barra. El listener vive en la Topbar. */}
                 <span className={KEYCAP}>A</span>

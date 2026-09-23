@@ -34,6 +34,7 @@ import { AiSettingsProvider } from '../../lib/ai/AiSettingsProvider';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { ToastContainer } from '../../components/ui/Toast';
+import { AsistenteProvider } from '../../components/ai/AsistenteProvider';
 import type { ChatEnvelope, ChatRequest } from '../../lib/ai/types';
 
 const SETTINGS_KEY = 'concreta-ai-settings';
@@ -68,9 +69,14 @@ function renderModule() {
     <MemoryRouter>
       <ThemeProvider>
         <UnitSystemProvider>
+          {/* El asistente ya no es del módulo: su contenedor lo manda el
+              provider del shell, que es lo que permite que la píldora siga
+              puesta con el chat sin montar (T3, 2026-09-22). */}
           <AiSettingsProvider>
-            <RCColumnsModule />
-            <ToastContainer />
+            <AsistenteProvider>
+              <RCColumnsModule />
+              <ToastContainer />
+            </AsistenteProvider>
           </AiSettingsProvider>
         </UnitSystemProvider>
       </ThemeProvider>

@@ -259,6 +259,9 @@ export const CLAVES_PREFERENCIA: readonly string[] = [
   // El perfil del despacho: el mismo para todas sus obras.
   CLAVE_ESTUDIO,
   // Globos y avisos ya vistos.
+  // Que el asistente empieza de cero en cada módulo se cuenta UNA vez por
+  // usuario, no cada vez que cambia de pantalla (D-I8).
+  'concreta-ai-aviso-modulo',
   'concreta-cargas-planta-example-dismissed',
   'concreta-viento-nieve-example-dismissed',
   'concreta-masonry-walls-example-prompt-dismissed',

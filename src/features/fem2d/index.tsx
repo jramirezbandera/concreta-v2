@@ -25,6 +25,7 @@ import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { fem2dAdapter, summarizeFem2DResults } from '../../lib/ai/modules/fem2d';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { exportFem2DPDF, fem2dFallbackFilename } from '../../lib/pdf/fem2d';
@@ -90,7 +91,7 @@ export function Fem2DModule(): JSX.Element {
   // VISTA: no se serializa (URL/PDF/localStorage) ni entra en el undo, y vive
   // mientras el módulo está montado — navegar fuera y volver reencuadra.
   const [canvasView, setCanvasView] = useState<CanvasView2D>(IDENTITY_VIEW);
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   // Ficha de cálculo grande por barra (modal). Se abre desde el icono de la
   // fila de resultados o el botón del inspector; seleccionar acompaña.
   const [detailMemberId, setDetailMemberId] = useState<string | null>(null);
@@ -280,16 +281,16 @@ export function Fem2DModule(): JSX.Element {
           moduleLabel="FEM 2D"
           moduleGroup="Análisis"
           onMenuOpen={openDrawer}
-          onOpenAssistant={() => setAiOpen(true)}
+          onOpenAssistant={asistente.abrir}
         />
-        <Landing onPick={pickTemplate} recientes={loadRecent()} onStartAi={() => setAiOpen(true)} />
-        {aiOpen && (
+        <Landing onPick={pickTemplate} recientes={loadRecent()} onStartAi={asistente.abrir} />
+        {asistente.sesion && (
           <AiChatModal
+            key={asistente.claveSesion}
             adapter={fem2dAdapter}
             current={model}
             results={aiResults}
             onApply={handleAiApply}
-            onClose={() => setAiOpen(false)}
           />
         )}
       </div>
@@ -306,7 +307,7 @@ export function Fem2DModule(): JSX.Element {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onCopyLink={handleShare}
         onMenuOpen={openDrawer}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -525,13 +526,13 @@ export function Fem2DModule(): JSX.Element {
         />
       )}
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={fem2dAdapter}
           current={model}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

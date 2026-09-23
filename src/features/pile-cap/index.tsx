@@ -15,6 +15,7 @@ import { Topbar } from '../../components/layout/Topbar';
 import { ExportarMenu, type GrupoExportar } from '../../components/layout/ExportarMenu';
 import { GRUPO_ANEJO_CALCULO, type IdAnejo } from '../../components/layout/opcionAnejo';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { PdfPreviewModal } from '../../components/ui/PdfPreviewModal';
 import { TitlePromptModal } from '../../components/ui/TitlePromptModal';
 import { MobileTabBar, type MobileTab } from '../../components/ui/MobileTabBar';
@@ -95,7 +96,7 @@ export function PileCapModule() {
   const [view, setView] = useState<PileCapView>('model');
 
   // "Rellenar con IA" (ola 1)
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
 
   // Aplica el plan confirmado en AiChatModal. ORDER del contrato con `n`
   // PRIMERO: decide las posiciones de los pilotes y qué tirantes existen. El
@@ -183,7 +184,7 @@ export function PileCapModule() {
         }
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -304,13 +305,13 @@ export function PileCapModule() {
         </div>
       </div>
 
-      {aiOpen && (
+      {asistente.sesion && (
         <AiChatModal
+          key={asistente.claveSesion}
           adapter={pileCapAdapter}
           current={state}
           results={aiResults}
           onApply={handleAiApply}
-          onClose={() => setAiOpen(false)}
         />
       )}
 

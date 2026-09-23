@@ -4,6 +4,7 @@ import { type SoilType } from '../../data/micropileLookups';
 import type { AiApplyPlan } from '../../lib/ai/modules/types';
 import { micropilesAdapter, summarizeMicropilesResults, type MicropilesAiInputs } from '../../lib/ai/modules/micropiles';
 import { AiChatModal } from '../../components/ai/AiChatModal';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 import { useTitledPdfExport } from '../../hooks/useTitledPdfExport';
@@ -163,7 +164,7 @@ export function MicropilesModule() {
 
   // "Rellenar con IA" (ola 3 — fases A+B: escalares y estratos). El adapter
   // tipa sobre el COMBINADO escalares+soil; aquí se compone y se separa.
-  const [aiOpen, setAiOpen] = useState(false);
+  const asistente = useAsistenteDeModulo();
   const aiCurrent = useMemo<MicropilesAiInputs>(() => ({ ...state, soil }), [state, soil]);
   const aiResults = useMemo(() => summarizeMicropilesResults(result), [result]);
 
@@ -275,7 +276,7 @@ export function MicropilesModule() {
         }
         onMenuOpen={openDrawer}
         onCopyLink={handleCopyLink}
-        onOpenAssistant={() => setAiOpen(true)}
+        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
@@ -405,8 +406,8 @@ export function MicropilesModule() {
         </div>
       </div>
 
-      {aiOpen && (
-        <AiChatModal adapter={micropilesAdapter} current={aiCurrent} results={aiResults} onApply={handleAiApply} onClose={() => setAiOpen(false)} />
+      {asistente.sesion && (
+        <AiChatModal key={asistente.claveSesion} adapter={micropilesAdapter} current={aiCurrent} results={aiResults} onApply={handleAiApply} />
       )}
 
       {titleOpen && (
