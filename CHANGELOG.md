@@ -16,6 +16,100 @@ trabajo, no la de la publicación.
 
 ---
 
+## Los cálculos viajan sin PDF y el anejo se rehace solo — v260924.0 (2026-09-24)
+
+### Cambiado
+- El fichero de la obra **deja de llevar los PDF dentro**. Lo que viaja son los
+  datos de cada capítulo, que ya iban, así que un anejo de cuarenta cálculos
+  vuelve a pesar lo que pesa un texto y no decenas de megas.
+- Al abrir una obra a la que le falta el papel —la que te pasa un compañero, o la
+  tuya con los datos del navegador borrados—, **la app rehace los PDF sola**.
+  Cada cálculo pasa un instante por su módulo, que es la única forma de rehacerlo
+  (el papel se dibuja de lo que hay en pantalla), y mientras dura la interfaz se
+  tapa con un aviso que dice por dónde va y deja dejarlo a medias. Ronda el medio
+  segundo por capítulo.
+- Ya no hay que pulsar «Reconstruir el PDF»: el botón sale del camino normal y
+  queda un «Volver a intentarlo» en las filas que no se pudieron rehacer.
+- La fecha del capítulo **no cambia al rehacerlo**: se rehace el papel, no el
+  cálculo, y una obra importada no puede quedar fechada hoy entera.
+
+### Arreglado
+- Rehacer los PDF ya no se lleva por delante lo que tuvieras a medias en un
+  módulo: la app copia lo que va a pisar y lo devuelve al terminar.
+
+
+## El asistente sale a la superficie, y la barra baja a dos controles — v260924.0 (2026-09-22 a 09-23)
+
+### Añadido
+- **Una píldora fija abajo a la derecha**: dice si el asistente tiene una
+  conversación abierta y en qué estado está —pensando, esperándote, con un
+  error— y la abre de un clic. Antes eso estaba a tres gestos y casi nadie lo
+  había visto. Se puede apagar en Preferencias, con Unidades y Tema.
+- Cambiar de pantalla con el asistente pensando **pregunta antes de tirar la
+  respuesta** que estás esperando.
+
+### Cambiado
+- El Asistente y la Calculadora dejan de tener botón propio: entran en un
+  **«Menú»** con tres grupos y la misma forma en las 29 pantallas, donde las
+  filas que no aplican salen apagadas con su razón en vez de desaparecer. La
+  barra queda con «Menú» y «Exportar».
+- **Salir del asistente ya no borra la conversación.** Cerrar y minimizar
+  dejaban la misma pantalla y uno de los dos tiraba el hilo sin avisar; ahora
+  salir es siempre bajar a la esquina, y tirarlo es «Reiniciar», con su
+  confirmación.
+- En móvil la barra se reparte al revés: arriba lo que se pulsa —navegación, obra
+  y desplegables— y abajo, a todo el ancho, **el título de la pantalla**, que era
+  lo que se cortaba: «Cumplimiento del DB SE» pide 148 px y tenía 75.
+
+### Arreglado
+- Los avisos de la app se sentaban **encima** de la píldora: los dos vivían en la
+  misma esquina.
+- El atajo «A» colgaba del botón del asistente, así que al mudarse éste al Menú
+  se habría ido con él sin un solo error.
+
+
+## El lienzo de zapatas, en tres vistas — v260924.0 (2026-09-23)
+
+### Cambiado
+- Planta, sección y presiones dejan de ir sueltas: el módulo pasa a **1 Terreno ·
+  2 Armado · 3 Modelo**, como Muros y Encepados. Del ELU no se dibujaba nada, y
+  son diez de las quince filas de la tabla: la vista Modelo enseña el área eficaz
+  de Meyerhof y, según el vuelo, las bielas con su tirante o las secciones de
+  cortante y el perímetro de punzonamiento.
+- La armadura era una raya: ahora se dibuja la parrilla a su separación real, con
+  las patillas de 90º, las barras de la otra dirección vistas de punta y la cota
+  de anclaje frente al vuelo disponible.
+- En el PDF cada vista se va a su plana, a 170 mm de ancho: a los 80 mm de antes
+  un rótulo llegaba al papel a 2 mm y no se leía.
+
+### Arreglado
+- **σmax se dibujaba siempre a toda la altura del panel**, así que una zapata al
+  55 % de σadm parecía un bloque macizo. Ahora el diagrama cuelga de la base de
+  la zapata, su altura es σ/σadm y la línea de trazos de σadm es la referencia.
+- El mapa de presiones iba de azul a **rojo**: codificaba una magnitud con el
+  color del fallo. Los colores de estado quedan sólo donde son el veredicto.
+- Planta, sección y diagrama iban a tres escalas distintas; ahora una sola por
+  vista, y apiladas se leen en proyección.
+- El panel de resultados saltaba hasta 141 px al cambiar de pestaña, σmin salía
+  tachado por la arista del bloque de presiones y tres rótulos escribían por
+  debajo del contraste AA en tema claro.
+
+
+## Placas de anclaje: la geometría real del estudio — v260924.0 (2026-09-23)
+
+### Cambiado
+- Los rigidizadores se dibujan y se calculan como en las láminas tipo: **en «#»,
+  pegados a las cuatro caras del pilar**, continuos de borde a borde y
+  achaflanados a 45º en el alzado, con las barras en las ocho celdas que deja esa
+  retícula. Antes las barras se pintaban encima de las cartelas y el cálculo
+  partía la placa por la mitad sin mirar dónde estaba nada.
+- Disposiciones de 4, 6, 8 y 12 barras —la retícula de 9 muere y se lee como 8—,
+  y una barra que pise acero es aviso de «no construible».
+- **Pilar 2UPN en cajón**, que es casi todo lo que hace el estudio: la huella sabe
+  que son cuatro paredes macizas, y de ahí salen el área eficaz, las cartelas,
+  las holguras y el T-stub.
+
+
 ## El panel de la obra enseña lo que se entrega — v260914.0 (2026-09-13 a 09-14)
 
 ### Cambiado
