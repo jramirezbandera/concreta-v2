@@ -184,7 +184,6 @@ export function PileCapModule() {
         }
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

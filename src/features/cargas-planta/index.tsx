@@ -412,7 +412,6 @@ export function CargasPlantaModule() {
         moduleLabel="Cargas por planta"
         moduleGroup="Acciones"
         onMenuOpen={openDrawer}
-        onOpenAssistant={asistente.abrir}
         exportMenu={
           <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
         }

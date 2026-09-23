@@ -175,7 +175,6 @@ export function SlopeStabilityModule() {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onCopyLink={handleShare}
         onMenuOpen={openDrawer}
-        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

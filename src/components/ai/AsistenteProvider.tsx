@@ -101,6 +101,34 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
 
   const minimizar = useCallback(() => setMinimizado(true), []);
 
+  /**
+   * D-I15 — el atajo «A», por fin al lado del «C» de la calculadora
+   * (`CalculatorProvider.tsx`). Los dos atajos de la app viven ya en el mismo
+   * sitio: el shell.
+   *
+   * Vivía dentro de `AiButton`, que era un botón de la barra. Al mudarse el
+   * asistente al Menú, el botón desapareció y el atajo se habría ido con él SIN
+   * un solo error —un día la «A» deja de hacer nada—, así que T1 lo dejó de
+   * paso en la Topbar. Aquí ya no depende de que exista ningún botón: sigue
+   * funcionando con la píldora apagada y por debajo de 768 px, donde no la hay.
+   *
+   * `disponible` es toda la condición: en las cuatro pantallas sin asistente la
+   * tecla no hace nada, igual que su fila del Menú sale apagada.
+   */
+  useEffect(() => {
+    if (!disponible) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'a' || e.metaKey || e.ctrlKey || e.altKey) return;
+      // No secuestra la escritura: con el foco en un campo, la «a» es una «a».
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
+      abrir('atajo');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [disponible, abrir]);
+
   const reiniciar = useCallback(() => {
     // La `key` del chat cambia ⇒ React lo remonta con el hilo a cero. No se
     // toca `sesion`: reiniciar no es salir.

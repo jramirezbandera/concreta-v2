@@ -20,36 +20,46 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
 import { MenuApp } from '../../components/layout/MenuApp';
+import { AsistenteProvider } from '../../components/ai/AsistenteProvider';
+import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import { UnitSystemProvider } from '../../lib/units/UnitSystemProvider';
 
 interface Opciones {
   onCopyLink?: () => void;
-  onOpenAssistant?: (() => void) | undefined;
   onOpenCalculator?: () => void;
   ruta?: string;
   conAsistente?: boolean;
 }
 
+/**
+ * Hace de módulo. Desde T2 el Menú no recibe el asistente por prop: lo lee del
+ * provider, y es el módulo quien le dice al montarse que en esta pantalla lo
+ * hay. Un módulo de verdad monta además el chat; aquí basta con enseñar que la
+ * sesión se ha abierto.
+ */
+function ModuloConAsistente() {
+  const { sesion } = useAsistenteDeModulo();
+  return sesion ? <span>asistente abierto</span> : null;
+}
+
 function renderMenu(o: Opciones = {}) {
   const onCopyLink = o.onCopyLink ?? vi.fn();
-  const onOpenAssistant = o.onOpenAssistant ?? vi.fn();
   const onOpenCalculator = o.onOpenCalculator ?? vi.fn();
   const conAsistente = o.conAsistente ?? true;
   render(
     <MemoryRouter initialEntries={[o.ruta ?? '/horm/vigas']}>
       <ThemeProvider>
         <UnitSystemProvider>
-          <MenuApp
-            onCopyLink={onCopyLink}
-            onOpenAssistant={conAsistente ? onOpenAssistant : undefined}
-            onOpenCalculator={onOpenCalculator}
-          />
+          <AsistenteProvider>
+            {conAsistente && <ModuloConAsistente />}
+            <MenuApp onCopyLink={onCopyLink} onOpenCalculator={onOpenCalculator} />
+          </AsistenteProvider>
         </UnitSystemProvider>
       </ThemeProvider>
     </MemoryRouter>,
   );
-  return { onCopyLink, onOpenAssistant, onOpenCalculator };
+  return { onCopyLink, onOpenCalculator };
 }
 
 const abrir = async () => {
@@ -104,12 +114,12 @@ describe('MenuApp', () => {
   // D-I14: el orden importa. La herramienta memoriza `document.activeElement`
   // al montarse para devolverle el foco al cerrarse.
   it('al abrir una herramienta, cierra y devuelve el foco al disparador', async () => {
-    const { onOpenAssistant } = renderMenu();
+    renderMenu();
     const { user, trigger } = await abrir();
 
     await user.click(screen.getByRole('button', { name: /Asistente IA/ }));
 
-    expect(onOpenAssistant).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('asistente abierto')).toBeInTheDocument();
     expect(document.activeElement).toBe(trigger);
     expect(screen.queryByRole('group', { name: 'Herramientas' })).not.toBeInTheDocument();
   });
@@ -184,7 +194,7 @@ describe('MenuApp', () => {
         <ThemeProvider>
           <UnitSystemProvider>
             <div>
-              <MenuApp onCopyLink={vi.fn()} onOpenAssistant={vi.fn()} onOpenCalculator={vi.fn()} />
+              <MenuApp onCopyLink={vi.fn()} onOpenCalculator={vi.fn()} />
               <button>fuera</button>
             </div>
           </UnitSystemProvider>

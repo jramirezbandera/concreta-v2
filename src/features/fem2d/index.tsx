@@ -281,7 +281,6 @@ export function Fem2DModule(): JSX.Element {
           moduleLabel="FEM 2D"
           moduleGroup="Análisis"
           onMenuOpen={openDrawer}
-          onOpenAssistant={asistente.abrir}
         />
         <Landing onPick={pickTemplate} recientes={loadRecent()} onStartAi={asistente.abrir} />
         {asistente.sesion && (
@@ -307,7 +306,6 @@ export function Fem2DModule(): JSX.Element {
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onCopyLink={handleShare}
         onMenuOpen={openDrawer}
-        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

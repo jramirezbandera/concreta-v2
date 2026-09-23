@@ -403,7 +403,7 @@ export function FemAnalysisModule() {
   if (!model) {
     return (
       <div className="fem-root flex flex-col h-full min-h-0 overflow-hidden">
-        <Topbar moduleLabel="FEM 1D" moduleGroup="Análisis" onMenuOpen={openDrawer} onOpenAssistant={asistente.abrir} />
+        <Topbar moduleLabel="FEM 1D" moduleGroup="Análisis" onMenuOpen={openDrawer} />
         <Landing onPick={pickPreset} recientes={loadRecent()} onStartAi={asistente.abrir} />
         {asistente.sesion && (
           <AiChatModal
@@ -426,7 +426,6 @@ export function FemAnalysisModule() {
         onMenuOpen={openDrawer}
         exportMenu={<ExportarPdfMenu onElegir={openExport} exportando={pdfExporting} />}
         onCopyLink={handleShare}
-        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 

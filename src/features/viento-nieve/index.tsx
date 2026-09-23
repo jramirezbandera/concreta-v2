@@ -336,7 +336,6 @@ export function VientoNieveModule() {
         moduleLabel="Viento y nieve"
         moduleGroup="Acciones"
         onMenuOpen={openDrawer}
-        onOpenAssistant={asistente.abrir}
         exportMenu={
           <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
         }

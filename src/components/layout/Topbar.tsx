@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Folder, Menu } from 'lucide-react';
 import { showToast } from '../ui/Toast';
 import { useCalculator } from '../calculator/calculator-context';
@@ -30,47 +30,13 @@ interface TopbarProps {
    * handler. When omitted, the button copies window.location.href.
    */
   onCopyLink?: () => void;
-  /**
-   * Abre el asistente IA del módulo. Cuando se pasa, la fila «Asistente IA» del
-   * Menú está viva; los módulos sin asistente lo omiten y la fila sale apagada
-   * con la razón, que no es lo mismo que esconderla (D-I7).
-   *
-   * Desde el rediseño de 2026-09-22 el asistente ya NO tiene botón propio en la
-   * barra: vive en el Menú y —cuando aterrice su píldora— en la esquina.
-   */
-  onOpenAssistant?: () => void;
 }
 
-export function Topbar({ moduleLabel, moduleGroup, onMenuOpen, onCopyLink, onOpenAssistant, exportMenu }: TopbarProps) {
+export function Topbar({ moduleLabel, moduleGroup, onMenuOpen, onCopyLink, exportMenu }: TopbarProps) {
   const { open: openCalc } = useCalculator();
   const { openDrawer } = useDrawer();
   const nombreObra = useNombreObra();
 
-  /*
-    Atajo «A» — vivía dentro de `AiButton`, que era un componente de la barra.
-    Al mudarse el asistente al Menú, el botón desaparece y el atajo se habría
-    ido con él SIN un solo error: un día la «A» deja de hacer nada. Por eso sube
-    aquí, a la Topbar, que es tan global como lo es `onOpenAssistant` (una sola
-    montada por módulo ⇒ un solo listener).
-
-    Sigue guardado contra el foco en campos de texto, para no secuestrar la
-    escritura, y contra los modificadores. Espeja la «C» de la calculadora, cuyo
-    listener vive en `CalculatorProvider`. Cuando el asistente tenga su propio
-    provider global (tarea T2 del plan), los dos atajos acabarán en el mismo
-    sitio; esto es el paso intermedio que evita la regresión.
-  */
-  useEffect(() => {
-    if (!onOpenAssistant) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== 'a' || e.metaKey || e.ctrlKey || e.altKey) return;
-      const el = document.activeElement as HTMLElement | null;
-      const tag = el?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
-      onOpenAssistant();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onOpenAssistant]);
   const handleCopyUrl = onCopyLink ?? (() => {
     navigator.clipboard.writeText(window.location.href).then(() => {
       showToast('Enlace copiado', { autoDismiss: 2000 });
@@ -162,11 +128,7 @@ export function Topbar({ moduleLabel, moduleGroup, onMenuOpen, onCopyLink, onOpe
       <div className="order-1 ml-auto flex items-center gap-1 shrink-0 sm:order-none sm:ml-0">
         {/* Menú: las dos herramientas (Asistente, Calculadora) + Preferencias +
             Estudio y compartir. Sucede al viejo «Ajustes». */}
-        <MenuApp
-          onCopyLink={handleCopyUrl}
-          onOpenAssistant={onOpenAssistant}
-          onOpenCalculator={openCalc}
-        />
+        <MenuApp onCopyLink={handleCopyUrl} onOpenCalculator={openCalc} />
         {/* Salida del módulo: el desplegable que trae el propio módulo.
             D-I4: conserva su outline SUTIL y no hereda el fuerte. Nadie es ya
             la acción primaria de la barra —el acento se muda con el asistente a

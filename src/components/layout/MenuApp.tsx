@@ -57,12 +57,6 @@ const KEYCAP = 'ml-auto font-mono text-[10px] text-text-disabled border border-b
 interface MenuAppProps {
   /** Copia el enlace del cálculo. */
   onCopyLink: () => void;
-  /**
-   * Abre el asistente IA del módulo. Ausente en las cuatro pantallas que no lo
-   * tienen (anejo, ficha DB SE, panel de obra, Mi estudio): entonces la fila
-   * sale apagada con la razón, NO se esconde (D-I7).
-   */
-  onOpenAssistant?: () => void;
   /** Abre la calculadora (el provider global del shell). */
   onOpenCalculator: () => void;
 }
@@ -143,7 +137,7 @@ function textoEstado(estado: EstadoAsistente): string {
   }
 }
 
-export function MenuApp({ onCopyLink, onOpenAssistant, onOpenCalculator }: MenuAppProps) {
+export function MenuApp({ onCopyLink, onOpenCalculator }: MenuAppProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -151,10 +145,14 @@ export function MenuApp({ onCopyLink, onOpenAssistant, onOpenCalculator }: MenuA
   // ahora la fila se queda y se apaga en vez de desaparecer.
   const { toggleDisabled } = useUnitSystem();
   const { prefetch } = useRoutePrefetch();
-  // Sólo para el punto de estado de la fila del asistente (D-I19). Si no hay
-  // provider —tests del menú aislado—, el contexto devuelve «reposo» y no se
-  // pinta ningún punto.
-  const { estado } = useAsistente();
+  /**
+   * El asistente entero sale del provider y no de una prop (T2). «Hay asistente
+   * en esta pantalla» lo sabe él, porque es el módulo quien se lo dice al
+   * montarse; pasarlo además por prop era la misma verdad en dos sitios, que es
+   * justo lo que dejó el atajo «A» colgando cuando se movió su botón. Sin
+   * provider —tests del menú aislado— no hay asistente y la fila sale apagada.
+   */
+  const { disponible: hayAsistente, estado, abrir } = useAsistente();
   const base = useId();
   const idHerramientas = `${base}-herramientas`;
   const idPreferencias = `${base}-preferencias`;
@@ -226,10 +224,10 @@ export function MenuApp({ onCopyLink, onOpenAssistant, onOpenCalculator }: MenuA
         >
           <div role="group" aria-labelledby={idHerramientas}>
             <GrupoHeader id={idHerramientas}>Herramientas</GrupoHeader>
-            {onOpenAssistant ? (
+            {hayAsistente ? (
               <button
                 type="button"
-                onClick={() => abrirHerramienta(onOpenAssistant)}
+                onClick={() => abrirHerramienta(() => abrir('menu'))}
                 aria-label={`Asistente IA${textoEstado(estado)}`}
                 className={`${FILA_HERRAMIENTA} text-text-primary hover:bg-bg-elevated`}
               >
@@ -237,7 +235,7 @@ export function MenuApp({ onCopyLink, onOpenAssistant, onOpenCalculator }: MenuA
                 Asistente IA
                 <PuntoEstado estado={estado} />
                 {/* D-I15 / R6: el atajo sigue a la vista aunque el botón ya no
-                    esté en la barra. El listener vive en la Topbar. */}
+                    esté en la barra. El listener vive en el provider. */}
                 <span className={KEYCAP}>A</span>
               </button>
             ) : (

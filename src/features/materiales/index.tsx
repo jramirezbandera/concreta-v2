@@ -390,7 +390,6 @@ export function MaterialesModule() {
         moduleLabel="Cuadro de materiales"
         moduleGroup="Memorias"
         onMenuOpen={openDrawer}
-        onOpenAssistant={asistente.abrir}
         exportMenu={
           <ExportarMenu grupos={GRUPOS_EXPORTAR} onElegir={exportarComo} exportando={exportando} />
         }

@@ -211,7 +211,6 @@ export function RCBeamsModule() {
         }
         onMenuOpen={openDrawer}
         onCopyLink={copyShareLink}
-        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar
         tab={isSimple && tab === 'diagramas' ? 'results' : tab}

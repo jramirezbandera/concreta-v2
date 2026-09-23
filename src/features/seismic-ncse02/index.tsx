@@ -374,7 +374,6 @@ export function SeismicNCSE02Module() {
             detalleAnejo={DETALLE_ANEJO_MEMORIA}
           />
         }
-        onOpenAssistant={asistente.abrir}
       />
       <MobileTabBar tab={tab} setTab={setTab} />
 
