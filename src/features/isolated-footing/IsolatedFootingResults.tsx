@@ -25,17 +25,22 @@ const DIST_LABEL: Record<DistributionType, string> = {
   overturning_fail:      'Vuelco geométrico',
 };
 
-const DIST_CLASSES: Record<DistributionType, string> = {
-  trapezoidal:           'bg-state-ok/10 text-state-ok',
-  bitriangular_uniaxial: 'bg-state-warn/10 text-state-warn',
-  bitriangular_biaxial:  'bg-state-warn/10 text-state-warn',
-  overturning_fail:      'bg-state-fail/10 text-state-fail',
-};
+/** La forma del diagrama es un HECHO GEOMÉTRICO, no un veredicto: va en accent,
+ *  el token con rol dual documentado para «estado calculado vivo».
+ *
+ *  Iba en verde/ámbar/rojo y eso rompía DESIGN.md §131-133 («los colores de
+ *  estado son para el ESTADO»): al 97 % la pantalla enseñaba un «Trapecial»
+ *  VERDE justo debajo de un «ADVERT.» ámbar, y en vuelco un segundo chip rojo
+ *  que se leía como un segundo veredicto. Quién cumple y quién no lo dice la
+ *  insignia de arriba; ésta dice qué forma tiene el diagrama. Mismo criterio y
+ *  misma cita que anchor-plate (AnchorPlateSVG.tsx:33-41) para la barra
+ *  traccionada. */
+const DIST_CLASS = 'bg-accent/10 text-accent';
 
 function DistributionBadge({ type }: { type: DistributionType }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold px-1.75 py-0.5 rounded tracking-[0.05em] ${DIST_CLASSES[type]}`}
+      className={`inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold px-1.25 py-0.5 rounded tracking-[0.02em] ${DIST_CLASS}`}
       role="status"
       aria-label={`Distribución de presiones: ${DIST_LABEL[type]}`}
     >

@@ -30,6 +30,7 @@ import { useId, type ReactNode } from 'react';
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
 import { CotaH, CotaV, Rotulo, anchoEstimado } from '../../components/canvas/primitivas';
+import { FUENTE_SANS } from '../../components/canvas/paleta';
 import { dec, formatQuantity } from '../../lib/units/format';
 import type { UnitSystem } from '../../lib/units/types';
 
@@ -61,6 +62,11 @@ function paleta(isPdf: boolean) {
     atenuado:      isPdf ? '#64748b' : 'var(--color-text-disabled)',
     acento:        isPdf ? '#0369a1' : 'var(--color-accent)',
     armadura:      isPdf ? '#0284c7' : 'var(--color-chart-rebar)',
+    /** El azul del trazo NO vale para escribir: `chart-rebar` da 4,10:1 sobre
+     *  blanco, que le basta a una línea (3:1) y se queda corto para texto
+     *  (4,5:1). Los rótulos del armado usan el acento, que es el mismo azul ya
+     *  corregido en DESIGN.md el 2026-09-21 y da 5,93:1. */
+    armaduraTexto: isPdf ? '#0369a1' : 'var(--color-accent)',
     armaduraTenue: isPdf ? '#94a3b8' : 'var(--color-chart-rebar-dim)',
     presion:       isPdf ? '#ea580c' : 'var(--color-chart-presion)',
     ok:            isPdf ? '#15803d' : 'var(--color-state-ok)',
@@ -134,12 +140,22 @@ function Momento({ cx, cy, r, color }: { cx: number; cy: number; r: number; colo
   );
 }
 
-/** Cabecera de una figura: mayúsculas pequeñas, como los section headers. */
+/** Cabecera de una figura: mayúsculas pequeñas, como los section headers.
+ *
+ *  Existe aparte de la de `components/canvas/primitivas.tsx` por UNA razón: la
+ *  compartida fija el color en `var(--color-text-disabled)`, y en el clon del
+ *  PDF ninguna `var(--…)` resuelve. Lo que NO puede hacer es escribir distinto:
+ *  copia el `letterSpacing` de la compartida, que es el `tracking-[0.07–0.1em]`
+ *  que DESIGN.md pide para un section header. Sin él estas cabeceras salían sin
+ *  tracking y las de Forjados —que usa la compartida— con él. */
 function Cabecera({ x, y, children, color }: { x: number; y: number; children: ReactNode; color: string }) {
   return (
-    <Rotulo x={x} y={y} tam={10} color={color} peso={600}>
+    <text
+      x={x} y={y} fontSize={10} fill={color} fontWeight={600} letterSpacing="0.08em"
+      style={{ fontFamily: FUENTE_SANS, textTransform: 'uppercase' as const }}
+    >
       {children}
-    </Rotulo>
+    </text>
   );
 }
 
@@ -389,20 +405,37 @@ function dibujarSeccion(o: OpcSeccion): Figura {
       // σmin cuelga del borde izquierdo del bloque, y sólo si le queda sitio
       // antes del rótulo de σadm, que vive en la misma vertical, y antes del
       // de σmax, que con presión uniforme comparte con él línea base.
+      //
+      // Colgarlo de la vertical de x=0 lo dejaba TACHADO: la arista inferior
+      // del bloque baja hacia la derecha y se metía en diagonal por el rótulo
+      // (medido: entraba por el carácter 2 de 18). El rótulo arranca por
+      // debajo de donde esa arista pasa por su propio extremo derecho.
       const uniforme = Math.abs(result.sigma_max - result.sigma_min) < 1e-6;
-      const cabeMin = anchoEstimado(`σmin = ${sigma(result.sigma_min)}`, 10, true)
-        + anchoEstimado(txtMax, 10, true, 500) + 20 <= anchoZap;
-      if (!bitri && !uniforme && cabeMin && ALTO_ADM - hMin > 28) {
+      const txtMin = `σmin = ${sigma(result.sigma_min)}`;
+      const anchoMin = anchoEstimado(txtMin, 10, true);
+      const yMin = yBase + hMin + (hMax - hMin) * Math.min(anchoMin / anchoZap, 1) + 13;
+      const cabeMin = anchoMin + anchoEstimado(txtMax, 10, true, 500) + 20 <= anchoZap
+        && yMin + 6 <= yFin
+        && Math.abs(yMin - (yAdm + (chocan ? 30 : 14))) > 13;
+      if (!bitri && !uniforme && cabeMin) {
         g.push(
-          <Rotulo key="rmin" x={0} y={yBase + hMin + 13} tam={10} color={P.cotaTexto} mono halo={P.papel}>
-            {`σmin = ${sigma(result.sigma_min)}`}
+          <Rotulo key="rmin" x={0} y={yMin} tam={10} color={P.cotaTexto} mono halo={P.papel}>
+            {txtMin}
           </Rotulo>,
         );
       }
       if (bitri) {
+        // «despegue» mide 45 px y la zona que rotula puede medir 27: centrado
+        // se salía por la izquierda del dibujo, sobre el lienzo desnudo. Si no
+        // cabe, arranca en el borde y corre hacia dentro. El límite va en el
+        // naranja de la presión —es donde el bloque empieza—, igual que en la
+        // planta: antes era gris aquí y naranja allí, el mismo límite de dos
+        // colores.
+        const anchoDesp = anchoEstimado('despegue', 10);
+        const cabe = xLc >= anchoDesp + 4;
         g.push(
-          <line key="lc" x1={xLc} y1={yBase} x2={xLc} y2={yFin + 4} stroke={P.cota} strokeWidth={0.75} strokeDasharray="3 2" />,
-          <Rotulo key="rdesp" x={xLc / 2} y={yBase + 15} tam={10} color={P.atenuado} ancla="middle">
+          <line key="lc" x1={xLc} y1={yBase} x2={xLc} y2={yFin + 4} stroke={P.presion} strokeWidth={0.75} strokeDasharray="4 3" />,
+          <Rotulo key="rdesp" x={cabe ? xLc / 2 : 2} y={yBase + 15} tam={10} color={P.atenuado} ancla={cabe ? 'middle' : 'start'} halo={P.papel}>
             despegue
           </Rotulo>,
         );
@@ -446,7 +479,7 @@ function dibujarSeccion(o: OpcSeccion): Figura {
       }
     }
     g.push(
-      <Rotulo key="rarm" x={cx} y={yTecho + (yBarra - yTecho) / 2 + 3} tam={10} color={P.armadura} mono ancla="middle">
+      <Rotulo key="rarm" x={cx} y={yTecho + (yBarra - yTecho) / 2 + 3} tam={10} color={P.armaduraTexto} mono ancla="middle">
         {`inferior Ø${inp.phi_x} c/${inp.s_x} · Ø${inp.phi_y} c/${inp.s_y}`}
       </Rotulo>,
     );
@@ -490,7 +523,7 @@ function dibujarSeccion(o: OpcSeccion): Figura {
     }
     let yTxt = yBase + ALTO_ED + 16;
     g.push(
-      <Rotulo key="rEd" x={0} y={yTxt} tam={10} color={P.presion} mono>
+      <Rotulo key="rEd" x={0} y={yTxt} tam={10} color={P.rotulo} mono>
         {`σEd = ${sigma(result.sigma_Ed_uniform)}${exEd > 1e-6 ? ` · B′ = ${dec(bEd, 2)} m${compacto ? '' : ' (Meyerhof)'}` : ''}`}
       </Rotulo>,
     );
@@ -518,7 +551,7 @@ function dibujarSeccion(o: OpcSeccion): Figura {
         g.push(<circle key={`n${k}`} cx={x} cy={y} r={3.5} fill={P.papel} stroke={P.acento} strokeWidth={1.5} />);
       }
       g.push(
-        <Rotulo key="rTd" x={cx} y={yTie - 9} tam={10} color={P.armadura} mono peso={500} ancla="middle">
+        <Rotulo key="rTd" x={cx} y={yTie - 9} tam={10} color={P.armaduraTexto} mono peso={500} ancla="middle">
           {`Td = ${dec(result.Td_x, 0)} kN`}
         </Rotulo>,
         <CotaVGirada key="cz" x={-10} y1={yTecho} y2={yTie} texto="0,85·d" color={P.cota} colorTexto={P.cotaTexto} />,
@@ -625,7 +658,14 @@ function dibujarPlanta(o: OpcPlanta): Figura {
 
   const w = B * s;
   const hh = L * s;
-  const y0 = CAB_ALTO;
+  // El perímetro de punzonamiento se traza a 2d de la cara del pilar y puede
+  // salirse de la zapata por arriba (u1 = 6,31 m con L = 1,80 m): sin este
+  // hueco el arco entraba por la cabecera y la tachaba. Se reserva lo que
+  // sobresale; cuando no sobresale, no cuesta nada.
+  const rebase = vista === 'modelo' && !result.isRigid
+    ? Math.max(0, 2 * (result.d_avg / 1000) * s + (hc / 2) * s - hh / 2 + 6)
+    : 0;
+  const y0 = CAB_ALTO + rebase;
   const cx = w / 2;
   const cy = y0 + hh / 2;
   const a = (bc / 2) * s;
@@ -648,7 +688,8 @@ function dibujarPlanta(o: OpcPlanta): Figura {
       g.push(
         <rect key="grad" x={xLc} y={y0} width={w - xLc} height={hh} fill={`url(#${gradId})`} />,
         <line key="lLc" x1={xLc} y1={y0} x2={xLc} y2={y0 + hh} stroke={P.presion} strokeWidth={1} strokeDasharray="4 3" />,
-        <Rotulo key="rd" x={xLc / 2} y={y0 + hh - 10} tam={10} color={P.atenuado} ancla="middle">despegue</Rotulo>,
+        <Rotulo key="rd" x={xLc >= anchoEstimado('despegue', 10) + 4 ? xLc / 2 : 2} y={y0 + hh - 10} tam={10}
+          color={P.atenuado} ancla={xLc >= anchoEstimado('despegue', 10) + 4 ? 'middle' : 'start'} halo={P.papel}>despegue</Rotulo>,
       );
     } else {
       g.push(<rect key="grad" x={0} y={y0} width={w} height={hh} fill={`url(#${gradId})`} />);
@@ -749,8 +790,12 @@ function dibujarPlanta(o: OpcPlanta): Figura {
     g.push(
       <g key="marcas">
         <line x1={-8} y1={cy} x2={w + 8} y2={cy} stroke={P.hormigonBorde} strokeWidth={0.9} strokeDasharray="8 3 2 3" opacity={0.7} />
-        <Rotulo x={-12} y={cy + 3} tam={9} color={P.hormigonBorde} peso={600} ancla="end" halo={P.papel}>A</Rotulo>
-        <Rotulo x={w + 12} y={cy + 3} tam={9} color={P.hormigonBorde} peso={600} halo={P.papel}>A</Rotulo>
+        {/* Las letras van en el color de las cotas, no en el del trazo de
+            sección: son rótulo, y `chart-section` a 9 px daba 2,38:1 en Ónice.
+            El trazo, que sí es línea, se queda donde estaba. 10 px es el suelo
+            de la escala de DESIGN.md. */}
+        <Rotulo x={-12} y={cy + 3} tam={10} color={P.cotaTexto} peso={600} ancla="end" halo={P.papel}>A</Rotulo>
+        <Rotulo x={w + 12} y={cy + 3} tam={10} color={P.cotaTexto} peso={600} halo={P.papel}>A</Rotulo>
       </g>,
     );
   }
@@ -798,7 +843,7 @@ function dibujarPlanta(o: OpcPlanta): Figura {
       : null;
   if (pie) {
     g.push(
-      <Rotulo key="pie" x={w / 2} y={alto + 12} tam={10} color={vista === 'armado' ? P.armadura : P.acento} mono ancla="middle">
+      <Rotulo key="pie" x={w / 2} y={alto + 12} tam={10} color={vista === 'armado' ? P.armaduraTexto : P.acento} mono ancla="middle">
         {pie}
       </Rotulo>,
     );
@@ -816,12 +861,18 @@ interface ItemLeyenda { marca: MarcaLeyenda; color: string; texto: string; groso
 
 function itemsLeyenda(P: Paleta, vista: IsolatedFootingView, result: IsolatedFootingResult, compacto: boolean): ItemLeyenda[] {
   if (vista === 'terreno') {
+    // σ se codifica DOS veces: el alto del bloque en la sección y el tinte de
+    // la planta. La leyenda sólo nombraba el alto, y el tinte —que en tema
+    // oscuro es lo más pesado de la mitad derecha— se quedaba sin clave.
     const base: ItemLeyenda[] = [
-      { marca: 'bloque', color: P.presion, texto: compacto ? 'reacción σ, a escala de σadm' : 'reacción del terreno σ, a escala de σadm' },
+      { marca: 'bloque', color: P.presion, texto: compacto ? 'σ: alto y tinte, escala σadm' : 'σ del terreno: alto en sección y tinte en planta, a escala de σadm' },
       { marca: 'trazos', color: P.cota, texto: compacto ? 'σadm del terreno' : 'σadm del geotécnico' },
     ];
+    // El rombo del núcleo central SE DIBUJA también en vuelco: quitarle la
+    // entrada dejaba un símbolo en pantalla sin clave. La resultante no se
+    // dibuja (cae fuera), así que ésa sí sale.
+    base.push({ marca: 'rombo', color: P.acento, texto: compacto ? 'núcleo central' : 'núcleo central: dentro, contacto pleno' });
     if (result.distributionType !== 'overturning_fail') {
-      base.push({ marca: 'rombo', color: P.acento, texto: compacto ? 'núcleo central' : 'núcleo central: dentro, contacto pleno' });
       base.push({ marca: 'punto', color: P.acento, texto: compacto ? 'resultante N' : 'resultante N, e = M/N' });
     }
     return base;
@@ -936,29 +987,32 @@ export function IsolatedFootingSVG({
 
   // Los márgenes salen del texto, no de la escala: se resuelven antes y dejan
   // la escala como una división. Una sola para las dos figuras (invariante).
-  const sIzq = izqSeccion(inp, view, compacto);
-  const sDer = derSeccion(inp, result, view, compacto);
-  const pIzq = izqPlanta(view);
-  const pDer = derPlanta(view);
+  // Resuelta por vista, porque cada una reserva lo suyo: Armado paga la cota
+  // de d a la derecha, Modelo no dibuja terreno.
+  const escalaDeVista = (v: IsolatedFootingView): number => {
+    const sIzq = izqSeccion(inp, v, compacto);
+    const sDer = derSeccion(inp, result, v, compacto);
+    const pIzq = izqPlanta(v);
+    const pDer = derPlanta(v);
+    const conSuelo = v !== 'modelo';
+    const fijoSec = altoSobreBase(v) + altoBajoBase(inp, result, v) + (conSuelo ? 0 : 10);
+    const metrosSec = conSuelo ? inp.Df : inp.h;
+    const fijoPla = CAB_ALTO + 30 + (v === 'terreno' ? 0 : 18);
+    const anchoLado = lado
+      ? (anchoUtil - Math.max(sDer + pIzq, 40)) / 2
+      : anchoUtil;
+    const sAnchoSec = (anchoLado - (lado ? sIzq : Math.max(sIzq, pIzq)) - (lado ? 0 : Math.max(sDer, pDer))) / inp.B;
+    const sAnchoPla = lado ? (anchoLado - pDer) / inp.B : sAnchoSec;
+    const sAlto = lado
+      ? Math.min(
+        (altoUtil - fijoSec) / metrosSec,
+        (altoUtil - fijoPla) / inp.L,
+      )
+      : (altoUtil - fijoSec - GAP_FIG - fijoPla) / (metrosSec + inp.L);
+    return Math.max(14, Math.min(sAnchoSec, sAnchoPla, sAlto, ESCALA_MAX));
+  };
 
-  const conSuelo = view !== 'modelo';
-  const fijoSec = altoSobreBase(view) + altoBajoBase(inp, result, view) + (conSuelo ? 0 : 10);
-  const metrosSec = conSuelo ? inp.Df : inp.h;
-  const fijoPla = CAB_ALTO + 30 + (view === 'terreno' ? 0 : 18);
-
-  const anchoLado = lado
-    ? (anchoUtil - Math.max(sDer + pIzq, 40)) / 2
-    : anchoUtil;
-  const sAnchoSec = (anchoLado - (lado ? sIzq : Math.max(sIzq, pIzq)) - (lado ? 0 : Math.max(sDer, pDer))) / inp.B;
-  const sAnchoPla = lado ? (anchoLado - pDer) / inp.B : sAnchoSec;
-  const sAlto = lado
-    ? Math.min(
-      (altoUtil - fijoSec) / metrosSec,
-      (altoUtil - fijoPla) / inp.L,
-    )
-    : (altoUtil - fijoSec - GAP_FIG - fijoPla) / (metrosSec + inp.L);
-
-  const s = Math.max(14, Math.min(sAnchoSec, sAnchoPla, sAlto, ESCALA_MAX));
+  const s = escalaDeVista(view);
 
   const sec = dibujarSeccion({ inp, result, P, s, vista: view, sigma, hatchId, compacto });
   const pla = dibujarPlanta({ inp, result, P, s, vista: view, gradId, compacto });
@@ -986,7 +1040,30 @@ export function IsolatedFootingSVG({
 
   const desplazado = Math.max(0, (anchoUtil - anchoFig) / 2);
   const leyenda = dibujarLeyenda(itemsLeyenda(P, view, result, compacto), P, anchoUtil, margen + altoFig);
-  const alturaSvg = margen + altoFig + leyenda.alto + margen;
+
+  // EN PANTALLA el lienzo mide lo mismo en las tres vistas: el alto de la MÁS
+  // alta. Cada vista gasta lo suyo (Armado no dibuja cargas, Modelo alarga el
+  // pilar para rotular S1/S2), así que medidas por separado salían 282, 395 y
+  // 423 px y el panel de resultados entero SALTABA hasta 141 px al cambiar de
+  // pestaña. Las tres son lecturas del mismo objeto: la pestaña cambia el
+  // dibujo, no la página.
+  //
+  // En el PDF NO: allí cada vista tiene su propia plana y nadie conmuta entre
+  // ellas, así que igualar el alto sólo dejaría papel en blanco.
+  //
+  // Se mide con las mismas funciones que dibujan, no con una fórmula paralela,
+  // que es como se desincroniza el presupuesto del gasto.
+  const altoDeVista = (v: IsolatedFootingView): number => {
+    const sv = escalaDeVista(v);
+    const sc = dibujarSeccion({ inp, result, P, s: sv, vista: v, sigma, hatchId, compacto });
+    const pl = dibujarPlanta({ inp, result, P, s: sv, vista: v, gradId, compacto });
+    const fig = lado ? Math.max(sc.alto, pl.alto) : sc.alto + GAP_FIG + pl.alto;
+    return margen + fig + dibujarLeyenda(itemsLeyenda(P, v, result, compacto), P, anchoUtil, 0).alto + margen;
+  };
+  const altoPropio = margen + altoFig + leyenda.alto + margen;
+  const alturaSvg = isPdf
+    ? altoPropio
+    : Math.max(altoPropio, ...(['terreno', 'armado', 'modelo'] as const).map(altoDeVista));
 
   const titleId = `if-t-${uid}`;
   const descId = `if-d-${uid}`;
