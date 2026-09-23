@@ -44,88 +44,75 @@ export function Topbar({ moduleLabel, moduleGroup, onMenuOpen, onCopyLink, expor
       showToast('No se pudo copiar el enlace', { autoDismiss: 3000 });
     });
   });
-
   return (
     /*
-      Por debajo de `sm` la barra va en DOS filas: las acciones arriba y la miga
-      abajo, a todo el ancho. Por encima, una sola fila de 48 px como siempre.
+      Por debajo de `sm` la barra va en DOS filas. Arriba, lo que se PULSA:
+      hamburguesa, obra y los dos desplegables. Abajo, a todo el ancho, lo que
+      se LEE: el título del módulo. Por encima de `sm`, una sola fila de 48 px.
 
-      Por qué: a 375 px la fila estaba sobresuscrita. Hamburguesa 42 + obra 77 +
-      botonera 172 + padding 40 = 331 de 375, así que al título del módulo le
-      quedaban 18 px para los 91 que necesita «Acción sísmica». No es que se
-      truncara: se borraba a una letra, y pasaba con cualquier obra cargada, no
-      sólo con el marcador «Sin obra». La barra dejaba de contestar «¿en qué
-      pantalla estoy?», que es la pregunta que una miga existe para contestar.
+      Por qué dos filas y no una. Se midió a 375 px (T7 del plan de 2026-09-22),
+      y no cabe ni de lejos. Descontando padding quedan 335 px de los que la
+      hamburguesa se lleva 42, los desplegables 110 y los huecos más la barra
+      «/» otros 34: al título le quedan 75. «Acción sísmica» pide 91 y
+      «Cumplimiento del DB SE» —el más largo de los 27 módulos— pide 148. En una
+      fila salía «EDIFICIO 12 V… / Cum…», las dos cosas cortadas a la vez, que
+      es justo lo que la barra existe para no hacer.
 
-      Se probaron las alternativas de una fila y ninguna cabe: repartir el ancho
-      deja obra y título cortados a la vez («Casa… / Acción…»), y plegar la
-      calculadora dentro de Ajustes sólo sube el título a 69 de 91. Con dos
-      filas cabe entero, medido.
+      (El plan estimaba ~124 px libres y daba «Acción sísmica» por el peor caso.
+      Las dos cosas eran falsas: se dejó fuera los 34 px de huecos y hay un
+      título 57 % más largo. Medido, no estimado, para que nadie lo reintente.)
 
-      PENDIENTE (tarea T7 del plan de 2026-09-22): ese cálculo es de cuando la
-      botonera llevaba cuatro controles. Plegando asistente Y calculadora se van
-      unos 80 px (36 + 36 + gaps), o sea ~251 de 375, y al título le quedarían
-      ~124 px para los 91 que pide. La fila podría volver a ser UNA, que es el
-      único premio que este rediseño le da al móvil —allí no hay píldora que
-      compense—. No se toca aquí: hay que medirlo con el nombre de obra más
-      largo y el título más largo a la vez antes de dar el cambio por bueno.
+      Por qué ESTE reparto y no el anterior. Hasta hoy la fila de arriba llevaba
+      sólo los desplegables —con toda la mitad izquierda vacía— y abajo iban
+      hamburguesa, obra y título apretados. El título cabía de milagro: sólo
+      porque el marcador «Sin obra» mide 74 px. Con una obra de verdad se
+      cortaba igualmente («EDIFICIO 12 VIVIENDAS» lo dejaba en 99 de 148), y con
+      una larga se cortaban las dos. Subiendo la obra a la fila de arriba, que
+      estaba desaprovechada, el título se queda solo con los 335 px enteros y no
+      se corta NUNCA; y quien cede al truncar pasa a ser la obra, que es lo
+      correcto: en qué obra estás lo contesta también el cajón, en qué pantalla
+      estás sólo lo contesta esto. De paso la barra baja de 81 px a ~72.
 
-      El precio es el alto en móvil, que es justo donde escasea. Por eso la
-      segunda fila es la miga y no las acciones: la miga es texto de 13 px y
-      cabe en ~20 px, mientras que mover la botonera dejaría la fila de arriba
-      casi vacía.
+      La obra va con `flex-1 min-w-0` y no con un ancho máximo a ojo. No es
+      cosmética: con su ancho natural, un nombre largo empuja los desplegables a
+      una TERCERA fila, porque el reparto por líneas se decide con el tamaño
+      base de cada pieza y sólo después se encoge. Con base 0 no puede empujar a
+      nadie, y luego crece hasta ocupar lo que sobre.
     */
-    <header className="shrink-0 flex flex-wrap items-center justify-between gap-y-0.5 px-5 py-1 bg-bg-surface border-b border-border-main sm:h-12 sm:flex-nowrap sm:gap-y-0 sm:py-0">
-      <div className="order-2 w-full flex items-center gap-2.5 min-w-0 overflow-hidden sm:order-none sm:w-auto">
-        {/* Hamburger — mobile only */}
-        {onMenuOpen && (
-          <button
-            onClick={onMenuOpen}
-            className="lg:hidden p-3 -ml-2 text-text-secondary hover:text-text-primary transition-colors"
-            /* D-I3: se llamaba «Abrir menú», igual que el desplegable de la
-               derecha. Dos controles de la misma barra que se anunciaban igual
-               al lector de pantalla y abrían sitios distintos. */
-            aria-label="Abrir navegación"
-          >
-            <Menu size={18} aria-hidden="true" />
-          </button>
-        )}
-        {/* Breadcrumb: GROUP / Module. En móvil se oculta el grupo (contexto
-            redundante que ya da el drawer) para que el título del módulo tenga
-            todo el ancho y no se corte a "V…". Aparece a partir de `sm`, donde
-            los botones de la derecha también recuperan su etiqueta. */}
-        <div className="flex items-center gap-2 min-w-0">
-          {/* Por debajo de `sm` el grupo se oculta y su hueco lo ocupa la OBRA:
-              el sidebar es un cajón y, sin esto, en móvil no se ve en qué obra
-              estás. Es pulsable y abre el cajón con el menú de obra desplegado.
-              Al truncar gana la obra: es `shrink-0` y el título del módulo cede. */}
-          <button
-            type="button"
-            onClick={() => openDrawer({ menuObra: true })}
-            className="sm:hidden inline-flex items-center gap-1 max-w-[65%] shrink-0 py-1.5 -my-1.5 text-[11px] font-mono uppercase text-text-secondary hover:text-text-primary transition-colors"
-            style={{ letterSpacing: '0.06em' }}
-            aria-label={`Obra: ${nombreObra ?? 'sin obra'}. Abrir menú de obra`}
-          >
-            <Folder size={12} className="shrink-0 text-accent" aria-hidden="true" />
-            <span className="truncate">{nombreObra ?? 'Sin obra'}</span>
-          </button>
-          <span className="hidden sm:inline text-[11px] font-mono text-text-disabled uppercase whitespace-nowrap shrink-0" style={{ letterSpacing: '0.06em' }}>
-            {moduleGroup}
-          </span>
-          <span className="text-text-disabled shrink-0">/</span>
-          <span className="text-[13px] font-medium text-text-primary min-w-0 truncate">
-            {moduleLabel}
-          </span>
-          {/* La miga sigue con el cálculo abierto: «HORMIGÓN / Vigas / V-3». Se
-              coloca sola —sabe qué módulo es por la ruta— y no aparece en los
-              módulos sin nada guardado en el anejo. */}
-          <PiezaMenu />
-        </div>
-      </div>
-      {/* `order-1` + `ml-auto` la suben a la primera fila y la pegan a la
-          derecha mientras la barra va en dos filas. A partir de `sm` vuelve a
-          su sitio natural. */}
-      <div className="order-1 ml-auto flex items-center gap-1 shrink-0 sm:order-none sm:ml-0">
+    <header className="shrink-0 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 px-5 py-1 bg-bg-surface border-b border-border-main sm:h-12 sm:flex-nowrap sm:gap-y-0 sm:py-0">
+      {/* Hamburguesa — hasta `lg`, que es donde el sidebar deja de ser cajón. */}
+      {onMenuOpen && (
+        <button
+          onClick={onMenuOpen}
+          className="order-1 lg:hidden p-3 -ml-2 text-text-secondary hover:text-text-primary transition-colors"
+          /* D-I3: se llamaba «Abrir menú», igual que el desplegable de la
+             derecha. Dos controles de la misma barra que se anunciaban igual
+             al lector de pantalla y abrían sitios distintos. */
+          aria-label="Abrir navegación"
+        >
+          <Menu size={18} aria-hidden="true" />
+        </button>
+      )}
+
+      {/* La obra, sólo en móvil: el sidebar es un cajón y sin esto no se ve en
+          qué obra estás. Es pulsable y abre el cajón con el menú de obra
+          desplegado. Al truncar cede ella, no el título. */}
+      <button
+        type="button"
+        onClick={() => openDrawer({ menuObra: true })}
+        className="order-2 flex-1 min-w-0 inline-flex items-center gap-1 py-1.5 -my-1.5 text-[11px] font-mono uppercase text-text-secondary hover:text-text-primary transition-colors sm:hidden"
+        style={{ letterSpacing: '0.06em' }}
+        aria-label={`Obra: ${nombreObra ?? 'sin obra'}. Abrir menú de obra`}
+      >
+        <Folder size={12} className="shrink-0 text-accent" aria-hidden="true" />
+        <span className="truncate">{nombreObra ?? 'Sin obra'}</span>
+      </button>
+
+      {/* Los dos desplegables. En móvil cierran la fila de arriba; a partir de
+          `sm` se van a la derecha con `ml-auto` (en móvil NO lo llevan: un
+          margen automático se come el hueco libre ANTES de que la obra pueda
+          crecer, y la dejaría en nada). */}
+      <div className="order-3 flex items-center gap-1 shrink-0 sm:order-4 sm:ml-auto">
         {/* Menú: las dos herramientas (Asistente, Calculadora) + Preferencias +
             Estudio y compartir. Sucede al viejo «Ajustes». */}
         <MenuApp onCopyLink={handleCopyUrl} onOpenCalculator={openCalc} />
@@ -134,6 +121,26 @@ export function Topbar({ moduleLabel, moduleGroup, onMenuOpen, onCopyLink, expor
             la acción primaria de la barra —el acento se muda con el asistente a
             su píldora—, y la barra queda tranquila a propósito. */}
         {exportMenu}
+      </div>
+
+      {/* La miga. `w-full` la baja a su propia fila en móvil, donde tiene los
+          335 px para ella sola; a partir de `sm` vuelve a la fila única, entre
+          la hamburguesa y los desplegables. El grupo y la barra «/» sólo salen
+          desde `sm`: en móvil la obra ya no está al lado, así que un «/» suelto
+          delante del título no separaría nada, y el grupo es contexto que ya da
+          el cajón. */}
+      <div className="order-4 w-full flex items-center gap-2 min-w-0 sm:order-3 sm:w-auto">
+        <span className="hidden sm:inline text-[11px] font-mono text-text-disabled uppercase whitespace-nowrap shrink-0" style={{ letterSpacing: '0.06em' }}>
+          {moduleGroup}
+        </span>
+        <span className="hidden sm:inline text-text-disabled shrink-0">/</span>
+        <span className="text-[13px] font-medium text-text-primary min-w-0 truncate">
+          {moduleLabel}
+        </span>
+        {/* La miga sigue con el cálculo abierto: «HORMIGÓN / Vigas / V-3». Se
+            coloca sola —sabe qué módulo es por la ruta— y no aparece en los
+            módulos sin nada guardado en el anejo. */}
+        <PiezaMenu />
       </div>
     </header>
   );
