@@ -256,6 +256,8 @@ export const CLAVES_PREFERENCIA: readonly string[] = [
   // ignora aunque venga dentro de uno.
   'concreta-ai-settings',
   'concreta-ai-assistant-ui',
+  // La píldora del asistente, encendida o apagada (D-I9). Ausente = encendida.
+  'concreta-ai-esquina',
   // El perfil del despacho: el mismo para todas sus obras.
   CLAVE_ESTUDIO,
   // Globos y avisos ya vistos.

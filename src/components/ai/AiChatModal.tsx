@@ -258,7 +258,7 @@ export function AiChatModal<TInputs>({
     tiene umbral propio en 768 px (D-I20): por encima hay píldora y la ventana
     es flotante; por debajo, hoja inferior y sin píldora.
   */
-  const { minimizado, desdeLaEsquina, flotante, minimizar, reiniciar, publicar } = useAsistente();
+  const { minimizado, desdeLaEsquina, flotante, hayEsquina, minimizar, reiniciar, publicar } = useAsistente();
   const esEstrecho = !flotante;
 
   const [items, setItems] = useState<ChatItem<TInputs>[]>([]);
@@ -1294,12 +1294,16 @@ export function AiChatModal<TInputs>({
   );
 
   /*
-    Salir. Por encima de 768 px baja a la píldora, que es donde vive el
-    asistente. Por debajo no hay píldora, así que la ✕ se queda —es la única
-    salida— pero ESCONDE en vez de descartar (D-I19): un solo contrato sobre la
-    conversación en toda la app, se mire en la pantalla que se mire.
+    Salir. Si hay esquina, baja a la píldora, que es donde vive el asistente.
+    Si no la hay —pantalla estrecha, o el usuario la apagó en Preferencias
+    (D-I9)— la ✕ es la única salida, pero ESCONDE en vez de descartar (D-I19):
+    un solo contrato sobre la conversación en toda la app, se mire en la
+    pantalla que se mire.
+
+    Va por `hayEsquina` y no por el ancho a propósito: con la píldora apagada,
+    un botón de «bajar a la esquina» prometería un sitio que no existe.
   */
-  const controlSalir = esEstrecho ? (
+  const controlSalir = !hayEsquina ? (
     <button
       type="button"
       onClick={minimizar}
@@ -1473,10 +1477,19 @@ export function AiChatModal<TInputs>({
         <div className="flex items-center gap-2.5 px-4 h-12 border-b border-border-main shrink-0">
           {headerBrand}
           <div className="flex-1" />
+          {/*
+            Decía «Reducir a esquina» y compartía palabra con el botón de al
+            lado, «Bajar a la esquina», que hace otra cosa: uno cambia la FORMA
+            de la ventana y el otro la guarda en la píldora. Con el conmutador
+            de T9 serían ya tres «esquinas» para dos conceptos. «Esquina» se
+            queda para la píldora, que es la que vive fija en una; el modo dice
+            lo que hace, y la pareja queda «Expandir a panel» / «Reducir a
+            ventana».
+          */}
           <button
             type="button"
-            title="Reducir a esquina"
-            aria-label="Reducir a esquina"
+            title="Reducir a ventana"
+            aria-label="Reducir a ventana"
             onClick={() => cambiarModo('floating')}
             className={HEADER_BTN}
           >

@@ -34,6 +34,13 @@ const CONSULTA_FLOTANTE = '(min-width: 768px)';
 /** Que el asistente se reinicia en cada módulo se cuenta UNA vez, no cada vez. */
 const CLAVE_AVISO_MODULO = 'concreta-ai-aviso-modulo';
 
+/**
+ * La píldora encendida o apagada (D-I9). Es preferencia de esta máquina, no
+ * dato de la obra: no viaja en el `.concreta`. Encendida por defecto, así que
+ * sólo se guarda para poder APAGARLA — ausente significa encendida.
+ */
+const CLAVE_ESQUINA = 'concreta-ai-esquina';
+
 interface AsistenteProviderProps {
   children: ReactNode;
 }
@@ -48,6 +55,7 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
   });
   const [claveSesion, setClaveSesion] = useState(0);
   const [desdeLaEsquina, setDesdeLaEsquina] = useState(false);
+  const [esquinaEncendida, setEsquinaEncendida] = useState(() => leerClave(CLAVE_ESQUINA) !== '0');
   const flotante = useMediaQuery(CONSULTA_FLOTANTE);
 
   // Espejo del estado vivo para poder leerlo desde callbacks estables (el
@@ -101,6 +109,11 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
 
   const minimizar = useCallback(() => setMinimizado(true), []);
 
+  const cambiarEsquina = useCallback((encendida: boolean) => {
+    setEsquinaEncendida(encendida);
+    escribirClave(CLAVE_ESQUINA, encendida ? '1' : '0');
+  }, []);
+
   /**
    * D-I15 — el atajo «A», por fin al lado del «C» de la calculadora
    * (`CalculatorProvider.tsx`). Los dos atajos de la app viven ya en el mismo
@@ -142,11 +155,18 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
   }, []);
 
   /**
+   * Hay esquina cuando cabe Y el usuario la quiere. Apagada, el asistente se
+   * alcanza igual: por su fila de Herramientas —que no se apaga nunca— y por
+   * la tecla «A», cuyo listener cuelga de `disponible` y no de la píldora.
+   */
+  const hayEsquina = flotante && esquinaEncendida;
+
+  /**
    * La píldora se ve cuando la ventana NO se ve: o está el asistente en
    * pantalla, o está su píldora. Nunca las dos (la ventana flotante nace justo
    * encima de ella) ni ninguna.
    */
-  const hayPildora = disponible && flotante && (!sesion || minimizado);
+  const hayPildora = disponible && hayEsquina && (!sesion || minimizado);
 
   const ctx: AsistenteContextValue = {
     disponible,
@@ -157,8 +177,11 @@ export function AsistenteProvider({ children }: AsistenteProviderProps) {
     claveSesion,
     desdeLaEsquina,
     flotante,
+    esquinaEncendida,
+    hayEsquina,
     abrir,
     minimizar,
+    cambiarEsquina,
     reiniciar,
     registrarModulo,
     publicar,

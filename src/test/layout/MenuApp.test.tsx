@@ -14,7 +14,7 @@
 //
 // ThemeProvider por el <ThemeToggle>; UnitSystemProvider por el conmutador de
 // unidades; MemoryRouter por el <NavLink> de Mi estudio.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -68,6 +68,12 @@ const abrir = async () => {
   await user.click(trigger);
   return { user, trigger };
 };
+
+// El conmutador de la esquina (T9) persiste en localStorage: sin esto, el
+// primer test que lo apague dejaría la píldora apagada para los siguientes.
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 describe('MenuApp', () => {
   it('cerrado por defecto; se llama «Menú» y trae los tres grupos', async () => {
@@ -185,6 +191,52 @@ describe('MenuApp', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('group', { name: 'Herramientas' })).not.toBeInTheDocument();
+  });
+
+  // D-I9 / T9 — el conmutador vive con Unidades y Tema, que es su familia:
+  // preferencias de esta máquina. Apagarlo quita la píldora, no el asistente.
+  it('«Asistente en la esquina» conmuta y dice en qué estado está', async () => {
+    renderMenu();
+    const { user } = await abrir();
+
+    const chip = screen.getByRole('button', { name: /Asistente en la esquina/ });
+    expect(chip).toHaveTextContent('Visible');
+    expect(chip).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(chip);
+
+    expect(screen.getByRole('button', { name: /Asistente en la esquina/ })).toHaveTextContent('Oculta');
+    expect(window.localStorage.getItem('concreta-ai-esquina')).toBe('0');
+    // Y el menú no se cierra: es una preferencia, no una acción.
+    expect(screen.getByRole('group', { name: 'Preferencias' })).toBeInTheDocument();
+  });
+
+  // D-I7: por debajo de 768 px no hay esquina que encender, pero la fila no
+  // desaparece — el menú tiene UNA sola forma en las 29 pantallas.
+  it('en pantalla estrecha la fila sale apagada, con la razón', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) =>
+      ({
+        matches: false,
+        media: q,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList) as typeof window.matchMedia;
+
+    renderMenu();
+    await abrir();
+
+    expect(screen.queryByRole('button', { name: /Asistente en la esquina/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Asistente en la esquina')).toBeInTheDocument();
+    expect(
+      screen.getByText('Esta pantalla es estrecha: el asistente se abre desde aquí.'),
+    ).toBeInTheDocument();
+
+    window.matchMedia = original;
   });
 
   it('un clic fuera cierra el menú', async () => {

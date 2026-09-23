@@ -277,3 +277,100 @@ describe('los avisos se apartan de la píldora (T8 · D-I12)', () => {
     expect(suelo()).toBe('');
   });
 });
+/**
+ * T9 / D-I9 — quien no usa la IA no tiene por qué cargar con un flotante fijo
+ * en 25 pantallas. Lo que hay que probar no es que la píldora desaparezca: es
+ * que apagarla NO esconde el asistente. Si lo escondiera, el conmutador estaría
+ * quitando una función en vez de quitar un adorno.
+ */
+describe('la píldora se puede apagar (T9 · D-I9)', () => {
+  const CLAVE = 'concreta-ai-esquina';
+
+  /** Espejo de lo que hace la fila de Preferencias del Menú. */
+  function Conmutador() {
+    const { esquinaEncendida, cambiarEsquina } = useAsistente();
+    return (
+      <button onClick={() => cambiarEsquina(!esquinaEncendida)}>
+        {esquinaEncendida ? 'apagar la esquina' : 'encender la esquina'}
+      </button>
+    );
+  }
+
+  it('viene encendida: sin nada guardado, hay píldora', () => {
+    montar(<ModuloConAsistente />);
+    expect(pildora()).toBeInTheDocument();
+    // No se guarda nada para dejarla como viene: ausente significa encendida.
+    expect(window.localStorage.getItem(CLAVE)).toBeNull();
+  });
+
+  it('apagada no hay píldora, pero el asistente sigue estando', () => {
+    montar(
+      <>
+        <Conmutador />
+        <ModuloConAsistente />
+      </>,
+    );
+    expect(pildora()).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'apagar la esquina' }));
+    expect(pildora()).not.toBeInTheDocument();
+
+    // Sigue estando por el Menú —su fila no se apaga nunca— y por la tecla.
+    fireEvent.click(screen.getByRole('button', { name: 'abrir desde el menú' }));
+    expect(screen.getByText('ventana del asistente')).toBeInTheDocument();
+  });
+
+  // La condición de aceptación de la tarea: el atajo no puede irse con la
+  // píldora. Cuelga de que haya asistente, no de que haya esquina.
+  it('apagada, la tecla «A» sigue abriendo', () => {
+    montar(
+      <>
+        <Conmutador />
+        <ModuloConAsistente />
+      </>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'apagar la esquina' }));
+    expect(pildora()).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'a' });
+    expect(screen.getByText('ventana del asistente')).toBeInTheDocument();
+  });
+
+  it('apagada se queda apagada al recargar', () => {
+    const { unmount } = montar(
+      <>
+        <Conmutador />
+        <ModuloConAsistente />
+      </>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'apagar la esquina' }));
+    expect(window.localStorage.getItem(CLAVE)).toBe('0');
+
+    // Recargar es montar el provider de cero con el almacén como quedó.
+    unmount();
+    montar(
+      <>
+        <Conmutador />
+        <ModuloConAsistente />
+      </>,
+    );
+
+    expect(pildora()).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'encender la esquina' })).toBeInTheDocument();
+  });
+
+  it('volver a encenderla devuelve la píldora', () => {
+    window.localStorage.setItem(CLAVE, '0');
+    montar(
+      <>
+        <Conmutador />
+        <ModuloConAsistente />
+      </>,
+    );
+    expect(pildora()).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'encender la esquina' }));
+    expect(pildora()).toBeInTheDocument();
+    expect(window.localStorage.getItem(CLAVE)).toBe('1');
+  });
+});

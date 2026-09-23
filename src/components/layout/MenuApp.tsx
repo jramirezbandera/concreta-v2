@@ -31,6 +31,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { NavLink } from 'react-router';
 import { Building2, ChevronDown, Link2, MoreHorizontal, Sparkles } from 'lucide-react';
 import { ThemeToggle } from '../theme/ThemeToggle';
+import { ToggleChip } from '../ui/ToggleChip';
 import { UnitSystemToggle } from '../units/UnitSystemToggle';
 import { useAsistente, type EstadoAsistente } from '../ai/asistente-context';
 import { useUnitSystem } from '../../lib/units/useUnitSystem';
@@ -152,7 +153,7 @@ export function MenuApp({ onCopyLink, onOpenCalculator }: MenuAppProps) {
    * justo lo que dejó el atajo «A» colgando cuando se movió su botón. Sin
    * provider —tests del menú aislado— no hay asistente y la fila sale apagada.
    */
-  const { disponible: hayAsistente, estado, abrir } = useAsistente();
+  const { disponible: hayAsistente, estado, abrir, flotante, esquinaEncendida, cambiarEsquina } = useAsistente();
   const base = useId();
   const idHerramientas = `${base}-herramientas`;
   const idPreferencias = `${base}-preferencias`;
@@ -297,6 +298,33 @@ export function MenuApp({ onCopyLink, onOpenCalculator }: MenuAppProps) {
                 <ThemeToggle />
               </span>
             </div>
+            {/*
+              D-I9 — quien no usa la IA no tiene por qué cargar con un flotante
+              fijo en 25 pantallas. Apagarla no esconde el asistente: su fila de
+              Herramientas no se apaga nunca y la tecla «A» sigue funcionando,
+              porque ese listener cuelga de que haya asistente y no de la
+              píldora. Por debajo de 768 px no hay esquina que encender, así que
+              la fila sale apagada con la razón en vez de esconderse (D-I7).
+            */}
+            {flotante ? (
+              <div className={`${FILA_NORMAL} text-text-primary`}>
+                <span>Asistente en la esquina</span>
+                <span className="ml-auto">
+                  <ToggleChip
+                    on={esquinaEncendida}
+                    onToggle={() => cambiarEsquina(!esquinaEncendida)}
+                    onLabel="Visible"
+                    offLabel="Oculta"
+                    ariaLabel={`Asistente en la esquina: ${esquinaEncendida ? 'visible' : 'oculta'}`}
+                  />
+                </span>
+              </div>
+            ) : (
+              <div className={FILA_APAGADA}>
+                Asistente en la esquina
+                <Razon>Esta pantalla es estrecha: el asistente se abre desde aquí.</Razon>
+              </div>
+            )}
           </div>
 
           <div role="group" aria-labelledby={idEstudio} className="border-t border-border-sub">

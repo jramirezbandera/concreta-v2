@@ -53,10 +53,24 @@ export interface AsistenteContextValue {
   claveSesion: number;
   /** La apertura en curso viene de la píldora ⇒ modo flotante forzado (D-I1). */
   desdeLaEsquina: boolean;
-  /** true a partir de 768 px: hay píldora y la ventana es flotante (D-I20). */
+  /** true a partir de 768 px: la ventana es flotante y cabe una esquina (D-I20). */
   flotante: boolean;
+  /**
+   * La píldora está encendida en Preferencias (D-I9). Dice lo que el usuario
+   * quiere, no lo que se ve ahora: en un teléfono puede estar encendida y no
+   * haber esquina.
+   */
+  esquinaEncendida: boolean;
+  /**
+   * Hay esquina a la que bajar: cabe (768 px) Y el usuario la quiere. Es lo que
+   * decide si «salir» del chat es «bajar a la esquina» o «esconder», y sin
+   * esto el botón de minimizar prometería una esquina que no existe.
+   */
+  hayEsquina: boolean;
   abrir: (origen: OrigenApertura) => void;
   minimizar: () => void;
+  /** Enciende o apaga la píldora. Persiste en esta máquina (D-I9). */
+  cambiarEsquina: (encendida: boolean) => void;
   /** Tira la conversación y empieza de cero. La confirmación la pide la cabecera (D-I21). */
   reiniciar: () => void;
   /** Lo llama el módulo al montar/desmontar; lo llama el chat para publicar su estado. */
@@ -73,8 +87,11 @@ const SIN_PROVIDER: AsistenteContextValue = {
   claveSesion: 0,
   desdeLaEsquina: false,
   flotante: true,
+  esquinaEncendida: true,
+  hayEsquina: true,
   abrir: () => {},
   minimizar: () => {},
+  cambiarEsquina: () => {},
   reiniciar: () => {},
   registrarModulo: () => {},
   publicar: () => {},
