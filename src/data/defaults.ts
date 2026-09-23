@@ -1098,7 +1098,9 @@ export const timberColumnDefaults: TimberColumnInputs = {
 // PR-3/PR-4: rebar-based anchors (B400S/B500S), anclaje inferior y conexión
 // superior modelados como campos independientes (ortogonales).
 
-export type AnchorPlateSectionType = 'IPE' | 'HEA' | 'HEB' | 'IPN';
+/** I/H laminados y, desde 2026-09-23, el cajón de dos UPN soldadas por las
+ *  puntas de las alas: el pilar habitual de las láminas tipo del estudio. */
+export type AnchorPlateSectionType = 'IPE' | 'HEA' | 'HEB' | 'IPN' | '2UPN';
 export type AnchorPlateSteel = 'S235' | 'S275' | 'S355';
 export type PedestalSurface = 'smooth' | 'roughened';
 // Re-export the rebar / anchor types for consumers that previously pulled them from here.
@@ -1110,7 +1112,7 @@ export interface AnchorPlateInputs {
   title: string;
   // Perfil (reusa del módulo steel-columns)
   sectionType: AnchorPlateSectionType;
-  sectionSize: number;              // e.g. 200 for HEB-200
+  sectionSize: number;              // e.g. 200 for HEB-200; en 2UPN, la de cada UPN (2UPN 200 → 200)
 
   // Solicitaciones (ELU, compresión positiva)
   NEd:   number;                      // kN — axil total ELU (combinación más desfavorable)

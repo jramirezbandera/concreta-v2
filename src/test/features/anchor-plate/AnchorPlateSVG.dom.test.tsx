@@ -161,3 +161,51 @@ describe('AnchorPlateSVG — una sola escala para las dos vistas', () => {
     expect(cajas('placa-planta')[0].w).toBeCloseTo(cajas('placa-alzado')[0].w, 6);
   });
 });
+
+describe('AnchorPlateSVG — pilar 2UPN en cajón (2026-09-23)', () => {
+  // 2UPN 200 = cajón 200 × 150 en la placa de los defaults (350×350, «#», anillo de 8).
+  const CAJON = { sectionType: '2UPN' as const, sectionSize: 200 };
+
+  it('planta: las dos U enfrentadas (dos paths sin arcos) y ninguna barra del anillo toca el «#»', () => {
+    const { svg, cajas, barras, result } = montar(CAJON);
+    const us = Array.from(svg.querySelectorAll('path[data-role="perfil-planta"]'));
+    expect(us).toHaveLength(2);
+    for (const u of us) expect(u.getAttribute('d')).not.toMatch(/ A /);
+    const rigs = cajas('rigidizador-planta');
+    expect(rigs).toHaveLength(4);
+    expect(barras).toHaveLength(8);
+    for (const b of barras) for (const r of rigs) expect(distancia(b, r)).toBeGreaterThan(b.r);
+    expect(result.warnings.filter((w) => w.severity === 'fail')).toHaveLength(0);
+  });
+
+  it('planta: el par X abraza las almas del cajón (y = ±75) y el par Y sus alas (x = ±100)', () => {
+    const { cajas } = montar(CAJON);
+    const placa = cajas('placa-planta')[0];
+    const escala = placa.w / anchorPlateDefaults.plate_a;
+    const cx = placa.x + placa.w / 2, cy = placa.y + placa.h / 2;
+    const rigs = cajas('rigidizador-planta');
+    const horizontales = rigs.filter((r) => r.w > r.h).sort((p, q) => p.y - q.y);
+    const verticales = rigs.filter((r) => r.h > r.w).sort((p, q) => p.x - q.x);
+    expect(horizontales).toHaveLength(2);
+    expect(verticales).toHaveLength(2);
+    expect(cy - (horizontales[0].y + horizontales[0].h)).toBeCloseTo(75 * escala, 6);
+    expect(horizontales[1].y - cy).toBeCloseTo(75 * escala, 6);
+    expect(cx - (verticales[0].x + verticales[0].w)).toBeCloseTo(100 * escala, 6);
+    expect(verticales[1].x - cx).toBeCloseTo(100 * escala, 6);
+  });
+
+  it('alzado: el pilar es una chapa maciza de ancho h = 200 (el alma de la U de delante), centrada en la placa', () => {
+    const { cajas } = montar(CAJON);
+    const pilar = cajas('perfil-alzado');
+    expect(pilar).toHaveLength(1);
+    const placa = cajas('placa-alzado')[0];
+    const escala = placa.w / anchorPlateDefaults.plate_a;
+    expect(pilar[0].w).toBeCloseTo(200 * escala, 6);
+    expect(pilar[0].x + pilar[0].w / 2).toBeCloseTo(placa.x + placa.w / 2, 6);
+    expect(cajas('rigidizador-alzado-canto')).toHaveLength(2);
+  });
+
+  it('el HEB de los defaults sigue viéndose como dos alas de canto y el alma: tres tiras', () => {
+    expect(montar().cajas('perfil-alzado')).toHaveLength(3);
+  });
+});

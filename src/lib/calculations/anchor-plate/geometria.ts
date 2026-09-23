@@ -19,25 +19,47 @@
 //     (x = ±h/2), de y = −b/2 a y = +b/2. `rib_count = 4` añade este par.
 // Las barras viven en las ocho celdas que deja el «#» alrededor del pilar:
 // nunca bajo el perfil ni sobre una cartela.
+//
+// Pilar 2UPN en cajón (2026-09-23; es el habitual de las láminas del estudio):
+// dos UPN enfrentadas con las almas fuera (y = ±b/2, con b = 2·b_UPN) y las
+// puntas de las alas soldadas en y = 0, así que el canto h de la UPN corre a
+// lo largo del eje fuerte igual que en un perfil en I. Las cuatro caras son
+// macizas: el par X se pega a las almas y el par Y a las alas, y dentro del
+// cajón la placa sólo es eficaz en la corona de ancho c junto a las paredes.
 
-import type { AnchorPlateInputs } from '../../../data/defaults';
-import { makeISectionBySize } from '../../sections';
+import type { AnchorPlateInputs, AnchorPlateSectionType } from '../../../data/defaults';
+import { makeISectionBySize, makeUPNBoxBySize } from '../../sections';
+import { getSizesForTipo, getSizesUPN } from '../../../data/steelProfiles';
 
 export interface Rect { x1: number; x2: number; y1: number; y2: number }
 export interface Pt { x: number; y: number }
 
+// ─── Familias de perfil que admite el módulo ───────────────────────────────
+
+/** I/H laminados y el cajón de dos UPN. Es la lista del selector y la que
+ *  valida el asistente. */
+export const FAMILIAS_PERFIL: readonly AnchorPlateSectionType[] = ['IPE', 'HEA', 'HEB', 'IPN', '2UPN'];
+
+/** Designaciones disponibles en la familia (en 2UPN, las de la UPN). */
+export function tallasPerfil(tipo: AnchorPlateSectionType): number[] {
+  return tipo === '2UPN' ? getSizesUPN() : getSizesForTipo(tipo);
+}
+
 // ─── Huella del perfil ─────────────────────────────────────────────────────
 
 export interface Huella {
+  /** 'I' para IPE/HEA/HEB/IPN; '2UPN' para el cajón de dos UPN. */
+  tipo: 'I' | '2UPN';
   /** mm — canto del perfil (a lo largo de x). */
   h: number;
-  /** mm — ancho de ala (a lo largo de y). */
+  /** mm — ancho del perfil a lo largo de y: el ala en un I/H, 2·b_UPN en el cajón. */
   bf: number;
   tf: number;
   tw: number;
   /** mm — radio de acuerdo alma-ala (sólo para dibujar). */
   r: number;
-  /** Rectángulos macizos del perfil en planta: dos alas y el alma. */
+  /** Rectángulos macizos del perfil en planta: dos alas y el alma (I/H) o
+   *  las cuatro paredes del cajón (se solapan en las esquinas). */
   walls: Rect[];
   /** false cuando el perfil no está en el catálogo y la huella es una
    *  estimación (60 % de la placa), como venía haciendo el motor. */
@@ -45,23 +67,43 @@ export interface Huella {
 }
 
 export function huellaPerfil(inp: Pick<AnchorPlateInputs, 'sectionType' | 'sectionSize' | 'plate_a' | 'plate_b'>): Huella {
-  const p = makeISectionBySize(inp.sectionType as 'IPE' | 'HEA' | 'HEB' | 'IPN', inp.sectionSize)?.profile;
-  if (!p) {
-    const h = inp.plate_a * 0.6;
-    const bf = inp.plate_b * 0.6;
+  if (inp.sectionType === '2UPN') {
+    const p = makeUPNBoxBySize(inp.sectionSize);
+    if (!p) return huellaEstimada('2UPN', inp);
+    // Cajón h × b (b = 2·b_UPN): almas en y = ±b/2 a lo largo de todo el
+    // canto y alas en x = ±h/2 (cada una, dos medias alas soldadas en y = 0).
+    const h2 = p.h / 2, b2 = p.b / 2;
     return {
-      h, bf, tf: 0, tw: 0, r: 0, catalogo: false,
-      walls: [{ x1: -h / 2, x2: h / 2, y1: -bf / 2, y2: bf / 2 }],
+      tipo: '2UPN', h: p.h, bf: p.b, tf: p.tf, tw: p.tw, r: 0, catalogo: true,
+      walls: [
+        { x1: h2 - p.tf, x2: h2,         y1: -b2,       y2: b2         },   // alas +x
+        { x1: -h2,       x2: -h2 + p.tf, y1: -b2,       y2: b2         },   // alas −x
+        { x1: -h2,       x2: h2,         y1: b2 - p.tw, y2: b2         },   // alma +y
+        { x1: -h2,       x2: h2,         y1: -b2,       y2: -b2 + p.tw },   // alma −y
+      ],
     };
   }
+  const p = makeISectionBySize(inp.sectionType, inp.sectionSize)?.profile;
+  if (!p) return huellaEstimada('I', inp);
   const h2 = p.h / 2, b2 = p.b / 2, tw2 = p.tw / 2;
   return {
-    h: p.h, bf: p.b, tf: p.tf, tw: p.tw, r: p.r, catalogo: true,
+    tipo: 'I', h: p.h, bf: p.b, tf: p.tf, tw: p.tw, r: p.r, catalogo: true,
     walls: [
       { x1: h2 - p.tf, x2: h2,          y1: -b2,  y2: b2  },   // ala +x
       { x1: -h2,       x2: -h2 + p.tf,  y1: -b2,  y2: b2  },   // ala −x
       { x1: -h2 + p.tf, x2: h2 - p.tf,  y1: -tw2, y2: tw2 },   // alma
     ],
+  };
+}
+
+/** Perfil fuera de catálogo: caja maciza al 60 % de la placa, como venía
+ *  haciendo el motor. */
+function huellaEstimada(tipo: Huella['tipo'], inp: Pick<AnchorPlateInputs, 'plate_a' | 'plate_b'>): Huella {
+  const h = inp.plate_a * 0.6;
+  const bf = inp.plate_b * 0.6;
+  return {
+    tipo, h, bf, tf: 0, tw: 0, r: 0, catalogo: false,
+    walls: [{ x1: -h / 2, x2: h / 2, y1: -bf / 2, y2: bf / 2 }],
   };
 }
 
@@ -73,8 +115,9 @@ export function cajaPerfil(hu: Huella): Rect {
 // ─── Rigidizadores ─────────────────────────────────────────────────────────
 
 export interface Rigidizador {
-  /** 'x': paralelo al eje fuerte, en las puntas de las alas. 'y': paralelo al
-   *  eje débil, en la cara exterior de las alas. */
+  /** 'x': paralelo al eje fuerte, en las puntas de las alas (en el cajón,
+   *  pegado a las almas). 'y': paralelo al eje débil, en la cara exterior de
+   *  las alas. */
   eje: 'x' | 'y';
   lado: 1 | -1;
   /** Planta de la chapa, de borde a borde de la placa. */

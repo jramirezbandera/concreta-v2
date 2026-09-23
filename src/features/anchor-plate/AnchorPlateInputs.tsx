@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { type AnchorPlateInputs as Inputs } from '../../data/defaults';
-import { getSizesForTipo } from '../../data/steelProfiles';
 import {
   AVAILABLE_REBAR_DIAMS,
   AVAILABLE_REBAR_GRADES,
@@ -15,7 +14,7 @@ import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
 import { edgeAxisPatch, shearPatch, type ValidationWarning } from '../../lib/calculations/anchorPlate';
-import { normalizarDisposicion } from '../../lib/calculations/anchor-plate/geometria';
+import { FAMILIAS_PERFIL, normalizarDisposicion, tallasPerfil } from '../../lib/calculations/anchor-plate/geometria';
 
 interface Props {
   state: Inputs;
@@ -299,8 +298,8 @@ function ExpandToggle({ open, onToggle, label }: { open: boolean; onToggle: () =
 
 // Textos de ayuda (tooltips ⓘ). Módulo todo override: textos locales.
 const HELP = {
-  sectionType: 'Serie del perfil metálico del soporte.',
-  sectionSize: 'Designación del perfil dentro de la serie.',
+  sectionType: 'Serie del perfil metálico del soporte: I/H laminado (IPE, HEA, HEB, IPN) o cajón de dos UPN soldadas por las puntas de las alas (2UPN).',
+  sectionSize: 'Designación del perfil dentro de la serie. En 2UPN, la de cada UPN: 2UPN 200 son dos UPN 200.',
   NEd: 'Axil de cálculo (ELU). Positivo en compresión.',
   NEdG: 'Axil cuasipermanente (parte sostenida de la carga), para fluencia/aplastamiento del hormigón.',
   Mx: 'Momento de cálculo (ELU) respecto al eje fuerte.',
@@ -341,7 +340,7 @@ const HELP = {
 // ── Main ──────────────────────────────────────────────────────────────────
 export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
   // Snap size to first available if sectionType changes and current is invalid
-  const availableSizes = getSizesForTipo(state.sectionType);
+  const availableSizes = tallasPerfil(state.sectionType);
   useEffect(() => {
     if (!availableSizes.includes(state.sectionSize)) {
       setField('sectionSize', availableSizes[0] ?? 200);
@@ -393,7 +392,7 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
           help={HELP.sectionType}
           field="sectionType"
           value={state.sectionType as string}
-          options={(['IPE', 'HEA', 'HEB', 'IPN'] as const).map((t) => ({ value: t, label: t }))}
+          options={FAMILIAS_PERFIL.map((t) => ({ value: t, label: t }))}
           setField={setField}
         />
         <SelectField

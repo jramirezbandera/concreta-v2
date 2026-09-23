@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import type { AnchorPlateInputs } from '../../data/defaults';
 import type { AnchorPlateResult } from '../../lib/calculations/anchorPlate';
-import { makeISectionBySize, sectionOutline, outlinePathD } from '../../lib/sections';
+import { sectionOutline, outlinePathD } from '../../lib/sections';
 import {
   huellaPerfil,
   rigidizadores,
@@ -99,12 +99,14 @@ const COLORS = {
 // la leyenda) hereda la sans de la raíz.
 const MONO = { fontFamily: 'var(--font-mono, monospace)' } as const;
 
+/** Redondeo a 3 decimales para los `d` escritos a mano (como outlinePathD). */
+const n3 = (v: number): number => Math.round(v * 1000) / 1000;
+
 export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si' }: Props) {
   const C = COLORS[mode];
-  const profile = makeISectionBySize(inp.sectionType, inp.sectionSize)?.profile;
   // La MISMA geometría que usa el motor (anchor-plate/geometria.ts): huella
-  // del perfil y cartelas de borde a borde pegadas a sus caras. Dibujo y
-  // cálculo no pueden discrepar sobre dónde está el acero.
+  // del perfil (I/H o cajón 2UPN) y cartelas de borde a borde pegadas a sus
+  // caras. Dibujo y cálculo no pueden discrepar sobre dónde está el acero.
   const hu = huellaPerfil(inp);
   const rigs = rigidizadores(inp, hu);
   const disposicion = normalizarDisposicion(inp.bar_nLayout);
@@ -193,12 +195,6 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
 
   const plateW = inp.plate_a * escala;
   const plateH = inp.plate_b * escala;
-
-  // Profile footprint (planta): I-section outline, rotated so h is along plate_a
-  const profH = (profile?.h ?? 200) * escala;
-  const profB = (profile?.b ?? 200) * escala;
-  const profTf = (profile?.tf ?? 15) * escala;
-  const profTw = (profile?.tw ?? 9) * escala;
 
   // ─── ALZADO (abajo) ──────────────────────────────────────────────────────
   const alzadoTop = pad + ph + panelGap;
@@ -451,18 +447,45 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
           />
         ))}
 
-        {/* Huella del perfil, centrada en la placa, con sus acuerdos alma-ala
-            (contorno compartido de lib/sections/outline, el mismo que dibujan
-            vigas y pilares). El contorno se genera con el canto h vertical;
-            aquí h corre a lo largo del eje fuerte (x), así que se gira 90°: las
-            alas quedan verticales en x = ±h/2 y el alma horizontal. Sin
-            catálogo (perfil desconocido) se pinta la caja estimada. */}
-        {profile && (() => {
-          const outline = sectionOutline({ kind: 'I', ...profile });
-          const d = outline
-            ? outlinePathD(outline, (mm) => mm * scalePlanta, (mm) => mm * scalePlanta, (mm) => mm * scalePlanta)
-            : '';
-          return d ? (
+        {/* Huella del perfil, centrada en la placa, con la geometría que
+            calcula el motor. I/H: su contorno real con los acuerdos alma-ala
+            (lib/sections/outline, el mismo que dibujan vigas y pilares); se
+            genera con el canto h vertical y aquí h corre a lo largo del eje
+            fuerte (x), así que se gira 90°: alas verticales en x = ±h/2 y alma
+            horizontal. 2UPN: las dos U enfrentadas, con las almas en y = ±b/2
+            y las puntas de las alas soldadas en y = 0 (el trazo común de los
+            dos polígonos es el cordón). Sin catálogo (perfil desconocido) se
+            pinta la caja estimada a trazos. */}
+        {hu.catalogo && hu.tipo === '2UPN' && (() => {
+          const X = (mm: number) => n3(pCx + mm * scalePlanta);
+          const Y = (mm: number) => n3(pCy + mm * scalePlanta);
+          const h2 = hu.h / 2, b2 = hu.bf / 2;
+          // Una U: el alma en y = lado·b/2 y las alas hacia y = 0.
+          const u = (lado: 1 | -1): string => {
+            const ya = lado * b2, yi = lado * (b2 - hu.tw);
+            const pts: Array<[number, number]> = [
+              [-h2, ya], [h2, ya], [h2, 0], [h2 - hu.tf, 0],
+              [h2 - hu.tf, yi], [-h2 + hu.tf, yi], [-h2 + hu.tf, 0], [-h2, 0],
+            ];
+            return `M ${pts.map(([x, y]) => `${X(x)},${Y(y)}`).join(' L ')} Z`;
+          };
+          return ([1, -1] as const).map((lado) => (
+            <path
+              key={`upn-${lado}`}
+              d={u(lado)}
+              fill={C.profile}
+              stroke={C.profile_stroke}
+              strokeWidth={1}
+              data-role="perfil-planta"
+              data-tipo="2UPN"
+            />
+          ));
+        })()}
+        {hu.catalogo && hu.tipo === 'I' && (() => {
+          const outline = sectionOutline({ kind: 'I', h: hu.h, b: hu.bf, tf: hu.tf, tw: hu.tw, r: hu.r });
+          if (!outline) return null;
+          const d = outlinePathD(outline, (mm) => mm * scalePlanta, (mm) => mm * scalePlanta, (mm) => mm * scalePlanta);
+          return (
             <path
               d={d}
               transform={`translate(${pCx} ${pCy}) rotate(90)`}
@@ -471,15 +494,9 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
               strokeWidth={1}
               data-role="perfil-planta"
             />
-          ) : (
-            <g data-role="perfil-planta">
-              <rect x={pCx - profH / 2}            y={pCy - profB / 2} width={profTf} height={profB} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-              <rect x={pCx + profH / 2 - profTf}   y={pCy - profB / 2} width={profTf} height={profB} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-              <rect x={pCx - profH / 2 + profTf}   y={pCy - profTw / 2} width={profH - 2 * profTf} height={profTw} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-            </g>
           );
         })()}
-        {!profile && (
+        {!hu.catalogo && (
           <rect
             data-role="perfil-planta"
             x={pCx - (hu.h / 2) * scalePlanta}
@@ -579,28 +596,29 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
         </pattern>
         <rect x={pedestalAlzadoX} y={pedestalAlzadoY} width={pedestalAlzadoW} height={pedestalAlzadoH} fill={`url(#hatch-concrete-${uid})`} />
 
-        {/* Column profile silhouette (D10 — 5-second visual tell) */}
-        {profile && (() => {
-          const colScale = scaleAlzado;
-          const colW = profile.h * colScale;   // h is along plate_a in our convention
-          const colTf = profile.tf * colScale;
-          const colTw = profile.tw * colScale;
-          const colBf = profile.b * colScale;  // used for flange thickness indicator only
+        {/* Pilar (alzado; D10 — la pista visual de 5 segundos). Se mira a lo
+            largo de y. I/H: las dos alas de canto en x = ±h/2 y el alma entre
+            ellas. 2UPN: se ve de frente el alma de la U más cercana, una chapa
+            maciza de ancho h. Sin catálogo no hay pilar que pintar. */}
+        {hu.catalogo && (() => {
+          const colW = hu.h * scaleAlzado;   // h corre a lo largo de plate_a
+          const colTf = hu.tf * scaleAlzado;
+          const colTw = hu.tw * scaleAlzado;
           const colX = aCx - colW / 2;
           const colY = plateYrect - colH * scaleAlzado;
           const colHpx = colH * scaleAlzado;
-          // Simplified I-section elevation: two outer vertical lines + web
+          const chapa = (key: string, x: number, w: number) => (
+            <rect key={key} data-role="perfil-alzado" x={x} y={colY} width={w} height={colHpx} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
+          );
           return (
             <g>
-              <rect x={colX} y={colY} width={colTf} height={colHpx} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-              <rect x={colX + colW - colTf} y={colY} width={colTf} height={colHpx} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-              <rect x={aCx - colTw / 2} y={colY} width={colTw} height={colHpx} fill={C.profile} stroke={C.profile_stroke} strokeWidth={1} />
-              {/* Profile label */}
+              {hu.tipo === '2UPN'
+                ? chapa('alma', colX, colW)
+                : [chapa('ala-1', colX, colTf), chapa('ala-2', colX + colW - colTf, colTf), chapa('alma', aCx - colTw / 2, colTw)]}
+              {/* Designación del perfil */}
               <text x={aCx} y={colY - 4} fill={C.text} fontSize={9} textAnchor="middle" opacity={0.7} style={MONO}>
                 {inp.sectionType} {inp.sectionSize}
               </text>
-              {/* Unused but referenced to silence lint */}
-              <g style={{ display: 'none' }} data-col-bf={colBf} />
             </g>
           );
         })()}

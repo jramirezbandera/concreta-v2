@@ -237,3 +237,80 @@ describe('líneas de rotura', () => {
     expect(r4.c).toBeCloseTo(39.4, 0);
   });
 });
+
+describe('2UPN en cajón (2026-09-23): las cuatro caras son macizas', () => {
+  // 2UPN 200: h = 200 (canto de la UPN, a lo largo del eje fuerte), b = 2·75 =
+  // 150, tf = 11,5, tw = 8,5. En la placa de los defaults (350×350, anillo de
+  // 8Ø20 a 40 del borde, «#» de 10 mm).
+  const B = { ...anchorPlateDefaults, sectionType: '2UPN' as const, sectionSize: 200 };
+  const hb = huellaPerfil(B);
+
+  it('huella: caja 200×150 con las alas en x = ±100 (11,5) y las almas en y = ±75 (8,5)', () => {
+    expect(hb.tipo).toBe('2UPN');
+    expect(hb.catalogo).toBe(true);
+    expect(hb.h).toBe(200);
+    expect(hb.bf).toBe(150);
+    expect(hb.walls).toHaveLength(4);
+    expect(hb.walls[0]).toEqual({ x1: 88.5, x2: 100, y1: -75, y2: 75 });
+    expect(hb.walls[2]).toEqual({ x1: -100, x2: 100, y1: 66.5, y2: 75 });
+  });
+
+  it('un tamaño que no existe en la serie UPN cae a la caja estimada, y sigue diciendo que es un cajón', () => {
+    const h2 = huellaPerfil({ ...B, sectionSize: 210 });
+    expect(h2.catalogo).toBe(false);
+    expect(h2.tipo).toBe('2UPN');
+  });
+
+  it('el «#» abraza el cajón: par X pegado a las almas (y = ±75..85, vuelo 75) y par Y a las alas (x = ±100..110, vuelo 100)', () => {
+    const r = rigidizadores(B, hb);
+    expect(r).toHaveLength(4);
+    expect(r[0].rect).toEqual({ x1: -175, x2: 175, y1: 75, y2: 85 });
+    expect(r[0].vuelo).toBe(75);
+    expect(r[2].rect).toEqual({ x1: 100, x2: 110, y1: -175, y2: 175 });
+    expect(r[2].vuelo).toBe(100);
+  });
+
+  it('el anillo de 8 deja 25 mm a las cartelas Y y 50 a las X: nada por debajo de 0,75·φ', () => {
+    const barras = posicionesBarras(B);
+    const h = holguras(barras, hb, rigidizadores(B, hb));
+    expect(h).toHaveLength(8);
+    expect(h.filter((x) => x.acero < 0.75 * B.bar_diam)).toHaveLength(0);
+    expect(Math.min(...h.map((x) => x.acero))).toBeCloseTo(25, 6);
+    const centradas = h.filter((_, i) => Math.abs(barras[i].x) < 1e-6);
+    expect(centradas).toHaveLength(2);
+    for (const x of centradas) expect(x.acero).toBeCloseTo(50, 6);
+  });
+
+  it('área eficaz sin cartelas: la corona de ancho c alrededor de las cuatro paredes, con el hueco del cajón fuera', () => {
+    // c = 10: envolvente 220×170 menos el hueco interior que la corona no
+    // alcanza, (200 − 2·11,5 − 2·10) × (150 − 2·8,5 − 2·10) = 157 × 113.
+    const { A_eff } = areaEficaz(B, hb, [], 10);
+    expect(A_eff).toBeCloseTo(220 * 170 - 157 * 113, 6);
+  });
+
+  it('apoyos: la barra centrada (0, 135) se apoya en la cartela del alma a 50 con panel 200; la (135, 0) en la del ala a 25 con panel 150', () => {
+    const rigs = rigidizadores(B, hb);
+    const a1 = apoyosBarra({ x: 0, y: 135 }, B, hb, rigs)!;
+    expect(a1.eje).toBe('y');
+    expect(a1.m).toBeCloseTo(50, 6);
+    expect(a1.apoyo).toBe('rigidizador');
+    expect(a1.anchoPanel).toBeCloseTo(200, 6);
+    const a2 = apoyosBarra({ x: 135, y: 0 }, B, hb, rigs)!;
+    expect(a2.eje).toBe('x');
+    expect(a2.m).toBeCloseTo(25, 6);
+    expect(a2.anchoPanel).toBeCloseTo(150, 6);
+  });
+
+  it('sin cartelas, el alma del cajón apoya a la barra que queda a su altura: (0, 100) → m = 25 al perfil', () => {
+    const ap = apoyosBarra({ x: 0, y: 100 }, B, hb, [])!;
+    expect(ap.eje).toBe('y');
+    expect(ap.m).toBeCloseTo(25, 6);
+    expect(ap.apoyo).toBe('perfil');
+  });
+
+  it('voladizo equivalente con el «#»: franja lateral (150 de ancho, fondo 65), celda central (200, fondo 90) y esquina 65×90', () => {
+    const v = voladizoEquivalente(B, hb);
+    const candidatos = [voladizoPanelTresLados(150, 65), voladizoPanelTresLados(200, 90), voladizoEsquina(65, 90)];
+    expect(v.c).toBeCloseTo(Math.max(...candidatos), 9);
+  });
+});

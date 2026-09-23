@@ -57,7 +57,8 @@ export interface Pedestal {
 
 // ─── Steel profile ─────────────────────────────────────────────────────────
 
-export type AnchorPlateProfileType = "IPE" | "HEA" | "HEB" | "IPN";
+/** I/H laminados y el cajón de dos UPN (2026-09-23). */
+export type AnchorPlateProfileType = "IPE" | "HEA" | "HEB" | "IPN" | "2UPN";
 
 export interface ProfileRef {
   type: AnchorPlateProfileType;

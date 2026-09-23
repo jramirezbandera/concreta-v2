@@ -271,3 +271,34 @@ describe('anchorPlate adapter — resumen (motor SIN campo error)', () => {
     expect(s.verdict).toBe('fail');
   });
 });
+
+describe('anchorPlate adapter — cajón 2UPN (2026-09-23)', () => {
+  it('2UPN existe y su tamaño se valida contra la serie UPN', () => {
+    const p = plan({ sectionType: '2UPN', sectionSize: 200 });
+    expect(p.fields.sectionType).toBe('2UPN');
+    expect(p.fields.sectionSize).toBe(200);
+    expect(changeFor(p, 'Tamaño del perfil')?.after).toBe('2UPN 200');
+  });
+
+  it('un tamaño que no es de UPN se rechaza con la serie', () => {
+    const p = plan({ sectionType: '2UPN', sectionSize: 210 });
+    expect(p.fields.sectionType).toBe('2UPN');
+    expect(p.fields.sectionSize).toBeUndefined();
+    const s = skipFor(p, 'Tamaño del perfil');
+    expect(s?.reason).toContain('2UPN 210 no está en el catálogo');
+    expect(s?.reason).toContain('80');
+  });
+
+  it('cambiar a 2UPN con un tamaño vigente que la serie UPN no tiene ajusta al primero (80) y avisa', () => {
+    const current: AnchorPlateInputs = { ...anchorPlateDefaults, sectionType: 'HEB', sectionSize: 1000 };
+    const p = plan({ sectionType: '2UPN' }, current);
+    expect(p.fields.sectionSize).toBe(80);
+    expect(p.warnings.some((w) => w.includes('2UPN 80'))).toBe(true);
+  });
+
+  it('el motor calcula el plan resultante sin avisos de construibilidad', () => {
+    const p = plan({ sectionType: '2UPN', sectionSize: 200 });
+    const r = calcAnchorPlate({ ...anchorPlateDefaults, ...p.fields });
+    expect(r.warnings.filter((w) => w.severity === 'fail')).toHaveLength(0);
+  });
+});

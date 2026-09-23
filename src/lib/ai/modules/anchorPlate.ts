@@ -40,7 +40,7 @@ import {
   shearPatch,
   type AnchorPlateResult,
 } from '../../calculations/anchorPlate';
-import { getSizesForTipo } from '../../../data/steelProfiles';
+import { FAMILIAS_PERFIL, tallasPerfil } from '../../calculations/anchor-plate/geometria';
 import { availableFck } from '../../../data/materials';
 import {
   AVAILABLE_BOTTOM_ANCHORAGES,
@@ -65,7 +65,8 @@ import { formatQuantity } from '../../units/format';
 import type { UnitSystem } from '../../units/types';
 
 // ── Catálogos del módulo ──────────────────────────────────────────────────────
-const SECTION_TYPES: readonly string[] = ['IPE', 'HEA', 'HEB', 'IPN'];
+// I/H laminados y, desde 2026-09-23, el cajón de dos UPN.
+const SECTION_TYPES: readonly string[] = FAMILIAS_PERFIL;
 const PLATE_STEELS: readonly string[] = ['S235', 'S275', 'S355'];
 // La 9 (retícula 3×3 con una barra bajo el pilar) se retiró el 2026-09-23; la
 // 12 es el anillo con pares. Un 9 en el payload se rechaza con la lista.
@@ -97,8 +98,8 @@ export const ANCHOR_PLATE_PAYLOAD_SCHEMA: Record<string, unknown> = {
     'warnings',
   ],
   properties: {
-    sectionType: { type: ['string', 'null'], enum: [...SECTION_TYPES, null], description: 'Familia del perfil del pilar que apoya en la placa (IPE, HEA, HEB o IPN).' },
-    sectionSize: { type: ['integer', 'null'], description: 'Designación del perfil (HEB 200 → 200).' },
+    sectionType: { type: ['string', 'null'], enum: [...SECTION_TYPES, null], description: 'Familia del perfil del pilar que apoya en la placa: IPE, HEA, HEB, IPN o 2UPN (cajón de dos UPN soldadas por las puntas de las alas). Escribe "2UPN" si el enunciado dice "2xUPN", "2 UPN" o "UPN en cajón".' },
+    sectionSize: { type: ['integer', 'null'], description: 'Designación del perfil (HEB 200 → 200; 2UPN 200 → 200, la de cada UPN).' },
     NEd_kN: { type: ['number', 'null'], description: 'Axil de CÁLCULO (ELU) en kN, COMPRESIÓN POSITIVA. Un valor negativo es tracción.' },
     NEd_G_kN: { type: ['number', 'null'], description: 'Axil CUASI-PERMANENTE en kN (la parte del axil que siempre está: peso propio y cargas permanentes). Se usa solo para la fricción placa-hormigón que resiste el cortante.' },
     Mx_kNm: { type: ['number', 'null'], description: 'Momento de cálculo alrededor del eje FUERTE, en kNm.' },
@@ -444,7 +445,7 @@ function buildAnchorPlatePlan(
     }
   }
   const typeFinal = (fields.sectionType ?? current.sectionType) as AnchorPlateSectionType;
-  const sizes = getSizesForTipo(typeFinal);
+  const sizes = tallasPerfil(typeFinal);
 
   if (x.sectionSize !== null) {
     if (!sizes.includes(x.sectionSize)) {

@@ -2,7 +2,7 @@
 // Run: bun test src/test/calc/anchorPlate.test.ts
 
 import { describe, expect, it } from 'vitest';
-import { calcAnchorPlate, checkStiffener, solveAxisAligned4 } from '../../lib/calculations/anchorPlate';
+import { calcAnchorPlate, checkStiffener, solveAxisAligned4, tStubEffectiveArea } from '../../lib/calculations/anchorPlate';
 import { anchorPlateDefaults } from '../../data/defaults';
 
 // Fixture histórica: los defaults del módulo hasta 2026-09-23 — HEB-200, placa
@@ -1335,5 +1335,41 @@ describe('H7 (Phase 5) — alzado: el anillo con pares (12) expone ×N en column
     }
     expect(byX.size).toBe(4);
     expect(Array.from(byX.values()).sort()).toEqual([2, 2, 4, 4]);
+  });
+});
+
+describe('2UPN en cajón (2026-09-23): el motor lee la huella de cuatro paredes', () => {
+  // 2UPN 200 (200 × 150, tf = 11,5, tw = 8,5) en la placa de los defaults
+  // (350×350×20, anillo de 8Ø20, «#» de 120×10).
+  const cajon = { ...anchorPlateDefaults, sectionType: '2UPN' as const, sectionSize: 200 };
+
+  it('calcula de punta a punta: 15 comprobaciones finitas y ninguna barra pisa acero', () => {
+    const r = calcAnchorPlate(cajon);
+    expect(r.valid).toBe(true);
+    expect(r.checks).toHaveLength(15);
+    for (const c of r.checks) expect(Number.isFinite(c.utilization)).toBe(true);
+    expect(r.warnings.filter((w) => w.severity === 'fail')).toHaveLength(0);
+  });
+
+  it('la compresión bajo placa ve las cuatro paredes: la corona de ancho c no llena el hueco del cajón, y las cartelas suman', () => {
+    const fjd = 15;
+    const conCartelas = tStubEffectiveArea(cajon, fjd);
+    const sinCartelas = tStubEffectiveArea({ ...cajon, rib_count: 0 }, fjd);
+    expect(sinCartelas.c).toBeGreaterThan(0);
+    // Sin cartelas: unión de las cuatro paredes ensanchadas c, que es la
+    // envolvente (200 + 2c) × (150 + 2c) MENOS el hueco interior que la
+    // corona no alcanza (por dentro el cajón mide 177 × 133).
+    const envolvente = (200 + 2 * sinCartelas.c) * (150 + 2 * sinCartelas.c);
+    expect(sinCartelas.A_eff).toBeLessThan(envolvente);
+    expect(sinCartelas.A_eff).toBeGreaterThan(envolvente - 177 * 133);
+    expect(conCartelas.A_eff).toBeGreaterThan(sinCartelas.A_eff);
+    expect(conCartelas.A_eff).toBeLessThanOrEqual(cajon.plate_a * cajon.plate_b);
+  });
+
+  it('el T-stub de la barra traccionada se apoya en la cartela, no en una cara del perfil que no existe', () => {
+    const r = calcAnchorPlate({ ...cajon, Mx: 60, My: 0 });
+    const row = r.checks.find((c) => c.id === 'plate-tension-tstub')!;
+    expect(row.limit).toContain('al rigidizador');
+    expect(Number.isFinite(row.utilization)).toBe(true);
   });
 });
