@@ -32,6 +32,7 @@ import { RockfillWallResults } from '../../features/rockfill-wall/RockfillWallRe
 import { RetainingWallResults } from '../../features/retaining-wall/RetainingWallResults';
 import { AnchorPlateResults } from '../../features/anchor-plate/AnchorPlateResults';
 import { ForjadosResults } from '../../features/forjados/ForjadosResults';
+import { IsolatedFootingResults } from '../../features/isolated-footing/IsolatedFootingResults';
 
 import { calcMicropiles } from '../../lib/calculations/micropiles';
 import { calcRetainingWall } from '../../lib/calculations/retainingWall';
@@ -42,13 +43,14 @@ import { calcSteelColumn } from '../../lib/calculations/steelColumns';
 import { calcRockfillWall } from '../../lib/calculations/rockfillWall';
 import { calcAnchorPlate } from '../../lib/calculations/anchorPlate';
 import { calcForjados } from '../../lib/calculations/rcSlabs';
+import { calcIsolatedFooting } from '../../lib/calculations/isolatedFooting';
 import { variantSwitchPatch } from '../../data/forjadoTipologias';
 
 import {
   micropilesDefaults, micropilesSoilDefaults, punchingDefaults,
   rcBeamDefaults, steelBeamDefaults, steelColumnDefaults,
   rockfillWallDefaults, retainingWallDefaults, anchorPlateDefaults,
-  forjadosDefaults,
+  forjadosDefaults, isolatedFootingDefaults,
 } from '../../data/defaults';
 
 interface Case {
@@ -221,6 +223,30 @@ const CASES: Case[] = [
         ui: <ForjadosResults result={r} />,
         checks: [...r.vano.checks, ...r.apoyo.checks, ...r.shearChecks, ...r.infoChecks],
       };
+    },
+  },
+  {
+    // Rígida: el motor da por NEUTRAS flexión, cortante y punzonamiento, y
+    // activa biela-tirante. Las neutras también se pintan: una comprobación
+    // que no aplica tiene que decirlo, no desaparecer.
+    name: 'isolated-footing (rígida, centrada)',
+    build: () => {
+      const r = calcIsolatedFooting(isolatedFootingDefaults);
+      return { ui: <IsolatedFootingResults result={r} inp={isolatedFootingDefaults} />, checks: r.checks };
+    },
+  },
+  {
+    // Flexible y con momento: entran vuelco, deslizamiento, flexión, cortante
+    // y punzonamiento, que en el caso de arriba no existen.
+    name: 'isolated-footing (flexible con momento)',
+    build: () => {
+      const inp = {
+        ...isolatedFootingDefaults,
+        B: 2.4, L: 1.8, h: 0.45, bc: 0.4, hc: 0.3, Df: 1.0,
+        N: 450, My: 120, H: 30, phi_x: 16, s_x: 150, phi_y: 12, s_y: 200,
+      };
+      const r = calcIsolatedFooting(inp);
+      return { ui: <IsolatedFootingResults result={r} inp={inp} />, checks: r.checks };
     },
   },
 ];

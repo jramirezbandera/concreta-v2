@@ -18,13 +18,58 @@ import { showToast } from '../../components/ui/Toast';
 import { AiChatModal } from '../../components/ai/AiChatModal';
 import { IsolatedFootingInputsPanel } from './IsolatedFootingInputsPanel';
 import { IsolatedFootingResults } from './IsolatedFootingResults';
-import { IsolatedFootingSVG } from './IsolatedFootingSVG';
+import { IsolatedFootingSVG, type IsolatedFootingView } from './IsolatedFootingSVG';
+
+// Las tres vistas del lienzo, en el orden en que se comprueba una zapata:
+// primero si el terreno la aguanta, luego lo que lleva dentro, y por último el
+// modelo con el que se ha dimensionado ese armado.
+const VIEW_TABS: { id: IsolatedFootingView; num: string; label: string; color: string }[] = [
+  { id: 'terreno', num: '1', label: 'Terreno', color: '#ea580c' },
+  { id: 'armado',  num: '2', label: 'Armado',  color: '#0284c7' },
+  { id: 'modelo',  num: '3', label: 'Modelo',  color: '#64748b' },
+];
+
+function ViewTabButton({
+  active, num, label, color, onClick,
+}: { active: boolean; num: string; label: string; color: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={[
+        'group flex items-center gap-2 px-3 py-2 border-r border-border-main transition-colors text-left',
+        active ? 'bg-bg-primary' : 'bg-bg-surface hover:bg-bg-elevated/70',
+      ].join(' ')}
+    >
+      <span
+        className="flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono font-semibold transition-colors"
+        style={{
+          background: active ? `${color}22` : 'var(--color-bg-elevated)',
+          color:      active ? color : 'var(--color-text-secondary)',
+          border:     `1px solid ${active ? `${color}66` : 'var(--color-border-main)'}`,
+        }}
+      >
+        {num}
+      </span>
+      <span
+        className={[
+          'text-[11.5px] font-medium tracking-tight whitespace-nowrap transition-colors',
+          active ? 'text-text-primary' : 'text-text-secondary group-hover:text-text-primary',
+        ].join(' ')}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
 
 export function IsolatedFootingModule() {
   const { state, setField, reset, copyShareLink } = useModuleState('isolated-footing', isolatedFootingDefaults);
   const { openDrawer } = useDrawer();
   const { system } = useUnitSystem();
   const [tab, setTab] = useState<MobileTab>('inputs');
+  const [view, setView] = useState<IsolatedFootingView>('terreno');
 
   // "Rellenar con IA" (T4.3)
   const [aiOpen, setAiOpen] = useState(false);
@@ -63,6 +108,9 @@ export function IsolatedFootingModule() {
     });
 
   const [canvasRef, canvasWidth] = useContainerWidth();
+  // El tope de 1180 px deja la sección y la planta una al lado de la otra
+  // (el lienzo cambia a esa maqueta a partir de 720) sin que en una pantalla
+  // muy ancha el dibujo se estire hasta perder la proporción del papel.
   const svgW = canvasWidth !== undefined && canvasWidth > 0
     ? Math.max(200, canvasWidth - 32)
     : 360;
@@ -117,12 +165,29 @@ export function IsolatedFootingModule() {
             'lg:block',
           ].join(' ')}
         >
+          {/* Pestañas de vista (escritorio) */}
+          <div className="hidden lg:flex items-center bg-bg-surface border-b border-border-main">
+            {VIEW_TABS.map((t) => (
+              <ViewTabButton
+                key={t.id}
+                active={view === t.id}
+                num={t.num}
+                label={t.label}
+                color={t.color}
+                onClick={() => setView(t.id)}
+              />
+            ))}
+            <span className="ml-auto pr-4 text-[10px] font-semibold uppercase tracking-[0.07em] text-text-disabled">
+              Vistas del lienzo
+            </span>
+          </div>
+
           {/* SVG canvas — desktop */}
           <div
             ref={canvasRef}
             className="hidden lg:flex justify-center border-b border-border-main canvas-dot-grid py-4 px-4 min-h-90 items-start"
           >
-            <IsolatedFootingSVG inp={state} result={result} width={Math.min(svgW, 960)} mode="screen" system={system} />
+            <IsolatedFootingSVG inp={state} result={result} width={Math.min(svgW, 1180)} mode="screen" view={view} system={system} />
           </div>
 
           {/* Results */}
@@ -133,20 +198,40 @@ export function IsolatedFootingModule() {
 
         {/* Mobile: Diagramas tab */}
         {tab === 'diagramas' && (
-          <div ref={mobileCanvasRef} className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col items-center py-4 px-4 gap-4 canvas-dot-grid">
-            <IsolatedFootingSVG inp={state} result={result} width={mobileW} mode="screen" system={system} />
+          <div className="flex-1 overflow-y-auto scroll-hide lg:hidden flex flex-col py-3 gap-3">
+            <div className="flex items-stretch bg-bg-surface border-y border-border-main">
+              {VIEW_TABS.map((t) => (
+                <ViewTabButton
+                  key={t.id}
+                  active={view === t.id}
+                  num={t.num}
+                  label={t.label}
+                  color={t.color}
+                  onClick={() => setView(t.id)}
+                />
+              ))}
+            </div>
+            <div ref={mobileCanvasRef} className="flex flex-col items-center px-4 gap-4 canvas-dot-grid">
+              <IsolatedFootingSVG inp={state} result={result} width={mobileW} mode="screen" view={view} system={system} />
+            </div>
           </div>
         )}
 
       </div>
 
-      {/* Hidden PDF clone */}
-      <div className="overflow-hidden w-0 h-0" aria-hidden="true">
-        <div
-          id="isolated-footing-svg-pdf"
-          style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}
-        >
-          <IsolatedFootingSVG inp={state} result={result} mode="pdf" width={320} system={system} />
+      {/* Clones ocultos para el PDF — uno por vista. Van a 560 px porque es el
+          ancho con el que el lienzo apila sección y planta: a página completa
+          (170 mm) un rótulo de 10 px sale a 3 mm, legible en papel. Con la
+          maqueta ancha saldría a 1,5 mm. */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }} aria-hidden="true">
+        <div id="isolated-footing-svg-pdf">
+          <IsolatedFootingSVG inp={state} result={result} mode="pdf" width={560} view="terreno" system={system} />
+        </div>
+        <div id="isolated-footing-svg-pdf-armado">
+          <IsolatedFootingSVG inp={state} result={result} mode="pdf" width={560} view="armado" system={system} />
+        </div>
+        <div id="isolated-footing-svg-pdf-modelo">
+          <IsolatedFootingSVG inp={state} result={result} mode="pdf" width={560} view="modelo" system={system} />
         </div>
       </div>
 

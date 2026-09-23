@@ -1,13 +1,21 @@
-// PDF export for Zapata aislada module.
-// jsPDF + svg2pdf.js — A4 portrait, margins 20mm.
-// Single SVG (planta + sección + diagrama). Inputs in InputsPanel order.
+// PDF de Zapatas aisladas. jsPDF — A4 vertical, márgenes de 20 mm.
+//
+// Página 1: datos de entrada (en el orden del panel), cargas derivadas y la
+// tabla de comprobaciones. Detrás, una página por vista del lienzo —Terreno,
+// Armado y Modelo— a plana entera, que es lo que hace falta para que un rótulo
+// de 10 px del SVG llegue al papel a 3 mm y se lea.
+//
+// El SVG NO pasa por svg2pdf: `embedSvgAsImage` lo serializa a un data-URL y lo
+// rasteriza el navegador. Por eso valen patrones, degradados y `paint-order`, y
+// también los símbolos que no son Latin-1 (σ, ≤, Ø) DENTRO del dibujo. El texto
+// que escribe jsPDF, en cambio, sigue pasando por `pdfStr`.
 
 import { crearPdf } from './fuente';
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { type IsolatedFootingResult } from '../../lib/calculations/isolatedFooting';
 import { formatQuantity } from '../units/format';
 import type { Quantity, UnitSystem } from '../units/types';
-import { embedSvgAsImage, PAGE_W, PAGE_H, setGray, pdfStr,
+import { embedSvgAsImage, svgBoxHeight, PAGE_W, PAGE_H, setGray, pdfStr,
   pdfStrLatin1, STATUS_LABEL, ensureSpace, titledFilename, drawElementTitle, type PdfResult } from './utils';
 
 const M = 20;
@@ -49,32 +57,25 @@ export async function exportIsolatedFootingPDF(
   setGray(doc, 200);
   doc.line(M, titleBaseY + 8, PAGE_W - M, titleBaseY + 8);
 
-  // ── SVG (single — planta + sección + diagrama) ───────────────────────────────
-  const svgContainer = document.getElementById('isolated-footing-svg-pdf');
-  const svgEl = svgContainer ? (svgContainer.querySelector('svg') as SVGSVGElement | null) : null;
-
-  const SVG_X = M;
-  const SVG_Y = titleBaseY + 12;
-  const SVG_W = 80;    // viewBox 320×~426 → preserve aspect ratio
-  const SVG_H = 107;
-
-  if (svgEl) {
-    await embedSvgAsImage(doc, svgEl, { x: SVG_X, y: SVG_Y, width: SVG_W, height: SVG_H });
-  }
-
-  // ── Right column: inputs in panel order ──────────────────────────────────────
-  const COL_R  = M + SVG_W + 7;            // 107
-  const COL_R2 = COL_R + 38;               // 145
-  const LH     = 4.5;
+  // ── Datos de entrada, a dos columnas de ancho completo ───────────────────────
+  // Los tres dibujos se han ido a sus propias páginas: a 80 mm de ancho un
+  // rótulo de 10 px salía a 2 mm (5,7 pt) y no se leía en papel. Aquí queda el
+  // documento —datos y comprobaciones— y detrás va el lienzo a plana entera.
+  const COL_A = M;
+  const COL_B = M + 88;
+  const SUB   = 38;                        // segunda sub-columna de cada grupo
+  const LH    = 4.5;
   // `titleBaseY`, no `M`: con título la regla (titleBaseY+8) baja 5.5mm y pisaba
   // la primera cabecera de esta columna.
-  let ry = titleBaseY + 14;
+  const RY0 = titleBaseY + 14;
+  let colX = COL_A;
+  let ry = RY0;
 
   const secHeader = (label: string, badge?: { text: string }) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     setGray(doc, 60);
-    doc.text(label, COL_R, ry);
+    doc.text(label, colX, ry);
     if (badge) {
       // mono caps badge after the section header (per plan §4.5.1).
       // El ancho del título se mide ANTES de cambiar de fuente: getTextWidth
@@ -88,7 +89,7 @@ export async function exportIsolatedFootingPDF(
       // `courier` es una fuente CORE de jsPDF: Latin-1 y nada mas, asi que
       // la insignia se sanea con el saneador viejo. Con `pdfStr` un simbolo
       // Unicode saldria en UTF-16 y con el doble de ancho del declarado.
-      doc.text(pdfStrLatin1(badge.text), COL_R + labelW + 2, ry);
+      doc.text(pdfStrLatin1(badge.text), colX + labelW + 2, ry);
     }
     ry += LH;
     doc.setFont('helvetica', 'normal');
@@ -99,8 +100,8 @@ export async function exportIsolatedFootingPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     setGray(doc, 80);
-    doc.text(pdfStr(a), COL_R, ry);
-    if (b) doc.text(pdfStr(b), COL_R2, ry);
+    doc.text(pdfStr(a), colX, ry);
+    if (b) doc.text(pdfStr(b), colX + SUB, ry);
     ry += LH;
   };
 
@@ -126,7 +127,11 @@ export async function exportIsolatedFootingPDF(
   secHeader('CARGAS', { text: modeBadge });
   twoCol(`N = ${fmtSi(inp.N, 'force')}`,    `H = ${fmtSi(inp.H, 'force')}`);
   twoCol(`Mx = ${fmtSi(inp.Mx, 'moment')}`, `My = ${fmtSi(inp.My, 'moment')}`);
-  gap();
+  const finColA = ry;
+
+  // La segunda columna arranca a la altura de la primera.
+  colX = COL_B;
+  ry = RY0;
 
   // 4. MATERIALES
   secHeader('MATERIALES');
@@ -143,8 +148,8 @@ export async function exportIsolatedFootingPDF(
   secHeader('SUELO');
   twoCol(`gamma_s = ${inp.gamma_soil_kN_m3} kN/m3`, `mu = ${inp.mu_friction.toFixed(2)}`);
 
-  // ── Cargas derivadas (below SVG, full-width 2-col SLS|ELU) ───────────────────
-  const derY = SVG_Y + SVG_H + 6;
+  // ── Cargas derivadas (full-width 2-col SLS|ELU) ──────────────────────────────
+  const derY = Math.max(finColA, ry) + 6;
   doc.setLineWidth(0.3);
   setGray(doc, 180);
   doc.line(M, derY - 2, PAGE_W - M, derY - 2);
@@ -264,11 +269,16 @@ export async function exportIsolatedFootingPDF(
 
   rowY = drawChecksHeader(rowY);
 
+  // Paso de fila. 6,5 mm y no 7: con 7 la última comprobación se iba sola a una
+  // segunda página por 1 mm (medido con el caso de 16 filas, que es el de una
+  // zapata flexible con momento y cortante).
+  const ALTO_FILA = 6.5;
+
   for (const ch of result.checks) {
-    // Predictive page break: each row is ~7mm tall (text + separator). On
+    // Predictive page break: each row is ALTO_FILA tall (text + separator). On
     // overflow, addPage + redraw header. NEVER silently break out of the loop:
     // a signed legal document must document every check.
-    rowY = ensureSpace(doc, rowY, 7, M, drawChecksHeader);
+    rowY = ensureSpace(doc, rowY, ALTO_FILA, M, drawChecksHeader);
     const isFail = ch.status === 'fail';
     const isWarn = ch.status === 'warn';
     const textG  = isFail ? 180 : isWarn ? 120 : 60;
@@ -290,18 +300,78 @@ export async function exportIsolatedFootingPDF(
 
     setGray(doc, 220);
     doc.line(M, rowY + 2, PAGE_W - M, rowY + 2);
-    rowY += 7;
+    rowY += ALTO_FILA;
   }
 
-  // ── Footer ───────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  setGray(doc, 160);
-  doc.text(
-    `Concreta — CTE DB-SE-C / CE  ·  gamma_aplicado=${inp.loadFactor} (CTE DB-SE 4.2.4)`,
-    M, PAGE_H - M,
-  );
-  doc.text('Pagina 1', PAGE_W - M, PAGE_H - M, { align: 'right' });
+  // ── Páginas de lienzo: una por vista, a plana entera ─────────────────────────
+  // Cada dibujo va solo en su página para poder ir a 170 mm de ancho. El clon
+  // oculto se sirve a 560 px, así que un rótulo de 10 px sale a 3 mm (8,6 pt).
+  const paginasLienzo: Array<{ id: string; titulo: string; pie: string }> = [
+    {
+      id: 'isolated-footing-svg-pdf',
+      titulo: 'TERRENO — TENSIONES EN SERVICIO',
+      pie: 'El diagrama se dibuja a escala de sigma_adm: la linea de trazos es el limite del geotecnico.',
+    },
+    {
+      id: 'isolated-footing-svg-pdf-armado',
+      titulo: 'ARMADO — PARRILLA INFERIOR',
+      pie: 'Canto util d = h - recubrimiento - diametro/2. La cota de anclaje compara lbd con el vuelo disponible.',
+    },
+    {
+      id: 'isolated-footing-svg-pdf-modelo',
+      titulo: result.isRigid
+        ? 'MODELO DE CALCULO — ZAPATA RIGIDA (BIELA-TIRANTE)'
+        : 'MODELO DE CALCULO — ZAPATA FLEXIBLE (FLEXION Y CORTANTE)',
+      pie: result.isRigid
+        ? 'v <= 2h: el armado lo rige el tirante del modelo de bielas (CE Anejo 19 art. 6.5).'
+        : 'v > 2h: flexion en la cara del pilar (S1), cortante a d (S2) y punzonamiento en u1 (a 2d).',
+    },
+  ];
+
+  for (const { id, titulo, pie } of paginasLienzo) {
+    const nodo = document.getElementById(id)?.querySelector('svg') as SVGSVGElement | null;
+    if (!nodo) continue;
+
+    doc.addPage();
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    setGray(doc, 30);
+    doc.text(pdfStr(elementTitle || 'Concreta - Zapata aislada'), M, M);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    setGray(doc, 60);
+    doc.text(titulo, M, M + 5);
+    doc.setLineWidth(0.3);
+    setGray(doc, 200);
+    doc.line(M, M + 8, PAGE_W - M, M + 8);
+
+    const dW = PAGE_W - 2 * M;
+    // El alto sale del viewBox del propio clon: cada vista es de una altura y
+    // una proporción fija aquí recortaría el dibujo o lo dejaría flotando.
+    const dH = Math.min(svgBoxHeight(nodo, dW), PAGE_H - M - (M + 14) - 10);
+    await embedSvgAsImage(doc, nodo, { x: M, y: M + 14, width: dW, height: dH });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    setGray(doc, 120);
+    doc.text(pdfStr(pie), M, M + 14 + dH + 5, { maxWidth: dW });
+  }
+
+  // ── Pie de todas las páginas ────────────────────────────────────────────────
+  const totalPaginas = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPaginas; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    setGray(doc, 160);
+    doc.text(
+      `Concreta — CTE DB-SE-C / CE  ·  gamma_aplicado=${inp.loadFactor} (CTE DB-SE 4.2.4)`,
+      M, PAGE_H - M,
+    );
+    doc.text(`Pagina ${p} de ${totalPaginas}`, PAGE_W - M, PAGE_H - M, { align: 'right' });
+  }
 
   const filename = titledFilename(elementTitle, isolatedFootingFallbackFilename());
   const blob = doc.output('blob');

@@ -21,12 +21,21 @@ interface RotuloProps {
   mono?: boolean;
   peso?: 400 | 500 | 600;
   ancla?: 'start' | 'middle' | 'end';
+  /** Color del halo que separa el rótulo del dibujo que tiene debajo. Se pinta
+   *  con `paint-order`, así que el trazo queda DETRÁS del relleno de la letra.
+   *  Vale también en el PDF: los exportadores rasterizan el SVG con el
+   *  navegador (`embedSvgAsImage`), no con svg2pdf, que no lo entiende. */
+  halo?: string;
 }
 
 /** Texto del dibujo: sans por defecto, mono para los números. */
-export function Rotulo({ x, y, children, tam = 11, color = COLOR.secundario, mono = false, peso = 400, ancla = 'start' }: RotuloProps) {
+export function Rotulo({ x, y, children, tam = 11, color = COLOR.secundario, mono = false, peso = 400, ancla = 'start', halo }: RotuloProps) {
   return (
-    <text x={x} y={y} fontSize={tam} fill={color} fontWeight={peso} textAnchor={ancla} style={{ fontFamily: mono ? FUENTE_MONO : FUENTE_SANS }}>
+    <text
+      x={x} y={y} fontSize={tam} fill={color} fontWeight={peso} textAnchor={ancla}
+      stroke={halo} strokeWidth={halo ? 2.2 : undefined} paintOrder={halo ? 'stroke' : undefined} strokeLinejoin={halo ? 'round' : undefined}
+      style={{ fontFamily: mono ? FUENTE_MONO : FUENTE_SANS }}
+    >
       {children}
     </text>
   );
@@ -67,14 +76,22 @@ export function anchoEstimado(texto: string, tam: number, mono = false, peso: 40
   return texto.length * tam * (mono ? 0.6 : 0.52) * (peso >= 600 ? 1.05 : 1);
 }
 
-/** Cota horizontal entre x1 y x2, con el texto encima. */
-export function CotaH({ x1, x2, y, texto, color = COLOR.cota, colorTexto = COLOR.cotaTexto }: { x1: number; x2: number; y: number; texto: string; color?: string; colorTexto?: string }) {
+/** Cota horizontal entre x1 y x2, con el texto encima.
+ *
+ *  `anclaTexto` lo saca de en medio cuando el rótulo es más ancho que la cota:
+ *  centrado, un «d = 382 mm» sobre una cota de 40 px cruza las dos líneas que
+ *  la cota señala y se lee peor que si va a un lado. */
+export function CotaH({ x1, x2, y, texto, color = COLOR.cota, colorTexto = COLOR.cotaTexto, anclaTexto }: { x1: number; x2: number; y: number; texto: string; color?: string; colorTexto?: string; anclaTexto?: { x: number; ancla: 'start' | 'middle' | 'end' } }) {
   return (
     <g>
       <line x1={x1} y1={y} x2={x2} y2={y} stroke={color} strokeWidth={1} />
       <line x1={x1} y1={y - 4} x2={x1} y2={y + 4} stroke={color} strokeWidth={1} />
       <line x1={x2} y1={y - 4} x2={x2} y2={y + 4} stroke={color} strokeWidth={1} />
-      <Rotulo x={(x1 + x2) / 2} y={y - 5} tam={10} color={colorTexto} mono ancla="middle">
+      <Rotulo
+        x={anclaTexto ? anclaTexto.x : (x1 + x2) / 2}
+        y={y - 5} tam={10} color={colorTexto} mono
+        ancla={anclaTexto ? anclaTexto.ancla : 'middle'}
+      >
         {texto}
       </Rotulo>
     </g>
