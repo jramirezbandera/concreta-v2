@@ -13,14 +13,22 @@
  * viste. Así que reconstruir es, literalmente, ir al módulo y volver a
  * exportar —pero hecho por la app en vez de por el usuario—:
  *
- *   1. la pantalla del anejo ABRE la pieza (`restaurarPieza`, que además fija
- *      el vínculo) y navega a su módulo;
+ *   1. el conductor (`components/anejo/PanelReconstruccion`, que vive en el
+ *      shell) ABRE la pieza (`restaurarPieza`, que además fija el vínculo) y
+ *      navega a su módulo;
  *   2. el módulo, al montarse, reclama el encargo y exporta al anejo con el
  *      título que ya tenía, sin preguntar nada;
  *   3. como el vínculo apunta a esa pieza y el nombre no cambia,
  *      `destinoDeGuardado` dice «actualiza»: se rehace SU capítulo, en su
  *      sitio, con su número. No hay pieza nueva que borrar.
- *   4. el módulo vuelve al anejo, y si quedan encargos se repite.
+ *   4. al acabar, el conductor lanza el siguiente encargo, y al final devuelve
+ *      al usuario a la pantalla donde estaba.
+ *
+ * Desde el 23-09-2026 esto no es un botón: los PDF ya no viajan dentro del
+ * `.concreta` (ver `viaje.ts`), así que la tanda arranca SOLA al abrir una obra
+ * a la que le falta papel, con la interfaz tapada mientras dura. Por eso el
+ * conductor está en el shell y no en la pantalla del anejo: el usuario puede
+ * estar en cualquier sitio cuando empieza.
  *
  * El estado vive aquí, en el módulo de JS, y no en el almacén: un encargo a
  * medias no debe sobrevivir a una recarga —al recargar no hay módulo que lo
@@ -36,6 +44,8 @@ export interface Encargo {
   modulo: string;
   /** El nombre con el que se guardó: es lo que hace que se ACTUALICE y no se duplique. */
   titulo: string;
+  /** La fecha que tenía el capítulo. Se rehace el papel, no el cálculo: la fecha se conserva. */
+  fecha: string;
 }
 
 export interface Fallida {
@@ -46,16 +56,33 @@ export interface Fallida {
 export interface EstadoReconstruccion {
   /** Encargos aún sin lanzar. */
   pendientes: readonly Encargo[];
-  /** El lanzado: la pantalla ya navegó a su módulo y espera que lo reclame. */
+  /** El lanzado: el conductor ya navegó a su módulo y espera que lo reclame. */
   enCurso: Encargo | null;
+  /**
+   * La pieza que se está rehaciendo ahora, lanzada o ya reclamada por su
+   * módulo. `enCurso` se apaga en cuanto el módulo la reclama —es el protocolo
+   * que evita lanzarla dos veces—, y la barra de progreso necesita seguir
+   * sabiendo de quién es el papel que se está haciendo.
+   */
+  actual: Encargo | null;
   /** Cuántas se han rehecho en esta tanda. */
   hechas: number;
   fallidas: readonly Fallida[];
   /** Cuántas se pidieron: `0` cuando no hay tanda en marcha. */
   total: number;
+  /** El usuario ha dicho «dejarlo» y se está terminando el capítulo en curso. */
+  cancelada: boolean;
 }
 
-const VACIO: EstadoReconstruccion = { pendientes: [], enCurso: null, hechas: 0, fallidas: [], total: 0 };
+const VACIO: EstadoReconstruccion = {
+  pendientes: [],
+  enCurso: null,
+  actual: null,
+  hechas: 0,
+  fallidas: [],
+  total: 0,
+  cancelada: false,
+};
 
 let estado: EstadoReconstruccion = VACIO;
 const oyentes = new Set<() => void>();
@@ -68,20 +95,28 @@ function cambiar(nuevo: EstadoReconstruccion): void {
 /** Empieza una tanda. Si ya había una en marcha, no se toca: dos tandas a la vez no existen. */
 export function pedirReconstruir(encargos: readonly Encargo[]): boolean {
   if (estado.total > 0 || encargos.length === 0) return false;
-  cambiar({ pendientes: [...encargos], enCurso: null, hechas: 0, fallidas: [], total: encargos.length });
+  cambiar({
+    pendientes: [...encargos],
+    enCurso: null,
+    actual: null,
+    hechas: 0,
+    fallidas: [],
+    total: encargos.length,
+    cancelada: false,
+  });
   return true;
 }
 
 /**
- * Saca el siguiente encargo y lo deja «en curso». Lo llama la pantalla del
- * anejo justo antes de navegar al módulo. Devuelve `null` si no hay ninguno o
- * si ya hay uno lanzado —lo que hace que un efecto invocado dos veces (React
- * en modo estricto) no lance dos—.
+ * Saca el siguiente encargo y lo deja «en curso». Lo llama el conductor justo
+ * antes de navegar al módulo. Devuelve `null` si no hay ninguno, si ya hay uno
+ * lanzado o si el de antes sigue trabajando —lo que hace que un efecto
+ * invocado dos veces (React en modo estricto) no lance dos—.
  */
 export function lanzarSiguiente(): Encargo | null {
-  if (estado.enCurso !== null || estado.pendientes.length === 0) return null;
+  if (estado.enCurso !== null || estado.actual !== null || estado.pendientes.length === 0) return null;
   const [siguiente, ...resto] = estado.pendientes;
-  cambiar({ ...estado, pendientes: resto, enCurso: siguiente });
+  cambiar({ ...estado, pendientes: resto, enCurso: siguiente, actual: siguiente });
   return siguiente;
 }
 
@@ -104,13 +139,19 @@ export function tomarEncargo(modulo: string | null | undefined): Encargo | null 
  */
 let reclamado: Encargo | null = null;
 
-/** Lo termina el módulo: `ok` lo cuenta como hecho, y si no, con su motivo. */
+/**
+ * Lo termina el módulo: `ok` lo cuenta como hecho, y si no, con su motivo.
+ *
+ * Sin nada reclamado no cuenta nada. Eso es lo que hace inofensivo que el
+ * conductor dé por perdido un encargo que se eternizaba y el módulo termine
+ * después: su recuento llega cuando ya no hay a qué sumarlo.
+ */
 export function acabarEncargo(ok: boolean, motivo = 'no se pudo rehacer el PDF'): void {
   const e = reclamado;
   reclamado = null;
-  if (estado.total === 0) return;
-  if (ok) cambiar({ ...estado, hechas: estado.hechas + 1 });
-  else cambiar({ ...estado, fallidas: [...estado.fallidas, { titulo: e?.titulo ?? '', motivo }] });
+  if (e === null || estado.total === 0) return;
+  if (ok) cambiar({ ...estado, actual: null, hechas: estado.hechas + 1 });
+  else cambiar({ ...estado, actual: null, fallidas: [...estado.fallidas, { titulo: e?.titulo ?? '', motivo }] });
 }
 
 /**
@@ -121,7 +162,46 @@ export function acabarEncargo(ok: boolean, motivo = 'no se pudo rehacer el PDF')
 export function perderEnCurso(motivo = 'ese módulo no ha podido rehacerlo'): void {
   const e = estado.enCurso;
   if (!e) return;
-  cambiar({ ...estado, enCurso: null, fallidas: [...estado.fallidas, { titulo: e.titulo, motivo }] });
+  cambiar({ ...estado, enCurso: null, actual: null, fallidas: [...estado.fallidas, { titulo: e.titulo, motivo }] });
+}
+
+/**
+ * Da por perdida la pieza que se está rehaciendo ahora, la haya reclamado un
+ * módulo o no. Es el último recurso del conductor: con la interfaz tapada por
+ * el modal, una tanda que se queda esperando para siempre atrapa al usuario.
+ */
+export function abandonarActual(motivo = 'su módulo tardó demasiado'): void {
+  const e = estado.actual;
+  if (!e) return;
+  reclamado = null;
+  cambiar({ ...estado, enCurso: null, actual: null, fallidas: [...estado.fallidas, { titulo: e.titulo, motivo }] });
+}
+
+/**
+ * «Dejarlo»: se vacía la cola y el conductor, que ya sabe terminar cuando no
+ * quedan pendientes, cierra y cuenta lo hecho.
+ *
+ * Pero el capítulo que un módulo ya tiene RECLAMADO se deja terminar, y por eso
+ * `actual` sigue puesto: su PDF está a medio hacer, y guardarlo fija el vínculo
+ * del módulo con esa pieza. Si la tanda cerrara antes, ese vínculo aterrizaría
+ * DESPUÉS de haber devuelto las claves y dejaría el módulo enseñando un cálculo
+ * con el nombre de otro —visto en pantalla el 23-09-2026: la píldora decía
+ * «Viga V-24» sobre la viga que el usuario tenía a medias—. El lanzado y aún no
+ * reclamado sí se tira: ahí no hay nada a medias.
+ *
+ * El recuento NO se toca: `total` sigue siendo lo que se pidió, y la diferencia
+ * con lo hecho es lo que el aviso final llama «sin rehacer».
+ */
+export function cancelarTanda(): void {
+  if (estado.total === 0) return;
+  const trabajando = reclamado !== null;
+  cambiar({
+    ...estado,
+    pendientes: [],
+    enCurso: null,
+    actual: trabajando ? estado.actual : null,
+    cancelada: true,
+  });
 }
 
 /**

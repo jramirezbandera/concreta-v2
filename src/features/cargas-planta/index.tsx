@@ -292,7 +292,7 @@ export function CargasPlantaModule() {
     rehacer: async (encargo) => {
       const { exportarCargasPlantaPdf } = await import('../../lib/pdf/cargasPlanta');
       const pdf = await exportarCargasPlantaPdf(bloquesMemoria, encargo.titulo);
-      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob }, { callado: true });
+      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob, fecha: encargo.fecha }, { callado: true });
       return r.ok;
     },
   });

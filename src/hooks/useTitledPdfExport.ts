@@ -117,7 +117,7 @@ export function useTitledPdfExport({ exportFn, valid, onTitleChange, invalidMess
       try {
         const blob = await blobDeUrl(resultado.blobUrl);
         const r = await anejo.guardar(
-          { modulo: encargo.modulo, titulo: encargo.titulo, blob, paginas: resultado.pageCount },
+          { modulo: encargo.modulo, titulo: encargo.titulo, blob, paginas: resultado.pageCount, fecha: encargo.fecha },
           { callado: true },
         );
         return r.ok;

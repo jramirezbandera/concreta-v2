@@ -1,18 +1,16 @@
 /**
- * Los PDF del anejo viajan dentro del `.concreta`: se exportan con la obra y
- * al leer el fichero vuelven a IndexedDB, que es lo que hace que una obra
- * reimportada no aparezca con todo el anejo en rojo.
- *
- * Y lo que NO tiene que pasar: que los bytes acaben en el proyecto que se
- * guarda en el navegador (ahí la cuota es de megabytes contados), ni que un
- * fichero sin PDF —los de antes de esto— deje de leerse.
+ * El `.concreta` ya NO lleva los PDF dentro: lleva los datos de cada pieza, y
+ * el papel lo rehace la máquina que abre la obra. Lo que se vigila aquí es que
+ * el fichero salga limpio —pesa lo que pesa un texto— y que los de aquellos
+ * días, que sí los traían, se sigan leyendo: sus PDF vuelven a IndexedDB y esa
+ * obra no tiene nada que reconstruir.
  */
 
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CLAVE_ANEJO } from '../../lib/anejo';
 import { _reiniciarBlobsParaTests, guardarBlob, idsDeBlobs, leerBlob } from '../../lib/anejo/blobs';
-import { pdfsDelFichero, pdfsParaViajar, recuperarPdfs } from '../../lib/anejo/viaje';
+import { pdfsDelFichero, recuperarPdfs } from '../../lib/anejo/viaje';
 import { leerFicheroDeProyecto, textoDeExportacion } from '../../lib/proyecto/fichero';
 import { serializar, _reiniciarProyectoParaTests, type ProyectoFile } from '../../lib/proyecto';
 import { _reiniciarAlmacenParaTests } from '../../lib/storage/seguro';
@@ -61,73 +59,40 @@ afterEach(() => {
   _reiniciarBlobsParaTests();
 });
 
-describe('los PDF del anejo dentro del .concreta', () => {
-  it('ida y vuelta: el PDF sale con la obra y entra al leer el fichero', async () => {
+describe('el .concreta y los PDF del anejo', () => {
+  it('el fichero exportado no lleva los PDF, aunque estén en esta máquina', async () => {
     await guardarBlob('b1', PDF());
     localStorage.setItem(CLAVE_ANEJO, indiceCon('b1'));
     const proyecto = serializar('11111111-1111-4111-8111-111111111111');
 
-    const equipaje = await pdfsParaViajar(proyecto.claves);
-    expect(Object.keys(equipaje.pdfs)).toEqual(['b1']);
-    expect(equipaje).toMatchObject({ cuantos: 1, fuera: 0 });
-
-    const texto = textoDeExportacion(proyecto, equipaje.pdfs);
-    // Al final del todo: lo legible del fichero se queda arriba.
-    expect(texto.indexOf('"pdfs"')).toBeGreaterThan(texto.indexOf('"claves"'));
-
-    // Otra máquina: el mismo fichero, sin nada en IndexedDB.
-    _reiniciarBlobsParaTests();
-    Object.defineProperty(globalThis, 'indexedDB', { value: new IDBFactory(), configurable: true, writable: true });
-    expect(await idsDeBlobs()).toEqual([]);
+    const texto = textoDeExportacion(proyecto);
+    expect(texto).not.toContain('"pdfs"');
+    // Los DATOS de la pieza sí: son con lo que se rehace el PDF al abrirla.
+    expect(texto).toContain('blobId');
+    expect(texto).toContain('datos');
+    // Y pesa lo que pesa un texto: ni rastro de una cabecera de PDF en base64.
+    expect(texto).not.toContain('JVBERi');
 
     const leido = await leerFicheroDeProyecto(ficheroCon(texto));
     expect(leido.id).toBe(proyecto.id);
-    expect(await idsDeBlobs()).toEqual(['b1']);
-    const vuelto = await leerBlob('b1');
-    expect(await vuelto?.text()).toBe('%PDF-1.4 una viga');
   });
 
-  it('el proyecto que se lee del fichero NO lleva los bytes dentro', async () => {
-    await guardarBlob('b1', PDF());
-    localStorage.setItem(CLAVE_ANEJO, indiceCon('b1'));
+  it('un fichero de los que sí los traían dentro los devuelve a IndexedDB', async () => {
     const proyecto = serializar('22222222-2222-4222-8222-222222222222');
-    const texto = textoDeExportacion(proyecto, (await pdfsParaViajar(proyecto.claves)).pdfs);
+    // Tal cual lo escribía la app entre el 18 y el 23 de septiembre de 2026.
+    const texto = JSON.stringify({ ...proyecto, pdfs: { b1: btoa('%PDF-1.4 una viga') } }, null, 2);
 
+    expect(await idsDeBlobs()).toEqual([]);
     const leido: ProyectoFile = await leerFicheroDeProyecto(ficheroCon(texto));
+    expect(leido.id).toBe(proyecto.id);
+    expect(await idsDeBlobs()).toEqual(['b1']);
+    expect(await (await leerBlob('b1'))?.text()).toBe('%PDF-1.4 una viga');
+
+    // Y el proyecto que se abre no arrastra los bytes: la cuota del navegador
+    // se mide en megabytes contados.
     expect('pdfs' in leido).toBe(false);
     expect(JSON.stringify(leido)).not.toContain('JVBERi');
   });
-
-  it('un fichero de los de antes, sin bloque de PDF, se lee igual', async () => {
-    const proyecto = serializar('33333333-3333-4333-8333-333333333333');
-    const texto = textoDeExportacion(proyecto);
-    expect(texto).not.toContain('"pdfs"');
-    const leido = await leerFicheroDeProyecto(ficheroCon(texto));
-    expect(leido.id).toBe(proyecto.id);
-    expect(await idsDeBlobs()).toEqual([]);
-  });
-
-  it('sin el PDF en esta máquina se exporta lo que hay, sin bloque', async () => {
-    localStorage.setItem(CLAVE_ANEJO, indiceCon('fantasma'));
-    const proyecto = serializar('44444444-4444-4444-8444-444444444444');
-    expect((await pdfsParaViajar(proyecto.claves)).pdfs).toEqual({});
-    expect(textoDeExportacion(proyecto, {})).not.toContain('"pdfs"');
-  });
-
-  it('lo que no cabe en el tope se queda, y se dice cuántos', async () => {
-    // Dos PDF de 30 MB: el primero entra y el segundo ya no cabe.
-    const gordo = new Blob(['x'.repeat(30 * 1024 * 1024)], { type: 'application/pdf' });
-    await guardarBlob('b1', gordo);
-    await guardarBlob('b2', gordo);
-    localStorage.setItem(
-      CLAVE_ANEJO,
-      JSON.stringify({ v: 1, piezas: [JSON.parse(indiceCon('b1')).piezas[0], { ...JSON.parse(indiceCon('b2')).piezas[0], id: 'p2' }] }),
-    );
-    const proyecto = serializar('55555555-5555-4555-8555-555555555555');
-    const equipaje = await pdfsParaViajar(proyecto.claves);
-    expect(Object.keys(equipaje.pdfs)).toEqual(['b1']);
-    expect(equipaje.fuera).toBe(1);
-  }, 30_000);
 
   it('un bloque de PDF con basura no rompe la lectura', async () => {
     expect(pdfsDelFichero({ pdfs: 'no es un diccionario' })).toBeNull();

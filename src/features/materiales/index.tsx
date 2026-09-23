@@ -326,7 +326,7 @@ export function MaterialesModule() {
     rehacer: async (encargo) => {
       const { exportarMaterialesPdf } = await import('../../lib/pdf/materiales');
       const pdf = await exportarMaterialesPdf(bloquesMemoria, encargo.titulo);
-      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob }, { callado: true });
+      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob, fecha: encargo.fecha }, { callado: true });
       return r.ok;
     },
   });

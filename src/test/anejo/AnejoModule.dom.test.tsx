@@ -287,10 +287,11 @@ describe('Anejo de cálculo', () => {
     await conPiezas({ pdfDeMemoria: false });
     montar();
     const memoria = fila('Viento de la nave');
-    expect(await within(memoria).findByText(/Falta el PDF guardado/)).toBeInTheDocument();
-    // Se puede rehacer: la pieza se abre en su módulo y se exporta sobre su
-    // capítulo. El enlace suelto al módulo era lo que duplicaba capítulos.
-    expect(within(memoria).getByRole('button', { name: 'Reconstruir el PDF' })).toBeInTheDocument();
+    expect(await within(memoria).findByText(/Falta el PDF/)).toBeInTheDocument();
+    // Se puede volver a intentar: la pieza se abre en su módulo y se exporta
+    // sobre su capítulo. El enlace suelto al módulo era lo que duplicaba
+    // capítulos.
+    expect(within(memoria).getByRole('button', { name: 'Volver a intentarlo' })).toBeInTheDocument();
     expect(within(memoria).queryByRole('link', { name: 'Ir a Viento y nieve' })).toBeNull();
     expect(within(fila('Viga V-1')).queryByText(/Falta el PDF/)).toBeNull();
     await user.click(within(memoria).getByRole('button', { name: 'Dejar fuera' }));

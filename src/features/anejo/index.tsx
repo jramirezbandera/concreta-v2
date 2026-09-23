@@ -12,6 +12,11 @@
  * fila culpable se pone en rojo con su motivo y una salida («Generar sin esta
  * pieza»). El índice se verifica contra las páginas reales antes de entregar
  * nada (`lib/anejo/generar`, T8): se aborta antes que entregar un índice mal.
+ *
+ * Los PDF que faltan NO se rehacen desde aquí: la app los rehace sola al abrir
+ * la obra (`components/anejo/PanelReconstruccion`). Lo que queda en esta
+ * pantalla es la segunda oportunidad —lo que aquella tanda no pudo— y el botón
+ * que la pide otra vez.
  */
 
 import { useEffect, useState } from 'react';
@@ -24,7 +29,7 @@ import {
   estadoDePieza,
   fijarIncluida,
   hayTrabajoSinGuardar,
-  motivoDeNoAbrir,
+  motivoDeNoRehacer,
   piezaAbierta,
   renombrarPieza,
   piezasSinPdf,
@@ -38,17 +43,8 @@ import {
   type Pieza,
 } from '../../lib/anejo';
 import { moverEnSeccion, numerosDeCapitulo, piezasDeSeccion, resumenDe, seccionDePieza } from '../../lib/anejo/maqueta';
-import { getModuleByKey } from '../../data/moduleRegistry';
 import { useAnejo } from '../../lib/anejo/useAnejo';
-import {
-  cerrarTanda,
-  lanzarSiguiente,
-  pedirReconstruir,
-  perderEnCurso,
-  useReconstruccion,
-  type Encargo,
-  type Fallida,
-} from '../../lib/anejo/reconstruccion';
+import { empezarTanda } from '../../lib/anejo/tanda';
 import { leerBlob } from '../../lib/anejo/blobs';
 import { descargarBlob } from '../../lib/export/descargar';
 import { titledFilename } from '../../lib/export/filename';
@@ -117,71 +113,35 @@ function motivoDeNoRestaurar(motivo: FalloRestaurar): string {
   }
 }
 
-const capitulos = (n: number) => `${n} ${n === 1 ? 'capítulo' : 'capítulos'}`;
-
-/** Cómo acabó la tanda, en una frase. Los fallos se nombran: son los que siguen en rojo. */
-function mensajeDeTanda(hechas: number, fallidas: readonly Fallida[]): string {
-  if (fallidas.length === 0) return `${capitulos(hechas)} con su PDF otra vez en el anejo`;
-  const detalle = fallidas.map((f) => `«${f.titulo}» (${f.motivo})`).join('; ');
-  if (hechas === 0) return `No se ha podido rehacer: ${detalle}`;
-  return `${capitulos(hechas)} rehechos. Sin rehacer: ${detalle}`;
-}
-
 /**
- * La banda de los PDF que faltan, encima de la lista. Sale cuando hay alguno
- * que se pueda rehacer: es lo que convierte cuatro filas rojas en un botón.
+ * La banda de los PDF que faltan, encima de la lista.
  *
- * Durante la tanda cuenta por dónde va, porque la pantalla parpadea —cada
- * pieza pasa de verdad por su módulo— y sin esto parecería que la app se ha
- * vuelto loca.
+ * Que esté puesta significa que la reconstrucción automática de al abrir la
+ * obra no pudo con ellos —o que el usuario la dejó a medias—, así que aquí no
+ * se explica qué es reconstruir: se ofrece volver a intentarlo. El progreso lo
+ * lleva el velo que tapa la pantalla mientras dura, no esta banda.
  */
-function BandaSinPdf({
-  cuantas,
-  tanda,
-  enPeligro,
-  onReconstruir,
-}: {
-  cuantas: number;
-  tanda: { hechas: number; total: number } | null;
-  enPeligro: readonly string[];
-  onReconstruir: () => void;
-}) {
-  if (tanda) {
-    return (
-      <p
-        role="status"
-        className="m-0 mb-2 rounded border border-accent/40 bg-accent/5 px-3 py-2 text-[12px] text-text-secondary"
-      >
-        Reconstruyendo los PDF: {tanda.hechas} de {tanda.total}. Cada cálculo se abre en su módulo un instante y vuelve aquí.
-      </p>
-    );
-  }
+function BandaSinPdf({ cuantas, onReconstruir }: { cuantas: number; onReconstruir: () => void }) {
   return (
     <div className="mb-2 rounded border border-state-fail/40 bg-state-fail/5 px-3 py-2">
       <p className="m-0 flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
         <span>
-          {cuantas === 1 ? 'Falta el PDF de un capítulo' : `Faltan los PDF de ${cuantas} capítulos`}: la obra viene de otra máquina, o
-          de antes de que los PDF viajaran dentro del fichero. Se pueden rehacer con los datos que la pieza lleva dentro.
+          {cuantas === 1 ? 'Falta el PDF de un capítulo' : `Faltan los PDF de ${cuantas} capítulos`}: al abrir la obra no llegaron a
+          rehacerse. Se hace con los datos que la pieza lleva dentro, y cada uno pasa un instante por su módulo.
         </span>
         {/* Con uno solo no hay botón aquí: el de su fila está a dos dedos, y
             dos botones con el mismo nombre en la misma pantalla no ayudan a
-            nadie. Lo que la banda aporta entonces es el porqué y el aviso. */}
+            nadie. Lo que la banda aporta entonces es el porqué. */}
         {cuantas > 1 && (
           <button
             type="button"
             className="rounded border border-border-main bg-bg-primary px-2 py-0.5 text-[11.5px] text-text-primary transition-colors hover:bg-bg-elevated"
             onClick={onReconstruir}
           >
-            Reconstruir los {cuantas}
+            Volver a intentarlo con {cuantas === 2 ? 'los dos' : `los ${cuantas}`}
           </button>
         )}
       </p>
-      {enPeligro.length > 0 && (
-        <p className="m-0 mt-1.5 text-[11.5px] text-state-warn">
-          Ojo: en {enPeligro.join(', ')} hay un cálculo a medias que no has guardado como pieza, y reconstruir lo pisa. Guárdalo
-          antes.
-        </p>
-      )}
     </div>
   );
 }
@@ -217,7 +177,6 @@ export function AnejoModule() {
   const [anuncio, setAnuncio] = useState('');
   const [viendo, setViendo] = useState<{ pieza: Pieza; url: string; blob: Blob } | null>(null);
   const generacion = useGenerarAnejo();
-  const tanda = useReconstruccion();
 
   // Las piezas cuyo PDF no está en esta máquina (obra traída de otra, datos
   // del sitio borrados): fila roja con la salida. Se vuelve a mirar cada vez
@@ -234,74 +193,20 @@ export function AnejoModule() {
     };
   }, [anejo]);
 
-  // ── Reconstruir los PDF que faltan ─────────────────────────────────────
-  //
-  // Esta pantalla es la que dirige: saca un encargo, abre su pieza, navega a
-  // su módulo y se desmonta. El módulo rehace el PDF y vuelve aquí, y al
-  // montarse de nuevo esto sigue con el siguiente. Ver `lib/anejo/reconstruccion`.
-
-  // Al montar: si volvemos con un encargo lanzado, es que nadie lo reclamó
-  // —el módulo no sabe rehacer PDF, o el usuario se fue por su cuenta—.
-  useEffect(() => {
-    perderEnCurso();
-  }, []);
-
-  /** Deja el módulo listo para rehacer la pieza y dice a dónde ir. */
-  const llevarAlModulo = (pieza: Pieza): { ok: true; ruta: string } | { ok: false; motivo: string } => {
-    // Un capítulo de memoria no se restaura —es uno por obra y sus datos son
-    // los de la obra de ahora—: se va al módulo y se exporta lo que hay.
-    if (seccionDePieza(pieza) === 'memoria') {
-      const ruta = rutaDeModulo(pieza.modulo);
-      return ruta === null ? { ok: false, motivo: 'su módulo no está en esta versión' } : { ok: true, ruta };
-    }
-    const r = restaurarPieza(pieza.id);
-    return r.ok ? { ok: true, ruta: r.ruta } : { ok: false, motivo: motivoDeNoRestaurar(r.motivo) };
-  };
-
-  useEffect(() => {
-    if (tanda.total === 0 || tanda.enCurso !== null) return;
-    if (tanda.pendientes.length === 0) {
-      // El recuento lo canta el toast, que ya es una región viva; la banda de
-      // arriba lleva el progreso mientras dura. Aquí no se toca estado de
-      // React: un setState dentro del efecto encadena renders (y lo prohíbe
-      // la regla `react-hooks/set-state-in-effect`).
-      const r = cerrarTanda();
-      if (r) showToast(mensajeDeTanda(r.hechas, r.fallidas), { autoDismiss: 7000 });
-      return;
-    }
-    const encargo = lanzarSiguiente();
-    if (!encargo) return;
-    const pieza = anejo.piezas.find((p) => p.id === encargo.piezaId);
-    if (!pieza) {
-      perderEnCurso('ya no está en el anejo');
-      return;
-    }
-    const destino = llevarAlModulo(pieza);
-    if (!destino.ok) {
-      perderEnCurso(destino.motivo);
-      return;
-    }
-    navegar(destino.ruta);
-  }, [tanda, anejo.piezas, navegar]);
-
   /**
-   * Empieza una tanda. Reconstruir PISA el módulo de cada pieza, así que si
-   * ahí hay un cálculo que no está guardado en ninguna pieza, se dice antes:
-   * es el mismo aviso que abrir una pieza a mano, sólo que en lote.
+   * Volver a intentarlo con los que quedaron sin PDF. La tanda la conduce el
+   * shell (`components/anejo/PanelReconstruccion`): desde aquí sólo se pide, y
+   * lo que se ve a continuación es el velo con su barra, no esta pantalla.
+   *
+   * No hace falta avisar de lo que se va a pisar: la tanda copia las claves de
+   * los módulos que toca y las devuelve al acabar (`lib/anejo/tanda`).
    */
   const reconstruir = (piezas: readonly Pieza[]) => {
     if (pestanaDesfasada()) {
       showToast(DESFASADA_CAMBIO, { autoDismiss: 5000 });
       return;
     }
-    const encargos: Encargo[] = piezas.map((p) => ({ piezaId: p.id, modulo: p.modulo, titulo: p.titulo }));
-    if (!pedirReconstruir(encargos)) return;
-  };
-
-  /** Los módulos que se van a pisar y tienen trabajo sin guardar. */
-  const enPeligro = (piezas: readonly Pieza[]): string[] => {
-    const modulos = [...new Set(piezas.filter((p) => seccionDePieza(p) !== 'memoria').map((p) => p.modulo))];
-    return modulos.filter(hayTrabajoSinGuardar).map((m) => getModuleByKey(m)?.label ?? m);
+    empezarTanda(piezas);
   };
 
   const estados: ReadonlyMap<string, EstadoPieza> = new Map(anejo.piezas.map((p) => [p.id, estadoDePieza(p)]));
@@ -369,12 +274,13 @@ export function AnejoModule() {
   /**
    * Por qué no se puede abrir, en lenguaje de obra; `null` si se puede. Un
    * capítulo de memoria se abre siempre: lleva a su módulo sin restaurar nada,
-   * y para eso no hacen falta ni datos ni que el esquema cuadre.
+   * y para eso no hacen falta ni datos ni que el esquema cuadre. Es la misma
+   * regla con la que el conductor decide qué encarga (`motivoDeNoRehacer`), y
+   * por eso sale de allí: un botón que promete lo que la tanda no hace es la
+   * manera de que ambos se contradigan.
    */
   const noAbrible = (pieza: Pieza): string | null => {
-    if (rutaDeModulo(pieza.modulo) === null) return NO_ABRIBLE.desconocido;
-    if (seccionDePieza(pieza) === 'memoria') return null;
-    const motivo = motivoDeNoAbrir(pieza);
+    const motivo = motivoDeNoRehacer(pieza);
     return motivo === null ? null : NO_ABRIBLE[motivo];
   };
 
@@ -439,14 +345,7 @@ export function AnejoModule() {
             <p className="sr-only" aria-live="polite">
               {anuncio}
             </p>
-            {(sinPdfLista.length > 0 || tanda.total > 0) && (
-              <BandaSinPdf
-                cuantas={sinPdfLista.length}
-                tanda={tanda.total > 0 ? { hechas: tanda.hechas + tanda.fallidas.length, total: tanda.total } : null}
-                enPeligro={enPeligro(sinPdfLista)}
-                onReconstruir={() => reconstruir(sinPdfLista)}
-              />
-            )}
+            {sinPdfLista.length > 0 && <BandaSinPdf cuantas={sinPdfLista.length} onReconstruir={() => reconstruir(sinPdfLista)} />}
             <ListaPiezas
               piezas={anejo.piezas}
               numeros={numeros}

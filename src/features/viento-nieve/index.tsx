@@ -271,7 +271,7 @@ export function VientoNieveModule() {
       if (evaluacion.nieve) bloques.push(...cuadroNieveMemoria(evaluacion.nieve, emplazamientoCuadro));
       const { exportarVientoNievePdf } = await import('../../lib/pdf/vientoNieve');
       const pdf = await exportarVientoNievePdf(bloques, encargo.titulo);
-      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob }, { callado: true });
+      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob, fecha: encargo.fecha }, { callado: true });
       return r.ok;
     },
   });

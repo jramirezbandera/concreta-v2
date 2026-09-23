@@ -34,6 +34,7 @@ import {
   type ResultadoCambio,
 } from '../../lib/proyecto';
 import { descargarProyecto, leerFicheroDeProyecto, nombreDeFichero } from '../../lib/proyecto/fichero';
+import { pedirRevisionAlAbrir } from '../../lib/anejo/alAbrir';
 import { hayActualizacionEnEspera, recargar } from '../../lib/proyecto/navegador';
 import { useNombreObra, useProyectoActivo, useRecientes } from '../../lib/proyecto/useProyectoActivo';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -71,12 +72,6 @@ function mensajeDeFallo(r: ResultadoCambio): string {
         ? 'La obra no cabía en el almacenamiento: se ha vuelto a la anterior.'
         : 'El cambio de obra se ha quedado a medias. Recarga la página para recuperarla.';
   }
-}
-
-/** «1,2 MB» o «680 KB»: lo que pesan los PDF que se lleva el fichero. */
-function megas(bytes: number): string {
-  const mb = bytes / 1024 / 1024;
-  return mb >= 1 ? `${mb.toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 function fecha(iso: string): string {
@@ -168,8 +163,15 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
   const ejecutarCambio = (destino: ProyectoFile) => {
     conTrabajoResuelto(() => {
       const r = cambiarDeProyecto(destino);
-      if (r.ok) recargar();
-      else showToast(mensajeDeFallo(r), { autoDismiss: 7000 });
+      if (!r.ok) {
+        showToast(mensajeDeFallo(r), { autoDismiss: 7000 });
+        return;
+      }
+      // Al otro lado de la recarga, el shell mira si a esta obra le falta el
+      // PDF de algún capítulo y los rehace. Es lo que sustituye a llevarlos
+      // dentro del fichero (ver `lib/anejo/viaje`).
+      pedirRevisionAlAbrir(destino.id);
+      recargar();
     });
   };
 
@@ -294,17 +296,14 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
   const exportar = () => {
     cerrar();
     if (pestanaDesfasada()) return avisarDesfasada();
-    // El fichero se lleva los PDF del anejo dentro, y eso se dice: explica por
-    // qué pesa lo que pesa, y es la promesa de que al reimportarla el anejo
-    // vuelve entero.
-    const bajar = async (p: ProyectoFile | null) => {
+    // El fichero lleva los datos de cada capítulo, no su PDF: pesa lo que pesa
+    // un texto, y el papel lo rehace sola la máquina que lo abra. Se dice,
+    // porque quien exporta un anejo de doce capítulos y ve 300 KB tiene
+    // derecho a preguntarse dónde han quedado.
+    const bajar = (p: ProyectoFile | null) => {
       if (!p) return avisarGuardado(null);
-      const viaje = await descargarProyecto(p);
-      const cola = viaje.cuantos > 0 ? ` · ${viaje.cuantos} PDF del anejo (${megas(viaje.bytes)})` : '';
-      // Los que no caben se dicen: al importarla saldrán en rojo, y ahí el
-      // anejo ofrece rehacerlos. Callarlo sería una sorpresa en la otra punta.
-      const resto = viaje.fuera > 0 ? ` · ${viaje.fuera} no caben y se reconstruyen desde el anejo` : '';
-      showToast(`Exportada: ${nombreDeFichero(p)}${cola}${resto}`, { autoDismiss: viaje.fuera > 0 ? 7000 : 4000 });
+      descargarProyecto(p);
+      showToast(`Exportada: ${nombreDeFichero(p)} · los PDF del anejo se rehacen al abrirla`, { autoDismiss: 4000 });
     };
     if (proyectoActivo() === null) {
       setDialogo({
@@ -314,12 +313,12 @@ export function ObraMenu({ peticionApertura = 0 }: ObraMenuProps) {
         confirmar: 'Guardar y exportar',
         alConfirmar: (n) => {
           cerrarDialogo();
-          void bajar(guardarComoNueva(n));
+          bajar(guardarComoNueva(n));
         },
       });
       return;
     }
-    void bajar(guardarActual());
+    bajar(guardarActual());
   };
 
   const importar = () => {

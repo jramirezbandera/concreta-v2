@@ -273,7 +273,7 @@ export function MemoriaDBSEModule() {
     rehacer: async (encargo) => {
       const { exportarMemoriaDBSEPdf } = await import('../../lib/pdf/memoriaDBSE');
       const pdf = await exportarMemoriaDBSEPdf(bloques, encargo.titulo);
-      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob }, { callado: true });
+      const r = await anejo.guardar({ modulo: ANEJO.modulo, titulo: encargo.titulo, blob: pdf.blob, fecha: encargo.fecha }, { callado: true });
       return r.ok;
     },
   });

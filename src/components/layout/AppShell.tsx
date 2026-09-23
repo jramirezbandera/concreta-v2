@@ -1,5 +1,7 @@
-import { Suspense, createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { Suspense, createContext, lazy, useCallback, useContext, useEffect, useState } from 'react';
 import { useRemonte } from '../../lib/anejo/remonte';
+import { hayRevisionPendiente } from '../../lib/anejo/alAbrir';
+import { useReconstruccion } from '../../lib/anejo/reconstruccion';
 import { Outlet } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { CalculatorProvider } from '../calculator/CalculatorProvider';
@@ -13,6 +15,16 @@ import { showToast } from '../ui/Toast';
 
 /** Lo que se espera antes de recoger los PDF huérfanos del anejo: primero que la app cargue. */
 const RETARDO_PURGA_MS = 4000;
+
+/**
+ * Quien rehace los PDF del anejo al abrir una obra, y tapa la interfaz
+ * mientras. Perezoso a propósito: lo normal es que no haya nada que rehacer, y
+ * entonces este trozo de JavaScript no se descarga siquiera. Ver
+ * `components/anejo/PanelReconstruccion`.
+ */
+const PanelReconstruccion = lazy(() =>
+  import('../anejo/PanelReconstruccion').then((m) => ({ default: m.PanelReconstruccion })),
+);
 
 interface OpcionesDrawer {
   /** Abrir el cajón con el menú de obra ya desplegado (la ficha de obra de la topbar móvil). */
@@ -51,6 +63,14 @@ export function AppShell() {
   const [peticionMenuObra, setPeticionMenuObra] = useState(0);
 
   const remonte = useRemonte();
+  const tanda = useReconstruccion();
+  // El recado de «revisa el anejo de esta obra» se mira UNA vez, al arrancar:
+  // lo dejó la carga anterior, justo antes de la recarga con la que termina
+  // abrir una obra. Quien lo consume es el panel; aquí sólo se decide si hace
+  // falta traerlo. Y se queda montado el resto de la sesión —no estorba: sin
+  // tanda no pinta nada— para que el conductor esté puesto si más tarde se
+  // pide rehacer un capítulo desde el anejo.
+  const [conductor] = useState(hayRevisionPendiente);
 
   const openDrawer = useCallback((opciones?: OpcionesDrawer) => {
     setDrawerOpen(true);
@@ -96,6 +116,12 @@ export function AppShell() {
           )}
 
           <Sidebar isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} peticionMenuObra={peticionMenuObra} />
+
+          {(conductor || tanda.total > 0) && (
+            <Suspense fallback={null}>
+              <PanelReconstruccion />
+            </Suspense>
+          )}
 
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <BandaAlmacen />

@@ -1,10 +1,12 @@
 /**
  * El lado del MÓDULO de «reconstruir el PDF» (ver `lib/anejo/reconstruccion`).
  *
- * La pantalla del anejo abre la pieza y navega aquí; este hook reclama el
- * encargo al montarse, espera a que el cálculo esté listo, vuelve a exportar
+ * El conductor de la tanda abre la pieza y navega aquí; este hook reclama el
+ * encargo al montarse, espera a que el cálculo esté listo y vuelve a exportar
  * al anejo con el nombre que la pieza ya tenía —así se ACTUALIZA su capítulo
- * en vez de nacer otro— y devuelve al usuario al anejo.
+ * en vez de nacer otro—. A dónde se va después no es asunto suyo: lo decide el
+ * conductor, que es quien sabe si queda otro capítulo o hay que devolver al
+ * usuario donde estaba.
  *
  * Lo usan los dos caminos de exportación: `useTitledPdfExport` lo llama por
  * dentro, así que los veintiún módulos de pieza no se enteran de que existe, y
@@ -12,14 +14,12 @@
  * formato— lo llaman ellos con su exportador de PDF.
  *
  * Por qué hay un tope de espera: un módulo cuyo resultado se calcula fuera
- * (`slope-stability` en su worker) no está listo al montarse, y sin tope el
- * usuario se quedaría mirando una pantalla que no hace nada y sin saber por
- * qué. Con él, la fila vuelve a salir en rojo y el anejo lo cuenta.
+ * (`slope-stability` en su worker) no está listo al montarse, y sin tope la
+ * tanda entera se quedaría clavada en él. Con él, la fila vuelve a salir en
+ * rojo y el aviso del final lo cuenta.
  */
 
-import { useContext, useEffect, useRef } from 'react';
-import { UNSAFE_NavigationContext } from 'react-router';
-import { RUTA_ANEJO } from '../lib/anejo';
+import { useEffect, useRef } from 'react';
 import { acabarEncargo, tomarEncargo, type Encargo } from '../lib/anejo/reconstruccion';
 
 /** Lo que se espera a que el módulo tenga resultado antes de darlo por imposible. */
@@ -35,7 +35,6 @@ interface Opciones {
 }
 
 export function useReconstruirCapitulo({ modulo, listo, rehacer }: Opciones): void {
-  const navegacion = useContext(UNSAFE_NavigationContext);
   // El manejador vive en una ref para que el efecto NO dependa de él: los
   // módulos lo pasan como función nueva en cada render, y el efecto se
   // reiniciaría —con su temporizador— en cada tecla.
@@ -56,14 +55,11 @@ export function useReconstruirCapitulo({ modulo, listo, rehacer }: Opciones): vo
     const e = encargo.current;
     if (!e) return;
 
-    const volver = () => navegacion?.navigator.push(RUTA_ANEJO);
-
     if (!listo) {
       const tope = setTimeout(() => {
         if (cerrado.current) return;
         cerrado.current = true;
         acabarEncargo(false, 'el cálculo no llegó a estar listo');
-        volver();
       }, ESPERA_RECONSTRUIR_MS);
       return () => clearTimeout(tope);
     }
@@ -77,7 +73,6 @@ export function useReconstruirCapitulo({ modulo, listo, rehacer }: Opciones): vo
         console.error('No se ha podido reconstruir el PDF de la pieza:', error);
       }
       acabarEncargo(ok);
-      volver();
     })();
-  }, [modulo, listo, navegacion]);
+  }, [modulo, listo]);
 }

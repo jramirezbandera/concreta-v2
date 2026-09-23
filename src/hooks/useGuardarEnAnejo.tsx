@@ -15,6 +15,8 @@ export interface PeticionGuardarEnAnejo {
   blob: Blob;
   /** Páginas, si el exportador las sabe; si no, se cuentan abriendo el PDF. */
   paginas?: number;
+  /** La fecha del capítulo, si no es ahora: la reconstrucción conserva la que tenía. */
+  fecha?: string;
 }
 
 export type ResultadoGuardarEnAnejo =

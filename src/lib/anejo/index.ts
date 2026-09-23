@@ -32,7 +32,7 @@ import {
   ErrorDeBlobs,
 } from './blobs';
 import { blobDePdf, contarPaginas } from './concatenar';
-import { numerosDeCapitulo } from './maqueta';
+import { numerosDeCapitulo, seccionDePieza } from './maqueta';
 import { adaptadorDe, buscarAdaptador } from './modules';
 import { CLAVE_VINCULO, fijarVinculo, soltarVinculo, vinculoDe } from './vinculo';
 import type { AdaptadorAnejo, AnejoFile, Pieza } from './types';
@@ -210,6 +210,13 @@ export interface PeticionPieza {
   blob: Blob;
   /** Páginas, si el exportador las sabe. Si no, se cuentan abriendo el PDF (carga pdf-lib). */
   paginas?: number;
+  /**
+   * La fecha que debe llevar el capítulo. Por defecto, ahora —que es lo cierto
+   * cuando alguien exporta—, y la pone la reconstrucción automática para NO
+   * cambiarla: al abrir una obra de otra máquina se rehace el papel, no el
+   * cálculo, y los cuarenta capítulos no pueden pasar a ser de hoy.
+   */
+  fecha?: string;
 }
 
 export type ResultadoPieza =
@@ -235,12 +242,12 @@ const rotuloDe = (adaptador: AdaptadorAnejo, titulo: string) => titulo.trim() ||
  * pisa el suyo; si cada uno construyera sus campos, tarde o temprano uno se
  * dejaría los datos o la huella y sólo se notaría al reabrir la pieza.
  */
-function camposDeAhora(adaptador: AdaptadorAnejo, titulo: string, blobId: string, paginas: number) {
+function camposDeAhora(adaptador: AdaptadorAnejo, titulo: string, blobId: string, paginas: number, fecha?: string) {
   return {
     modulo: adaptador.modulo,
     clave: adaptador.entrada.clave,
     titulo: rotuloDe(adaptador, titulo),
-    ts: new Date().toISOString(),
+    ts: fecha ?? new Date().toISOString(),
     esquema: adaptador.entrada.versionViva,
     blobId,
     paginas,
@@ -283,7 +290,11 @@ async function anadirPieza(peticion: PeticionPieza): Promise<ResultadoPieza> {
     return { ok: false, donde: 'blob', motivo: e instanceof ErrorDeBlobs ? e.motivo : 'error' };
   }
 
-  const pieza: Pieza = { id: nuevoId(), ...camposDeAhora(adaptador, peticion.titulo, blobId, paginas), incluida: true };
+  const pieza: Pieza = {
+    id: nuevoId(),
+    ...camposDeAhora(adaptador, peticion.titulo, blobId, paginas, peticion.fecha),
+    incluida: true,
+  };
 
   const anejo = leerAnejo();
   anejo.piezas.push(pieza);
@@ -324,7 +335,7 @@ export async function actualizarPieza(id: string, peticion: PeticionPieza): Prom
     return { ok: false, donde: 'blob', motivo: e instanceof ErrorDeBlobs ? e.motivo : 'error' };
   }
 
-  anejo.piezas[indice] = { ...anterior, ...camposDeAhora(adaptador, peticion.titulo, blobId, paginas) };
+  anejo.piezas[indice] = { ...anterior, ...camposDeAhora(adaptador, peticion.titulo, blobId, paginas, peticion.fecha) };
   if (!escribirAnejo(anejo)) {
     await borrarBlob(blobId).catch(() => undefined);
     return { ok: false, donde: 'indice', motivo: 'cuota' };
@@ -462,6 +473,17 @@ function clavesQueSeTocan(e: AdaptadorAnejo['entrada']): string[] {
 }
 
 /**
+ * Las mismas, dichas desde fuera: lo que `restaurarPieza` va a pisar en este
+ * módulo. Lo usa la reconstrucción automática para copiarlas antes y
+ * devolverlas después (`tanda.ts`), que es lo que permite rehacer doce PDF
+ * sin dejar los módulos con los datos del último.
+ */
+export function clavesPisadasPor(modulo: string): string[] {
+  const a = buscarAdaptador(modulo);
+  return a ? clavesQueSeTocan(a.entrada) : [];
+}
+
+/**
  * Por qué esta pieza no se puede abrir en su módulo, o `null` si se puede.
  *
  * Lo miran los dos: la fila del anejo, para saber si el título es pinchable, y
@@ -481,6 +503,21 @@ export function motivoDeNoAbrir(pieza: Pieza): 'desconocido' | 'esquema' | 'sin-
   if (pieza.esquema !== adaptador.entrada.versionViva) return 'esquema';
   if (pieza.datos === null) return 'sin-datos';
   return null;
+}
+
+/**
+ * Por qué esta pieza no puede rehacer su PDF, o `null` si puede.
+ *
+ * Es `motivoDeNoAbrir` más la regla de los capítulos de MEMORIA: ésos no se
+ * restauran —son uno por obra y sus datos son los de la obra de ahora—, así que
+ * basta con que su módulo exista en esta versión. Lo miran los dos que tienen
+ * que decir lo mismo: el conductor de la tanda, para no encargar lo imposible,
+ * y la fila del anejo, para explicarlo.
+ */
+export function motivoDeNoRehacer(pieza: Pieza): 'desconocido' | 'esquema' | 'sin-datos' | null {
+  if (rutaDeModulo(pieza.modulo) === null) return 'desconocido';
+  if (seccionDePieza(pieza) === 'memoria') return null;
+  return motivoDeNoAbrir(pieza);
 }
 
 /**
@@ -718,4 +755,18 @@ export async function purgarEnSegundoPlano(): Promise<number> {
 export async function piezasSinPdf(anejo: AnejoFile = leerAnejo()): Promise<Set<string>> {
   const existentes = new Set(await idsDeBlobs());
   return new Set(anejo.piezas.filter((p) => !existentes.has(p.blobId)).map((p) => p.id));
+}
+
+/**
+ * Las piezas a las que les falta el PDF y pueden rehacerlo solas, en el orden
+ * del anejo. Es lo que la app se pone a reconstruir al abrir una obra.
+ *
+ * Sin almacén de blobs devuelve la lista vacía y no la lista entera: sin
+ * IndexedDB no hay dónde guardar lo que se rehaga, y la tanda sería doce viajes
+ * para nada.
+ */
+export async function piezasPorRehacer(anejo: AnejoFile = leerAnejo()): Promise<Pieza[]> {
+  if (!hayAlmacenDeBlobs()) return [];
+  const faltan = await piezasSinPdf(anejo);
+  return anejo.piezas.filter((p) => faltan.has(p.id) && motivoDeNoRehacer(p) === null);
 }

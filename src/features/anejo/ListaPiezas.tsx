@@ -317,15 +317,17 @@ function FilaPieza(f: FilaPiezaProps) {
           {fechaTexto && ` · ${fechaTexto}`}
         </div>
 
-        {/* Sin PDF: se puede REHACER —abrir la pieza en su módulo y volver a
-            exportarla sobre su mismo capítulo— salvo que la pieza no se pueda
-            abrir, y entonces lo único honrado es decirlo y dejar el enlace. */}
+        {/* Sin PDF: al abrir la obra se intentó rehacer y no pudo ser (o se
+            dejó a medias), así que aquí se ofrece volver a intentarlo —abrir la
+            pieza en su módulo y exportarla sobre su mismo capítulo—. Si la
+            pieza no se puede abrir, lo único honrado es decirlo y dejar el
+            enlace. */}
         {f.faltaPdf && (
           <p className="m-0 mt-1 flex flex-wrap items-center gap-2 text-[11.5px] text-state-fail">
             <span>
               {f.noAbrible === null
-                ? 'Falta el PDF guardado: se puede rehacer con los datos de la pieza.'
-                : `Falta el PDF guardado, y no se puede rehacer: ${f.noAbrible}`}
+                ? 'Falta el PDF: al abrir la obra no llegó a rehacerse con los datos de la pieza.'
+                : `Falta el PDF, y no se puede rehacer: ${f.noAbrible}`}
             </span>
             {f.noAbrible === null ? (
               <button
@@ -334,7 +336,7 @@ function FilaPieza(f: FilaPiezaProps) {
                 title={`Abrir «${pieza.titulo}» en ${modulo?.label ?? 'su módulo'}, volver a exportarla sobre su capítulo y regresar aquí`}
                 onClick={() => f.onReconstruir(pieza)}
               >
-                Reconstruir el PDF
+                Volver a intentarlo
               </button>
             ) : (
               modulo && (
