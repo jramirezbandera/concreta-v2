@@ -12,7 +12,7 @@ import { useEffect } from 'react';
 import { AsistenteProvider } from '../../components/ai/AsistenteProvider';
 import { useAsistente, type EstadoAsistente } from '../../components/ai/asistente-context';
 import { useAsistenteDeModulo } from '../../components/ai/useAsistenteDeModulo';
-import { ToastContainer } from '../../components/ui/Toast';
+import { ToastContainer, showToast } from '../../components/ui/Toast';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 
 const PILDORA = /Abrir asistente IA|El asistente|Asistente con/;
@@ -213,5 +213,67 @@ describe('por debajo de 768 px no hay píldora (R4 · D-I16)', () => {
     expect(screen.getByText('ventana del asistente')).toBeInTheDocument();
 
     window.matchMedia = original;
+  });
+});
+/**
+ * T8 / D-I12 — la píldora y los avisos compartían «bottom 16 / right 16 /
+ * z-50». Con la píldora de paso no se notaba; puesta para siempre, el choque
+ * era seguro. Cruzan por variable CSS porque viven en árboles distintos.
+ */
+describe('los avisos se apartan de la píldora (T8 · D-I12)', () => {
+  const suelo = () => document.documentElement.style.getPropertyValue('--suelo-esquina');
+  const avisos = () => document.body.querySelector<HTMLElement>('[aria-label="Notificaciones"]');
+
+  it('con la píldora puesta, el aviso se apoya encima', () => {
+    montar(<ModuloConAsistente />);
+    expect(pildora()).toBeInTheDocument();
+    // 16 de margen + 38 de píldora + 8 de aire.
+    expect(suelo()).toBe('62px');
+
+    act(() => {
+      showToast('Enlace copiado');
+    });
+    expect(screen.getByText('Enlace copiado')).toBeInTheDocument();
+    expect(avisos()!.style.bottom).toBe('var(--suelo-esquina, 1rem)');
+  });
+
+  it('sin píldora, el aviso se queda donde siempre', () => {
+    montar(<ModuloSinAsistente />);
+    act(() => {
+      showToast('Enlace copiado');
+    });
+    expect(screen.getByText('Enlace copiado')).toBeInTheDocument();
+    // La variable no está: manda el 1rem de respaldo, o sea el sitio de antes.
+    expect(suelo()).toBe('');
+  });
+
+  it('al irse el módulo el hueco se va con la píldora', () => {
+    const { rerender } = render(
+      <ThemeProvider>
+        <AsistenteProvider>
+          <ModuloConAsistente />
+          <ToastContainer />
+        </AsistenteProvider>
+      </ThemeProvider>,
+    );
+    fireEvent.click(pildora()!);
+    fireEvent.click(screen.getByRole('button', { name: 'bajar' }));
+    expect(suelo()).toBe('62px');
+
+    rerender(
+      <ThemeProvider>
+        <AsistenteProvider>
+          <ModuloSinAsistente />
+          <ToastContainer />
+        </AsistenteProvider>
+      </ThemeProvider>,
+    );
+
+    // El aviso de que la conversación ha muerto sale justo cuando la píldora se
+    // va: si el hueco se quedara puesto, ese aviso —y todos los siguientes—
+    // flotarían sobre una esquina ya vacía.
+    expect(screen.getByText('El asistente empieza de cero en cada módulo.')).toBeInTheDocument();
+    expect(pildora()).not.toBeInTheDocument();
+    expect(suelo()).toBe('');
   });
 });

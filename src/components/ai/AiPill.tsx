@@ -16,11 +16,21 @@
 // diálogo de Nueva obra, que se quedó encajado en 204 px. El provider hoy cuelga
 // fuera del Sidebar, así que no haría falta; el portal es lo que garantiza que
 // siga siendo verdad si alguien lo mueve de sitio.
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Sparkles } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../lib/theme/useTheme';
 import type { EstadoAsistente } from './asistente-context';
+
+/**
+ * Las medidas de la píldora, en un sitio y no en tres. Su suma es lo que ocupa
+ * la esquina de abajo a la derecha, y es lo que se publica hacia fuera para que
+ * los avisos no se sienten encima (D-I12).
+ */
+const ALTO = 38;
+const MARGEN = 16;
+const AIRE = 8;
 
 interface AiPillProps {
   estado: EstadoAsistente;
@@ -92,6 +102,22 @@ export function AiPill({ estado, turnos, onClick }: AiPillProps) {
   const menosMovimiento = useMediaQuery('(prefers-reduced-motion: reduce)');
   const { color, anillo, tenue } = pinta(estado);
 
+  /**
+   * Mientras la píldora esté puesta, la esquina de abajo a la derecha deja de
+   * estar libre. Los avisos viven en OTRO árbol —«Toast.tsx» cuelga de
+   * «App.tsx», por encima del router, para cubrir también la landing— así que
+   * no pueden leer este contexto. Lo que cruza es una variable CSS en la raíz,
+   * que es donde se declaran los hechos de maquetación, y la escribe un solo
+   * sitio: el que ocupa el hueco (D-I12).
+   */
+  useEffect(() => {
+    const raiz = document.documentElement;
+    raiz.style.setProperty('--suelo-esquina', `${MARGEN + ALTO + AIRE}px`);
+    return () => {
+      raiz.style.removeProperty('--suelo-esquina');
+    };
+  }, []);
+
   const pildora = (
     <button
       type="button"
@@ -99,10 +125,11 @@ export function AiPill({ estado, turnos, onClick }: AiPillProps) {
       data-estado={estado}
       title="Asistente IA (A)"
       aria-label={etiquetaAccesible(estado, turnos)}
-      className="fixed z-50 inline-flex items-center gap-2.5 h-[38px] px-3.5 rounded-md overflow-hidden bg-bg-surface border border-border-main text-[12px] text-text-primary hover:border-accent/40 transition-colors"
+      className="fixed z-50 inline-flex items-center gap-2.5 px-3.5 rounded-md overflow-hidden bg-bg-surface border border-border-main text-[12px] text-text-primary hover:border-accent/40 transition-colors"
       style={{
-        right: 16,
-        bottom: 16,
+        right: MARGEN,
+        bottom: MARGEN,
+        height: ALTO,
         background: isDark
           ? 'linear-gradient(180deg, var(--color-bg-elevated), var(--color-bg-surface))'
           : undefined,

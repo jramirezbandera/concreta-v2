@@ -98,9 +98,19 @@ export function ToastContainer() {
 
   if (toasts.length === 0) return null;
 
+  /*
+    Lo permanente manda sobre lo efímero. Si algo fijo ocupa la esquina de
+    abajo a la derecha —hoy la píldora del asistente— lo declara en
+    «--suelo-esquina» y los avisos se apoyan encima; sin nada fijo, el sitio
+    de siempre (D-I12). Va por variable CSS y no por contexto porque este
+    contenedor cuelga de «App.tsx», por encima del router, y el asistente vive
+    dentro. Un solo contenedor de avisos ⇒ un solo sitio que tocar para los
+    128 puntos de llamada.
+  */
   return (
     <div
-      className="fixed bottom-4 right-4 flex flex-col gap-2 z-50"
+      className="fixed right-4 flex flex-col gap-2 z-50"
+      style={{ bottom: 'var(--suelo-esquina, 1rem)' }}
       aria-live="polite"
       aria-label="Notificaciones"
     >
