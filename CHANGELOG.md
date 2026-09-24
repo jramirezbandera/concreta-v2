@@ -16,6 +16,22 @@ trabajo, no la de la publicación.
 
 ---
 
+## Dos datos que no se podían leer — v260924.1 (2026-09-24)
+
+### Arreglado
+- **El solape de la viga salía con catorce decimales** («970.496894409938 mm»)
+  en la ficha de resultados, y el PDF decía otra cosa —970— porque redondeaba
+  por su cuenta. Ahora el número sale ya redondeado del cálculo, hacia arriba y
+  al múltiplo de 5 mm, como lleva haciendo pilares desde siempre: es una cota
+  que alguien va a medir en obra, y hacia abajo se estaría pidiendo menos de lo
+  que exige la norma.
+- **La píldora del asistente tapaba la última fila** de los paneles que hacen
+  scroll, y ahí no había forma de bajarla: es el final del recorrido. Ese solape
+  de la viga, que es el último dato de la ficha, quedaba ilegible. Los paneles
+  de módulo le reservan ahora su sitio al final, y sólo mientras la píldora está
+  puesta.
+
+
 ## Los cálculos viajan sin PDF y el anejo se rehace solo — v260924.0 (2026-09-24)
 
 ### Cambiado
