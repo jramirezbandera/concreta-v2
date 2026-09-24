@@ -16,6 +16,36 @@ trabajo, no la de la publicación.
 
 ---
 
+## El catálogo de perfiles, cotejado contra el prontuario — v260924.2 (2026-09-24)
+
+### Añadido
+- **HEA y HEB llegan hasta el 1000.** La lista se cortaba en el 400 y de ahí
+  para arriba no había nada que elegir. Entran el 450, 500, 550, 600, 650, 700,
+  800, 900 y 1000 de las dos series, con todas sus propiedades.
+
+### Corregido
+- **El UPN tenía mal 58 de sus 176 casillas.** El 320 figuraba con un alma de
+  10,5 mm y 65,2 cm² de área cuando son 14 mm y 75,8 cm² (59,5 kg/m); el 350 y
+  el 380 iban cortos de área por lo mismo, y el 400 llevaba la inercia del IPE
+  400. El módulo plástico de toda la serie estaba entre un 5 % y un 28 % alto, y
+  es el que decide el momento que aguanta un cajón de dos UPN en vigas y
+  pilares, y el de la cruceta de punzonamiento: un 2UPN 400 anunciaba un 28 %
+  más de lo que aguanta. La torsión iba de dos a tres veces alta y el centroide
+  hasta un 15 %, lo que además dejaba corta la inercia del cajón.
+- **La torsión de toda la serie IPN** venía de otra fuente: entre un 27 % baja y
+  un 6 % alta según el tamaño. Las trece columnas pasan a ser las del catálogo.
+- **El HEA 160 declaraba la inercia de eje débil un 22 % baja** (479 cm⁴ por
+  615,6), con lo que el pandeo por ese eje salía más esbelto de lo que es. Y la
+  constante de alabeo de los HEB 280 a 400 estaba desplazada de fila —el HEB 400
+  llevaba la del 450, un 41 % alta—, que es lo que infla el pandeo lateral de
+  una viga.
+- Todo se cotejó contra tres fuentes independientes a la vez: el catálogo del
+  fabricante, una tabla de propiedades externa y las fórmulas exactas de la
+  sección. El IPE sale limpio. Lo que se encontró queda vigilado por
+  comprobaciones que no dependen de ninguna fuente, sólo de la geometría del
+  perfil, incluido el UPN, que hasta ahora no tenía ninguna.
+
+
 ## Dos datos que no se podían leer — v260924.1 (2026-09-24)
 
 ### Arreglado
