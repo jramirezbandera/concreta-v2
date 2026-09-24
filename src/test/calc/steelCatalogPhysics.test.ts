@@ -17,7 +17,14 @@
 // It hasta 3x). Los invariantes de abajo no dependen de ninguna fuente externa, solo de
 // la geometría de la sección: son la red para que no se pueda equivocar en silencio.
 import { describe, it, expect } from 'vitest';
-import { STEEL_PROFILES, UPN_PROFILES, type SteelProfile, type UPNProfile } from '../../data/steelProfiles';
+import {
+  STEEL_PROFILES,
+  UPN_PROFILES,
+  buildUPNBox,
+  type SteelProfile,
+  type UPNProfile,
+} from '../../data/steelProfiles';
+import { makeUPNBoxBySize } from '../../lib/sections';
 
 const key = (p: SteelProfile) => `${p.tipo} ${p.size}`;
 
@@ -199,6 +206,60 @@ describe('UPN — invariantes físicos', () => {
   });
 });
 
+// ─── Cajón 2UPN ──────────────────────────────────────────────────────────────
+// El cajón NO está tabulado: `buildUPNBox` lo compone desde la fila del UPN suelto. Toda
+// la composición es exacta (suma directa o Steiner), así que estos invariantes se afirman
+// con igualdad, no con banda: si alguno pide tolerancia es que alguien ha metido un modelo
+// aproximado donde había una identidad, que es justo lo que pasó con Wpl_z hasta 2026-09-24.
+describe('cajón 2UPN — composición exacta desde el UPN', () => {
+  for (const u of UPN_PROFILES) {
+    const box = buildUPNBox(u.size)!;
+    const d = (u.b - u.e1) / 10; // cm — del centro de gravedad del canal al eje del cajón
+
+    describe(`2UPN ${u.size}`, () => {
+      it('A = 2·A_UPN', () => expect(box.A).toBeCloseTo(2 * u.A, 10));
+      it('Iy = 2·Iy_UPN', () => expect(box.Iy).toBeCloseTo(2 * u.Iy, 10));
+      it('Wpl_y = 2·Wpl_y_UPN', () => expect(box.Wpl_y).toBeCloseTo(2 * u.Wpl_y, 10));
+
+      it('Iz = 2·(Iz_UPN + A_UPN·d²) con d = b − e1  —  Steiner', () => {
+        expect(box.Iz).toBeCloseTo(2 * (u.Iz + u.A * d * d), 10);
+      });
+
+      // La disposición importa: «adosados» (almas juntas, alas hacia fuera) es otra
+      // sección, con la misma A y la misma Iy pero d = e1 en vez de b − e1. Medido:
+      // su Iz queda un 62-80 % por debajo. Si alguien invierte la resta, esto lo canta.
+      it('NO es la disposición adosada (Iz al menos un 50 % mayor)', () => {
+        const adosados = 2 * (u.Iz + u.A * (u.e1 / 10) ** 2);
+        expect(box.Iz).toBeGreaterThan(1.5 * adosados);
+      });
+
+      // Wpl_z = 2·A_UPN·d: por simetría el eje plástico es el centro del cajón y cada
+      // canal cae ENTERO a un lado, así que su momento estático es área × distancia al
+      // centro de gravedad. Es una identidad, igual que Steiner para Iz.
+      it('Wpl_z = 2·A_UPN·d  —  exacto, sin modelo rectangular', () => {
+        expect(box.Wpl_z).toBeCloseTo(2 * u.A * d, 10);
+      });
+
+      it('el adaptador publica el Wpl_z del cajón sin recalcularlo', () => {
+        expect(makeUPNBoxBySize(u.size)!.Wpl_z).toBeCloseTo(box.Wpl_z, 10);
+      });
+
+      it('Wel_y = Iy/(h/2) y factores de forma por debajo del techo de 1.5', () => {
+        expect(box.Wel_y).toBeCloseTo(box.Iy / (u.h / 20), 8);
+        expect(box.Wpl_y / box.Wel_y).toBeLessThan(1.5);
+        const Wel_z = box.Iz / (u.b / 10);
+        expect(box.Wpl_z / Wel_z).toBeLessThan(1.5);
+      });
+
+      // Bredt para sección cerrada. Cerrar el cajón multiplica por mucho la rigidez a
+      // torsión de los dos canales sueltos; si alguien devuelve 2·It_UPN, esto lo pilla.
+      it('It de sección cerrada, muy por encima de 2·It_UPN', () => {
+        expect(box.It).toBeGreaterThan(20 * 2 * u.It);
+      });
+    });
+  }
+});
+
 // Pines de los incidentes concretos, con los números a la vista: si alguien revierte el
 // fichero de datos, esto lo dice por su nombre en vez de dejarlo en un invariante abstracto.
 describe('regresión — el bug de Wpl_y de IPN (2026-07-25)', () => {
@@ -257,5 +318,14 @@ describe('regresión — auditoría del catálogo (2026-09-24)', () => {
   it('HEB 1000 existe y pesa lo que dice el catálogo (A = 400 cm²)', () => {
     expect(prof('HEB', 1000).A).toBe(400);
     expect(prof('HEA', 1000).A).toBeCloseTo(346.8, 1);
+  });
+
+  // El Wpl_z del cajón lo daba un rectángulo a mano que ignoraba el ala cónica y los
+  // acuerdos: 342.3 cm³ en el 2UPN 200 frente a los 353.6 reales (−3.2 %). Iba del lado
+  // seguro, pero era la única propiedad del cajón que no salía del catálogo.
+  it('2UPN 200: Wpl_z ≈ 353.6 cm³, NO los 342.3 del rectángulo a mano', () => {
+    const box = buildUPNBox(200)!;
+    expect(box.Wpl_z).toBeCloseTo(353.6, 1);
+    expect(Math.abs(box.Wpl_z - 342.3)).toBeGreaterThan(5);
   });
 });

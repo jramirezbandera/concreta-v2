@@ -1,6 +1,17 @@
-// 2UPN closed box adapter — two UPN channels welded web-to-web forming a
-// rectangular closed section. No LTB (closed section → Iw = 0 and St.Venant
-// torsion dominates), single buckling curve b for both axes.
+// 2UPN closed box adapter — dos UPN ENFRENTADOS formando un cajón rectangular
+// cerrado: las almas quedan FUERA (paredes izquierda y derecha, canto h) y las
+// alas apuntan hacia dentro y se sueldan punta con punta en el centro, sin
+// separación. Cajón: H = h_UPN, B = 2·b_UPN.
+//
+// OJO, no es la otra disposición: dos UPN «adosados» (almas juntas, alas hacia
+// fuera) son una sección DISTINTA, con la misma A y la misma Iy pero una Iz
+// entre un 62 % y un 80 % menor. Esta cabecera decía «welded web-to-web», que
+// describe justo esa otra, mientras el cálculo y el dibujo hacían el cajón
+// (corregido 2026-09-24). La distancia al eje de la fórmula de Iz, (b_upn − e1),
+// es la que distingue una de la otra.
+//
+// Sin vuelco lateral (sección cerrada → Iw = 0 y domina la torsión de
+// St. Venant), curva de pandeo b en los dos ejes.
 
 import type {
   ColumnBeamSection,
@@ -49,7 +60,7 @@ export class UPNBoxAdapter implements ColumnBeamSection {
     this.Iy = box.Iy;
     this.Iz = box.Iz;
     this.Wpl_y = box.Wpl_y;
-    this.Wpl_z = wplZForBox(box);
+    this.Wpl_z = box.Wpl_z;
     this.Wel_y = box.Wel_y;
     this.Wel_z = welZForBox(box);
     this.It = box.It;
@@ -132,13 +143,6 @@ export class UPNBoxAdapter implements ColumnBeamSection {
       bbox: { minX: -hx, minY: -hy, maxX: hx, maxY: hy },
     };
   }
-}
-
-function wplZForBox(box: UPNBoxProfile): number {
-  // Wpl_z = 2·[b_upn²·tf + tw·(h−2·tf)·(b_upn − tw/2)]   (all in cm → cm³).
-  // Reproduced verbatim from steelColumns.ts for numerical compatibility.
-  const b = box.b_upn / 10, hh = box.h / 10, tf = box.tf / 10, tw = box.tw / 10;
-  return 2 * (b * b * tf + tw * (hh - 2 * tf) * (b - tw / 2));
 }
 
 function welZForBox(box: UPNBoxProfile): number {

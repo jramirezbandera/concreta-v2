@@ -222,7 +222,7 @@ function UPNBoxShape({
   return (
     <g>
       <title>{`Perfil 2UPN ${profile.size}`}</title>
-      <desc>{`Sección cajón formada por dos UPN ${profile.size} soldadas alma contra alma`}</desc>
+      <desc>{`Sección cajón formada por dos UPN ${profile.size} enfrentadas, con las almas hacia fuera y las alas soldadas en el centro`}</desc>
       {/* Left UPN web */}
       <rect x={ox} y={oy} width={tw} height={sH}
         fill={C.sectionFill} stroke={C.sectionStroke} strokeWidth={isPdf ? 1.5 : 1} />

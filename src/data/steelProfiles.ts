@@ -267,6 +267,7 @@ export interface UPNBoxProfile {
   Iy: number;    // 2 · Iy_UPN                                 (cm⁴)
   Iz: number;    // 2·Iz_UPN + 2·A_UPN·(b_upn − e1)²          (cm⁴)
   Wpl_y: number; // 2 · Wpl_y_UPN                              (cm³)
+  Wpl_z: number; // 2 · A_UPN · (b_upn − e1)                   (cm³)
   Wel_y: number; // Iy_box / (h/2)                             (cm³)
   It: number;    // Bredt 4·Am²/Σ(ds/t)                       (cm⁴)
   Iw: number;    // 0 — closed section                        (cm⁶)
@@ -287,6 +288,19 @@ export function buildUPNBox(size: number): UPNBoxProfile | undefined {
 
   const Wpl_y = 2 * Wply1;
 
+  // Wpl_z = 2·A_UPN·(b_upn − e1) — EXACTO, no aproximado: por simetría el eje
+  // plástico de eje débil es el centro del cajón, y cada canal cae ENTERO a un
+  // lado, así que su momento estático es área × distancia de su centro de
+  // gravedad al eje, la misma d de la fórmula de Iz.
+  //
+  // Hasta 2026-09-24 upnBox.ts lo calculaba con un rectángulo a mano
+  // (2·[b²·tf + tw·(h−2tf)·(b − tw/2)]), que ignora el ala cónica y los
+  // acuerdos y por eso situaba el centro de gravedad ~2 mm más lejos del alma
+  // de lo que está: salía entre un 2.3 % y un 4.1 % bajo en toda la serie
+  // (conservador, pero falso, y era la única propiedad del cajón que no venía
+  // del catálogo).
+  const Wpl_z = 2 * A1 * d_cm;
+
   // Wel_y = Iy_box / (h/2 in cm)  →  20·Iy_box / h_mm
   const Wel_y = (20 * Iy) / h;
 
@@ -304,7 +318,7 @@ export function buildUPNBox(size: number): UPNBoxProfile | undefined {
     h, b: 2 * b_upn,
     tf, tw,
     A, Iy, Iz,
-    Wpl_y, Wel_y,
+    Wpl_y, Wpl_z, Wel_y,
     It, Iw: 0,
   };
 }
