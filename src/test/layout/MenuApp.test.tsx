@@ -1,9 +1,10 @@
-// Tests del «Menú» de la topbar (src/components/layout/MenuApp.tsx), que sucede
-// al viejo «Ajustes» el 2026-09-22 y recoge además el Asistente IA y la
-// Calculadora. Cubre las decisiones de la revisión de diseño que son
-// verificables sin navegador:
+// Tests del desplegable «Ajustes» de la topbar
+// (src/components/layout/MenuApp.tsx), que además de las preferencias recoge
+// el Asistente IA y la Calculadora desde el 2026-09-22. Cubre las decisiones
+// de la revisión de diseño que son verificables sin navegador:
 //
-//   D-I3  — el disparador se llama «Menú».
+//   D-I3  — el disparador se llama «Ajustes» (se llamó «Menú» del 22 al 24 de
+//           septiembre de 2026; el componente conserva el nombre `MenuApp`).
 //   D-I7  — UNA sola forma: las filas que no aplican salen APAGADAS con la
 //           razón, no se esconden.
 //   D-I14 — al elegir una herramienta el foco vuelve al disparador ANTES de
@@ -64,7 +65,7 @@ function renderMenu(o: Opciones = {}) {
 
 const abrir = async () => {
   const user = userEvent.setup();
-  const trigger = screen.getByRole('button', { name: 'Menú' });
+  const trigger = screen.getByRole('button', { name: 'Ajustes' });
   await user.click(trigger);
   return { user, trigger };
 };
@@ -76,10 +77,10 @@ beforeEach(() => {
 });
 
 describe('MenuApp', () => {
-  it('cerrado por defecto; se llama «Menú» y trae los tres grupos', async () => {
+  it('cerrado por defecto; se llama «Ajustes» y trae los tres grupos', async () => {
     renderMenu();
 
-    const trigger = screen.getByRole('button', { name: 'Menú' });
+    const trigger = screen.getByRole('button', { name: 'Ajustes' });
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('button', { name: /Copiar enlace/ })).not.toBeInTheDocument();
 
@@ -253,7 +254,7 @@ describe('MenuApp', () => {
         </ThemeProvider>
       </MemoryRouter>,
     );
-    await user.click(screen.getByRole('button', { name: 'Menú' }));
+    await user.click(screen.getByRole('button', { name: 'Ajustes' }));
     expect(screen.getByRole('group', { name: 'Herramientas' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'fuera' }));

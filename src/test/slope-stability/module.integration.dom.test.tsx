@@ -241,9 +241,9 @@ describe("SlopeStabilityModule — smoke de integración (T4.3, solver mockeado)
     Object.assign(navigator, { clipboard: { writeText } });
 
     renderModule();
-    // "Copiar enlace" vive dentro del "Menú" de la topbar (antes "Ajustes").
+    // "Copiar enlace" vive dentro del desplegable "Ajustes" de la topbar.
     // Ya no es un `menuitem`: el panel dejó de anunciarse como menú (D-I18).
-    fireEvent.click(screen.getByRole("button", { name: "Menú" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
     fireEvent.click(screen.getByRole("button", { name: /Copiar enlace/i }));
 
     // Espera al microtask de la promesa de writeText.

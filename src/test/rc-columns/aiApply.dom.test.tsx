@@ -120,7 +120,7 @@ describe('RCColumnsModule — Rellenar con IA (integración T4.2)', () => {
     // La fila "Asistente IA" del Menú abre el asistente genérico con el adapter
     // del módulo. (Desde el 2026-09-22 el asistente no tiene botón propio en la
     // barra: se mudó al Menú, que sucede al viejo "Ajustes".)
-    await user.click(screen.getAllByLabelText('Menú')[0]);
+    await user.click(screen.getAllByLabelText('Ajustes')[0]);
     await user.click(screen.getByRole('button', { name: /Asistente IA/ }));
     expect(screen.getByLabelText('Mensaje para el asistente')).toBeInTheDocument();
 

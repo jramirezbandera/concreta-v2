@@ -1307,7 +1307,7 @@ export function AiChatModal<TInputs>({
     <button
       type="button"
       onClick={minimizar}
-      title="Esconder — la conversación se recupera desde el Menú"
+      title="Esconder — la conversación se recupera desde Ajustes"
       aria-label="Esconder el asistente"
       className={HEADER_BTN}
     >

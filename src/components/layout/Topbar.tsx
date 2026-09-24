@@ -113,8 +113,9 @@ export function Topbar({ moduleLabel, moduleGroup, onMenuOpen, onCopyLink, expor
           margen automático se come el hueco libre ANTES de que la obra pueda
           crecer, y la dejaría en nada). */}
       <div className="order-3 flex items-center gap-1 shrink-0 sm:order-4 sm:ml-auto">
-        {/* Menú: las dos herramientas (Asistente, Calculadora) + Preferencias +
-            Estudio y compartir. Sucede al viejo «Ajustes». */}
+        {/* Ajustes: las dos herramientas (Asistente, Calculadora) +
+            Preferencias + Estudio y compartir. Se llamó «Menú» entre el
+            2026-09-22 y el 24; el componente conserva el nombre `MenuApp`. */}
         <MenuApp onCopyLink={handleCopyUrl} onOpenCalculator={openCalc} />
         {/* Salida del módulo: el desplegable que trae el propio módulo.
             D-I4: conserva su outline SUTIL y no hereda el fuerte. Nadie es ya

@@ -1,27 +1,37 @@
-// Menú de la topbar (rediseño 2026-09-22). Sucede al «Ajustes» de 2026-07-17 y
-// recoge, además de lo que aquél tenía, las dos herramientas que vivían sueltas
-// en la barra: el Asistente IA y la Calculadora. La barra queda con `Menú` +
+// El desplegable de la izquierda de la topbar (rediseño 2026-09-22). Recoge,
+// además de las preferencias, las dos herramientas que vivían sueltas en la
+// barra: el Asistente IA y la Calculadora. La barra queda con `Ajustes` +
 // `Exportar`, y el acento fuerte se muda con el asistente a su píldora de la
 // esquina (ver DESIGN.md, entrada 2026-09-22, que REVOCA la de 2026-07-17).
+//
+// El componente se sigue llamando `MenuApp` y el fichero `MenuApp.tsx`: es el
+// nombre con el que lo importan la topbar y sus tests, y renombrarlo sólo para
+// seguir al rótulo movería ficheros sin cambiar nada.
 //
 // Decisiones que este componente encarna (plan «Menú + asistente siempre
 // visible», revisión de diseño del 2026-09-22):
 //
-// - D-I3 — se llama «Menú», y la hamburguesa del Sidebar pasa a anunciarse como
-//   «Abrir navegación»: eran dos controles de la misma barra que se anunciaban
-//   igual al lector de pantalla.
+// - D-I3, REVISADA el 2026-09-24 — vuelve a llamarse «Ajustes», como antes del
+//   22-09, a petición del usuario. Lo que D-I3 resolvía sigue resuelto por el
+//   otro lado: la hamburguesa del Sidebar se anuncia «Abrir navegación» y no
+//   «Abrir menú», así que no hay dos controles de la misma barra con el mismo
+//   nombre. Queda en pie la pega que motivó el cambio de nombre: detrás de una
+//   ruedecita están también el Asistente y la Calculadora, que no son ajustes.
+//   Se acepta a sabiendas.
 // - D-I7 — UNA sola forma en las 29 pantallas. Las filas que no aplican NO se
 //   esconden: salen apagadas y con la razón. Antes «Unidades» desaparecía y el
 //   menú tenía cuatro formas distintas, así que «la tercera de la lista» dejaba
 //   de ser un sitio y la memoria muscular no servía.
-// - D-I11, REVOCADA el 2026-09-24 — el disparador va SIN icono y con el rótulo
-//   «Menú» puesto en todos los anchos, dentro de un marco neutro. El icono se
-//   eligió cuando el rótulo desaparecía por debajo de `sm`; midiendo la fila a
-//   375 px el rótulo cabe (cuesta 16 px más que el icono, y salen de la obra,
-//   que es quien cede al truncar), así que los tres puntos no aportaban nada
-//   que no dijera ya la palabra. El marco es lo que lo anuncia como
+// - D-I11, REVOCADA el 2026-09-24 — el icono es la ruedecita (`Settings`), que
+//   es lo que el rótulo pide, y NO `MoreHorizontal`. Aquellos tres puntos se
+//   eligieron para un disparador que por debajo de `sm` iba sin rótulo; hoy el
+//   rótulo va en todos los anchos, así que el icono acompaña a la palabra en
+//   vez de sustituirla.
+// - Marco neutro (2026-09-24) — el borde es lo que lo anuncia como
 //   desplegable: sin él era texto suelto al lado de un botón con caja, y la
-//   pareja `Menú` + `Exportar` no se leía como dos controles hermanos.
+//   pareja `Ajustes` + `Exportar` no se leía como dos controles hermanos.
+//   Mismo alto, mismo radio y mismo chevron que `ExportarMenu`; el tinte de
+//   acento se lo queda `Exportar`.
 // - D-I14 — al elegir una herramienta el foco vuelve AL DISPARADOR antes de
 //   abrirla. Si no, el asistente memoriza como origen una fila que se desmonta
 //   con el menú, y al cerrarlo el foco cae al <body>. Mismo patrón que
@@ -34,7 +44,7 @@
 //   por debajo de `lg` y 36 px en escritorio, para no perder densidad.
 import { useEffect, useId, useRef, useState } from 'react';
 import { NavLink } from 'react-router';
-import { Building2, ChevronDown, Link2, Sparkles } from 'lucide-react';
+import { Building2, ChevronDown, Link2, Settings, Sparkles } from 'lucide-react';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { ToggleChip } from '../ui/ToggleChip';
 import { UnitSystemToggle } from '../units/UnitSystemToggle';
@@ -207,18 +217,17 @@ export function MenuApp({ onCopyLink, onOpenCalculator }: MenuAppProps) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="true"
         aria-expanded={open}
-        title="Menú"
-        aria-label="Menú"
+        title="Ajustes"
+        aria-label="Ajustes"
         className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-border-main text-[12px] transition-colors ${
           open ? 'bg-bg-elevated text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
         }`}
       >
-        {/* Sin icono y con el rótulo SIEMPRE puesto (2026-09-24, revoca D-I11 y
-            afina D-I16). Los tres puntos no decían nada que no dijera la
-            palabra «Menú», y como el rótulo cabe también a 375 px —cuesta 16 px
-            más que el icono, que salen de la obra, que es quien cede— el icono
-            sobraba en todos los anchos. */}
-        Menú
+        {/* La ruedecita y el rótulo «Ajustes», los dos en todos los anchos
+            (2026-09-24, a petición del usuario). El icono gira de nuevo lo que
+            el rótulo dice, que es lo que se pidió. */}
+        <Settings size={14} aria-hidden="true" className="shrink-0" />
+        Ajustes
         <ChevronDown
           size={12}
           aria-hidden="true"

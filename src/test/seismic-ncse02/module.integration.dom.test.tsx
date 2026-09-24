@@ -822,7 +822,7 @@ describe('persistencia y enlace', () => {
     Object.assign(navigator, { clipboard: { writeText: escribir } });
     montar();
     // Vive dentro del «Menu» de la topbar, no suelto (antes «Ajustes»).
-    fireEvent.click(screen.getAllByLabelText('Menú')[0]);
+    fireEvent.click(screen.getAllByLabelText('Ajustes')[0]);
     fireEvent.click(await screen.findByText('Copiar enlace'));
     await waitFor(() => expect(escribir).toHaveBeenCalled());
     expect(String(escribir.mock.calls[0][0])).toContain('?model=');
@@ -893,7 +893,7 @@ describe('asistente IA', () => {
   // Desde el 2026-09-22 el asistente no tiene botón propio en la barra: vive en
   // la fila «Asistente IA» del Menú (y, cuando aterrice, en su píldora).
   const abrirAsistente = () => {
-    fireEvent.click(screen.getAllByLabelText('Menú')[0]);
+    fireEvent.click(screen.getAllByLabelText('Ajustes')[0]);
     fireEvent.click(screen.getByRole('button', { name: /Asistente IA/ }));
   };
 

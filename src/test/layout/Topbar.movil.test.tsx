@@ -47,7 +47,7 @@ const filaDe = (el: Element) => [...barra().children].find((c) => c === el || c.
 
 const obra = () => screen.getByRole('button', { name: /^Obra:/ });
 const titulo = () => screen.getByText(TITULO);
-const desplegables = () => filaDe(screen.getByRole('button', { name: 'Menú' }));
+const desplegables = () => filaDe(screen.getByRole('button', { name: 'Ajustes' }));
 
 describe('Topbar en móvil — el reparto de las dos filas (T7)', () => {
   it('arriba lo que se pulsa, abajo lo que se lee', () => {
