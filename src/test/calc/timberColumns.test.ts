@@ -511,9 +511,12 @@ describe('hardwood grade', () => {
     expect(r.betaC).toBeCloseTo(0.2, 5);
   });
 
-  it('D40 betaN=0.70 for fire (hardwood slower charring)', () => {
+  // EN 1995-1-2 Tabla 3.1: frondosa con ρk ≥ 450 → βn = 0,55 (D40 tiene ρk = 550). El
+  // 0,70 que se afirmaba hasta 2026-09-25 es el de una frondosa de ρk = 290, que no existe
+  // en la EN 338: carbonizaba un 27 % más deprisa de lo tabulado.
+  it('D40 betaN=0.55 for fire (hardwood ρk ≥ 450 chars slower, EN 1995-1-2 T.3.1)', () => {
     const r = calcTimberColumn({ ...BASE, gradeId: 'D40', fireResistance: 'R30', exposedFaces: 4, etaFi: 0.65 });
-    expect(r.betaN).toBeCloseTo(0.70, 5);
+    expect(r.betaN).toBeCloseTo(0.55, 5);
   });
 });
 

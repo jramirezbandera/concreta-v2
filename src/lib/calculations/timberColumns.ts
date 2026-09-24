@@ -296,7 +296,7 @@ export function calcTimberColumn(inp: TimberColumnInputs): TimberColumnResult {
   // ── FIRE — EN 1995-1-2 ────────────────────────────────────────────────────
   const fireActive = inp.fireResistance !== 'R0';
   const t_fire = fireActive ? parseInt(inp.fireResistance.slice(1), 10) : 0;
-  const betaN  = getBetaN(grade.subtype, grade.type);
+  const betaN  = getBetaN(grade);
   const d0     = 7;  // mm — zero-strength layer
   const dchar  = betaN * t_fire;
   const def    = fireActive ? dchar + d0 : 0;

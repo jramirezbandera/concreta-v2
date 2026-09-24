@@ -436,7 +436,7 @@ export function calcTimberBeam(inp: TimberBeamInputs): TimberBeamResult {
   // ── FIRE — EN 1995-1-2 (sección reducida) ────────────────────────────────
   const fireActive = inp.fireResistance !== 'R0';
   const t_fire = fireActive ? parseInt(inp.fireResistance.slice(1), 10) : 0;
-  const betaN  = getBetaN(grade.subtype, grade.type);
+  const betaN  = getBetaN(grade);
   const d0     = 7;   // mm — zero-strength layer (EN 1995-1-2 §3.4.3(4))
   const dchar  = betaN * t_fire;                // mm — char depth
   const def    = fireActive ? dchar + d0 : 0;  // mm — effective penetration

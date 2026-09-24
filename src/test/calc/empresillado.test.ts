@@ -274,8 +274,13 @@ describe('L100x10 profile spot-check', () => {
 describe('Auditoría #125: oracles de segundo orden (defaults)', () => {
   const r = calcEmpresillado(inp());
 
-  it('MEd_IIX ≈ 23.7 kNm (Ncr≈57.5e3, Sv≈23.3e3, denom≈0.970)', () => {
-    expect(r.Ncr_X).toBeCloseTo(57535, -2);
+  // Los oráculos de esta suite se calcularon con el L100x10 SIN acuerdos (A 19,00, I1 180,05,
+  // e 2,868). El 2026-09-25 el catálogo pasó a la geometría exacta de la EN 10056-1
+  // (A 19,15, I1 176,7, e 2,822), y Ncr y Sv se mueven con ellos: Ncr +0,2 % (dx crece con
+  // el e más pequeño y pesa más que la I1 menor). Los valores nuevos se recalcularon con la
+  // misma cadena a mano.
+  it('MEd_IIX ≈ 23.7 kNm (Ncr≈57.7e3, Sv≈23.3e3, denom≈0.970)', () => {
+    expect(r.Ncr_X).toBeCloseTo(57657, -2);
     expect(r.Sv_X).toBeCloseTo(23336, -2);
     expect(r.MEd_IIX).toBeCloseTo(23.71, 1);
   });
@@ -304,7 +309,9 @@ describe('Auditoría #126: flexión Vierendeel del cordón', () => {
     const r = calcEmpresillado(inp());
     expect(r.M_ch).toBeCloseTo(r.V_Ed * 0.4 / 8, 4);
     expect(r.checks.some((c) => c.id === 'cordon-interaccion')).toBe(true);
-    expect(r.M_el_Rd).toBeCloseTo(6.61, 1);  // Wel(L100x10)·fy/γM0
+    // Wel(L100x10) = I1/(b − e) = 176,7/(10 − 2,822) = 24,6 cm³ → ·275/1,05 = 6,45 kNm.
+    // Con el catálogo sin acuerdos (180,05 y 2,868) daba 6,61: un 2,5 % de capacidad de más.
+    expect(r.M_el_Rd).toBeCloseTo(6.45, 1);
   });
 });
 

@@ -57,7 +57,15 @@ export interface TipoVanoDef {
   l0Factor: number;  // L0 = l0Factor · L
 }
 
-// CE Anejo 19 §5.3.2.1 — L0 = distancia entre puntos de momento nulo
+// L0 = distancia entre puntos de momento nulo, para el ancho eficaz del ala (CE Anejo 19
+// §5.3.2.1, fig. 5.2): vano extremo 0,85·L y vano interior 0,70·L salen de ahí.
+//
+// OJO con el voladizo (cotejo 2026-09-25): el 2·L NO es del CE/EC2, que da
+// l0 = 0,15·l2 + l3 con l2 el vano contiguo (típicamente 1,3–1,5·L). Los 2·L vienen de
+// la EHE-08 (art. 18.2.1), que trata el voladizo como media viga biapoyada. Se conserva
+// porque cambiarlo pide l2, que el módulo no pregunta; sólo entra en el ancho eficaz
+// del vano, que casi siempre lo acota el intereje. Si algún día se pide l2, poner la
+// expresión del CE.
 export const TIPOS_VANO: TipoVanoDef[] = [
   { key: 'biapoyado',         label: 'Biapoyado (L0 = L)',              l0Factor: 1.0  },
   { key: 'continuo-extremo',  label: 'Continuo extremo (L0 = 0.85 L)',  l0Factor: 0.85 },

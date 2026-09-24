@@ -19,9 +19,14 @@ export interface ConcreteGrade {
 // fctm = 2.12 * ln(1 + (fcm/10)) for fck > 50 MPa, fcm = fck + 8
 // Ecm = 22000 * ((fck+8)/10)^0.3  MPa → stored as GPa
 // CE 21.3.3 ε_c2/ε_cu/n for fck≤50: 0.002 / 0.0035 / 2
+//
+// Cotejado el 2026-09-25 contra las fórmulas y contra la Tabla 3.1 del Anejo 19 del
+// CE (que redondea Ecm al GPa: 27 29 30 31 33 34 35 36 37). Toda la columna Ecm es la
+// de la fórmula con un decimal, salvo C16, que traía el 29 redondeado de la tabla en
+// vez del 28,6 de la fórmula: corregido para que la columna tenga una sola fuente.
 const concrete: ConcreteGrade[] = [
   { fck: 12, fcd: 8.0,  fctm: 1.57, Ecm: 27.1, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
-  { fck: 16, fcd: 10.7, fctm: 1.90, Ecm: 29.0, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
+  { fck: 16, fcd: 10.7, fctm: 1.90, Ecm: 28.6, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
   { fck: 20, fcd: 13.3, fctm: 2.21, Ecm: 30.0, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
   { fck: 25, fcd: 16.7, fctm: 2.56, Ecm: 31.5, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },
   { fck: 30, fcd: 20.0, fctm: 2.90, Ecm: 32.8, eps_c2: 0.002, eps_cu: 0.0035, n: 2 },

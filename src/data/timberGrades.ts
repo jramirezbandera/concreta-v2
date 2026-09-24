@@ -246,9 +246,26 @@ export function getGammaM(type: TimberType): number {
   return type === 'glulam' ? 1.25 : 1.30;
 }
 
-/** βn (mm/min) per EN 1995-1-2 Table 3.1 — notional charring rate */
-export function getBetaN(subtype: TimberSubtype, type: TimberType): number {
-  if (subtype === 'hardwood') return 0.70;
-  if (type === 'glulam') return 0.70;
-  return 0.80;  // softwood sawn
+/**
+ * βn (mm/min), velocidad de carbonización nominal — EN 1995-1-2 Tabla 3.1.
+ *
+ *   · Conífera (y haya) aserrada, ρk ≥ 290       → 0,80
+ *   · Conífera (y haya) laminada, ρk ≥ 290       → 0,70
+ *   · Frondosa, aserrada o laminada: 0,70 con ρk = 290 y 0,55 con ρk ≥ 450,
+ *     interpolando linealmente entre medias (nota de la tabla).
+ *
+ * Todas las clases D de la EN 338 (ρk 475–900) caen en 0,55. Hasta 2026-09-25 toda
+ * frondosa devolvía 0,70: un 27 % más de carbonización de la tabulada. Conservador,
+ * pero falso, y la sección residual de un pilar D40 en R30 salía 4,5 mm más pequeña
+ * por cara de lo que dice la norma. Por eso la firma pide el grado entero: la
+ * densidad es la que decide.
+ */
+export function getBetaN(grade: TimberGrade): number {
+  if (grade.subtype === 'hardwood') {
+    const rho = grade.rho_k;
+    if (rho >= 450) return 0.55;
+    if (rho <= 290) return 0.70;
+    return 0.70 - 0.15 * ((rho - 290) / 160);
+  }
+  return grade.type === 'glulam' ? 0.70 : 0.80;
 }
