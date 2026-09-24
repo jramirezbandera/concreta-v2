@@ -109,12 +109,23 @@ export function AiPill({ estado, turnos, onClick }: AiPillProps) {
    * no pueden leer este contexto. Lo que cruza es una variable CSS en la raíz,
    * que es donde se declaran los hechos de maquetación, y la escribe un solo
    * sitio: el que ocupa el hueco (D-I12).
+   *
+   * Se declaran DOS cosas y no una. La variable dice CUÁNTO ocupa, y de ella
+   * cuelgan los avisos. El atributo dice QUE está ocupada, y de él cuelga el
+   * hueco que los paneles con scroll dejan al final (ver `index.css`): eso no
+   * se puede hacer con la variable sola, porque una regla que existe siempre y
+   * vale cero seguiría pisando el `mb`/`pb` del panel cuando no hay píldora.
+   * Visto el 24-09-2026: con el panel de resultados abajo del todo, la píldora
+   * tapaba el valor de la última fila —el solape de la viga— y no había manera
+   * de leerlo.
    */
   useEffect(() => {
     const raiz = document.documentElement;
     raiz.style.setProperty('--suelo-esquina', `${MARGEN + ALTO + AIRE}px`);
+    raiz.dataset.suelo = 'esquina';
     return () => {
       raiz.style.removeProperty('--suelo-esquina');
+      delete raiz.dataset.suelo;
     };
   }, []);
 

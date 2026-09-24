@@ -123,7 +123,10 @@ export function AppShell() {
             </Suspense>
           )}
 
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* `zona-modulos`: lo que llega a la esquina de abajo a la derecha, y
+              por tanto lo que tiene que dejarle sitio a la píldora del
+              asistente cuando está puesta (ver `index.css`). */}
+          <div className="zona-modulos flex-1 flex flex-col min-w-0 overflow-hidden">
             <BandaAlmacen />
             <BandaProyecto />
             <ChunkErrorBoundary>

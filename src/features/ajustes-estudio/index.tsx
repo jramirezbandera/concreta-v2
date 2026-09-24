@@ -90,7 +90,7 @@ export function AjustesEstudioModule() {
     <div className="flex h-full min-h-0 flex-col">
       <Topbar moduleGroup="Ajustes" moduleLabel="Mi estudio" onMenuOpen={openDrawer} />
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scroll-hide">
         <div className="mx-auto w-full max-w-[820px] px-5 pb-10">
           <p className="mt-4 mb-0 text-[12.5px] leading-relaxed text-text-secondary">
             Lo que no cambia entre obras de este despacho. Se rellena una vez y lo hereda cada obra nueva: la ficha del DB SE no vuelve a

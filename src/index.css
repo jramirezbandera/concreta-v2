@@ -301,6 +301,31 @@ html.theme-switching *::after {
 .scroll-hide::-webkit-scrollbar-thumb { background: var(--color-scrollbar); border-radius: 3px; }
 .scroll-hide::-webkit-scrollbar-track { background: transparent; }
 
+/* ── El hueco de la píldora del asistente ──────────────────────────────────
+ *
+ * La píldora es `fixed` en la esquina de abajo a la derecha, así que se sienta
+ * encima de lo que haya ahí. Cuando eso es un panel con scroll, la última fila
+ * queda tapada y no hay forma de bajarla: es el final del recorrido. Pasó con
+ * el solape de la viga, que es justo el último dato de la ficha.
+ *
+ * Así que los paneles de módulo que hacen scroll reservan ese sitio al final.
+ * Tres cuidados:
+ *
+ *  - **Sólo mientras la píldora está puesta** (`[data-suelo='esquina']`, que
+ *    escribe `AiPill`). Si la regla existiera siempre con valor cero, pisaría
+ *    el relleno propio del panel en cuanto alguien apagara la píldora.
+ *  - **Sólo dentro de la zona de módulos**, que es lo que llega a esa esquina.
+ *    La barra lateral vive a la izquierda y los desplegables con scroll —los de
+ *    sugerencias, el de añadir— no llevan `scroll-hide`, que es la clase con la
+ *    que un panel de esta app declara que es un panel.
+ *  - **Relleno, no un pseudoelemento.** Un `::after` dentro de un panel
+ *    `flex-col` con `gap` añade además el hueco del gap, y lo haría también con
+ *    la píldora apagada.
+ */
+[data-suelo='esquina'] .zona-modulos .overflow-y-auto.scroll-hide {
+  padding-bottom: var(--suelo-esquina);
+}
+
 @media print {
   body { background: #fff !important; color: #000 !important; }
   nav, aside, header { display: none !important; }

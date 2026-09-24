@@ -340,7 +340,7 @@ export function AnejoModule() {
         exportMenu={<BotonGenerar ocupado={generando} motivoBloqueo={motivoBloqueo} onClick={generar} />}
       />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <main className="min-w-0 flex-1 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto scroll-hide">
           <div className="mx-auto w-full max-w-[880px] px-3 pb-6 pt-1 sm:px-5">
             <p className="sr-only" aria-live="polite">
               {anuncio}

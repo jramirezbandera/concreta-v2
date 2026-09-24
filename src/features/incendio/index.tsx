@@ -395,7 +395,7 @@ export function IncendioModule() {
         {/* El documento (derecha), tal como se va a entregar. */}
         <div
           className={[
-            'min-h-0 flex-1 overflow-y-auto bg-bg-primary px-5 py-5',
+            'min-h-0 flex-1 overflow-y-auto scroll-hide bg-bg-primary px-5 py-5',
             tab === 'inputs' ? 'max-lg:hidden' : '',
           ].join(' ')}
         >

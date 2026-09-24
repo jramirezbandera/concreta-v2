@@ -51,7 +51,7 @@ export function PanelResumen(p: PanelResumenProps) {
   return (
     <aside
       aria-label="Resumen del anejo"
-      className="shrink-0 overflow-y-auto border-t border-border-main bg-bg-surface lg:w-[280px] lg:border-l lg:border-t-0"
+      className="shrink-0 overflow-y-auto scroll-hide border-t border-border-main bg-bg-surface lg:w-[280px] lg:border-l lg:border-t-0"
     >
       <Cabecera>Obra</Cabecera>
       <div className="flex items-baseline justify-between gap-3 border-b border-border-sub px-4 py-2">

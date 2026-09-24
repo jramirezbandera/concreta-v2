@@ -437,6 +437,7 @@ export function FemAnalysisModule() {
             'lg:border-r lg:border-border-main lg:shrink-0',
             inputsOpen ? 'lg:w-72' : 'lg:w-8',
             'lg:transition-[width] lg:duration-200',
+            'scroll-hide',
             inputsOpen ? 'lg:overflow-y-auto' : 'lg:overflow-hidden',
             tab === 'inputs' ? 'max-lg:flex-1 max-lg:overflow-y-auto' : 'max-lg:hidden',
           ].join(' ')}
@@ -592,6 +593,7 @@ export function FemAnalysisModule() {
             'lg:border-l lg:border-border-main lg:shrink-0',
             resultsOpen ? 'lg:w-80' : 'lg:w-8',
             'lg:transition-[width] lg:duration-200',
+            'scroll-hide',
             resultsOpen ? 'lg:overflow-y-auto' : 'lg:overflow-hidden',
             tab === 'results' ? 'max-lg:flex-1 max-lg:overflow-y-auto' : 'max-lg:hidden',
           ].join(' ')}

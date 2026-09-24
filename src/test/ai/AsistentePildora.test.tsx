@@ -222,6 +222,7 @@ describe('por debajo de 768 px no hay píldora (R4 · D-I16)', () => {
  */
 describe('los avisos se apartan de la píldora (T8 · D-I12)', () => {
   const suelo = () => document.documentElement.style.getPropertyValue('--suelo-esquina');
+  const marca = () => document.documentElement.dataset.suelo;
   const avisos = () => document.body.querySelector<HTMLElement>('[aria-label="Notificaciones"]');
 
   it('con la píldora puesta, el aviso se apoya encima', () => {
@@ -275,6 +276,28 @@ describe('los avisos se apartan de la píldora (T8 · D-I12)', () => {
     expect(screen.getByText('El asistente empieza de cero en cada módulo.')).toBeInTheDocument();
     expect(pildora()).not.toBeInTheDocument();
     expect(suelo()).toBe('');
+    expect(marca()).toBeUndefined();
+  });
+
+  /**
+   * El hueco se anuncia DOS veces: la variable dice cuánto y el atributo dice
+   * que lo hay. De la variable cuelgan los avisos; del atributo, el relleno con
+   * el que los paneles con scroll dejan libre la esquina (`index.css`).
+   *
+   * Hacen falta los dos: una regla de CSS que exista siempre y valga cero
+   * seguiría pisando el relleno propio del panel con la píldora apagada. Aquí
+   * sólo se puede vigilar el interruptor —jsdom no aplica la hoja de estilo—,
+   * pero es el interruptor lo que alguien puede borrar sin enterarse.
+   */
+  it('el hueco se anuncia también como atributo: de él cuelgan los paneles', () => {
+    montar(<ModuloConAsistente />);
+    expect(pildora()).toBeInTheDocument();
+    expect(marca()).toBe('esquina');
+  });
+
+  it('sin píldora no hay atributo, y el panel se queda con su relleno', () => {
+    montar(<ModuloSinAsistente />);
+    expect(marca()).toBeUndefined();
   });
 });
 /**
