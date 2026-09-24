@@ -439,32 +439,47 @@ describe('Cracking check', () => {
 describe('Lap lengths (CE Anejo 19 §8.7.3)', () => {
   it('vano C25+B500 φ16 (buena adherencia): l0 ≈ 970 mm (~60.7φ)', () => {
     // fctd = 0.7·2.56/1.5 = 1.195; fbd = 2.688; lb,rqd = 4·(434.78/2.688) = 647
-    expect(calcRCBeam(base).vano.lapLength).toBeCloseTo(970.5, 0);
+    // 970,5 redondeado hacia arriba al múltiplo de 5: es una cota de obra.
+    expect(calcRCBeam(base).vano.lapLength).toBe(975);
   });
 
   it('apoyo C25+B500 φ16 (adherencia deficiente): l0 ≈ 1386 mm (~86.7φ)', () => {
     // fbd = 2.688·0.7 = 1.882; lb,rqd = 4·(434.78/1.882) = 924
-    expect(calcRCBeam(base).apoyo.lapLength).toBeCloseTo(1386.4, 0);
+    expect(calcRCBeam(base).apoyo.lapLength).toBe(1390);
+  });
+
+  it('el solape se entrega en múltiplos de 5 mm, y nunca por debajo del mínimo', () => {
+    // Lo que se ve en pantalla y en el PDF es esto: una longitud que se puede
+    // medir. Antes salía 970.496894409938 mm en la ficha de resultados.
+    for (const barDiam of [12, 16, 20, 25, 32]) {
+      for (const fck of [20, 25, 30, 40]) {
+        const l0 = calcRCBeam({ ...base, fck, vano_bot_barDiam: barDiam }).vano.lapLength;
+        expect(l0 % 5).toBe(0);
+        expect(l0).toBeGreaterThanOrEqual(Math.max(15 * barDiam, 200));
+      }
+    }
   });
 
   it('different tension barDiam -> different lapLength per section', () => {
     const r = calcRCBeam({ ...base, vano_bot_barDiam: 20, apoyo_top_barDiam: 12 });
-    expect(r.vano.lapLength).toBeCloseTo(1213.1, 0);   // 5·161.75·1.5
-    expect(r.apoyo.lapLength).toBeCloseTo(1039.8, 0);  // 3·231.07·1.5
+    expect(r.vano.lapLength).toBe(1215);   // 5·161.75·1.5 = 1213,1
+    expect(r.apoyo.lapLength).toBe(1040);  // 3·231.07·1.5 = 1039,8
   });
 
   it('fck<25 alarga el solape (antes 60φ fijo lo dejaba corto)', () => {
     const c25 = calcRCBeam(base).vano.lapLength;
     const c20 = calcRCBeam({ ...base, fck: 20 }).vano.lapLength;
     expect(c20).toBeGreaterThan(c25);
-    // C20: fctm=2.21 → fbd=2.32 → lb,rqd=749 → l0 = 1124 mm (~70.3φ)
-    expect(c20).toBeCloseTo(1124.2, 0);
+    // C20: fctm=2.21 → fbd=2.32 → lb,rqd=749 → l0 = 1124,2 mm (~70.3φ)
+    expect(c20).toBe(1125);
   });
 
   it('B600 alarga el solape respecto a B500', () => {
     const b500 = calcRCBeam(base).vano.lapLength;
     const b600 = calcRCBeam({ ...base, fyk: 600 }).vano.lapLength;
-    expect(b600 / b500).toBeCloseTo(600 / 500, 2);
+    // Proporcional a fyd, salvo el escalón de 5 mm del redondeo de cada uno.
+    expect(b600 / b500).toBeCloseTo(600 / 500, 1);
+    expect(b600 - b500).toBeGreaterThan(0);
   });
 });
 

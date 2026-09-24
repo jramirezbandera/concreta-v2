@@ -531,7 +531,11 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
   const fbd = 2.25 * eta1 * eta2 * fctd;
   const alpha6 = 1.5;
   const lbRqd = (inp.barDiam / 4) * (fyd / fbd);
-  const lapLength = Math.max(alpha6 * lbRqd, 15 * inp.barDiam, 200);
+  // Se entrega redondeado HACIA ARRIBA al múltiplo de 5 mm, como en pilares: es
+  // una cota que alguien va a medir en la obra, y 970,496894409938 mm no es una
+  // longitud, es el resultado de una división. Hacia arriba porque es un
+  // mínimo: hacia abajo se estaría pidiendo menos de lo que exige la norma.
+  const lapLength = Math.ceil(Math.max(alpha6 * lbRqd, 15 * inp.barDiam, 200) / 5) * 5;
 
   // REBAR SCHEDULE ───────────────────────────────────────────────────────
   const rebarSchedule =
