@@ -14,9 +14,14 @@
 //   esconden: salen apagadas y con la razón. Antes «Unidades» desaparecía y el
 //   menú tenía cuatro formas distintas, así que «la tercera de la lista» dejaba
 //   de ser un sitio y la memoria muscular no servía.
-// - D-I11 — el icono es `MoreHorizontal`, no `SlidersHorizontal`: por debajo de
-//   `sm` el disparador va sin rótulo, y unos deslizadores prometen preferencias
-//   cuando detrás están las dos acciones principales.
+// - D-I11, REVOCADA el 2026-09-24 — el disparador va SIN icono y con el rótulo
+//   «Menú» puesto en todos los anchos, dentro de un marco neutro. El icono se
+//   eligió cuando el rótulo desaparecía por debajo de `sm`; midiendo la fila a
+//   375 px el rótulo cabe (cuesta 16 px más que el icono, y salen de la obra,
+//   que es quien cede al truncar), así que los tres puntos no aportaban nada
+//   que no dijera ya la palabra. El marco es lo que lo anuncia como
+//   desplegable: sin él era texto suelto al lado de un botón con caja, y la
+//   pareja `Menú` + `Exportar` no se leía como dos controles hermanos.
 // - D-I14 — al elegir una herramienta el foco vuelve AL DISPARADOR antes de
 //   abrirla. Si no, el asistente memoriza como origen una fila que se desmonta
 //   con el menú, y al cerrarlo el foco cae al <body>. Mismo patrón que
@@ -29,7 +34,7 @@
 //   por debajo de `lg` y 36 px en escritorio, para no perder densidad.
 import { useEffect, useId, useRef, useState } from 'react';
 import { NavLink } from 'react-router';
-import { Building2, ChevronDown, Link2, MoreHorizontal, Sparkles } from 'lucide-react';
+import { Building2, ChevronDown, Link2, Sparkles } from 'lucide-react';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { ToggleChip } from '../ui/ToggleChip';
 import { UnitSystemToggle } from '../units/UnitSystemToggle';
@@ -204,13 +209,16 @@ export function MenuApp({ onCopyLink, onOpenCalculator }: MenuAppProps) {
         aria-expanded={open}
         title="Menú"
         aria-label="Menú"
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-border-main text-[12px] transition-colors ${
+          open ? 'bg-bg-elevated text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
+        }`}
       >
-        <MoreHorizontal size={14} aria-hidden="true" />
-        {/* D-I16: el rótulo aparece desde `sm`, no desde `lg`. Entre 640 y 1023
-            px el icono iba solo y era toda la información disponible para
-            decidir si pulsar, justo cuando detrás están asistente y calculadora. */}
-        <span className="hidden sm:inline">Menú</span>
+        {/* Sin icono y con el rótulo SIEMPRE puesto (2026-09-24, revoca D-I11 y
+            afina D-I16). Los tres puntos no decían nada que no dijera la
+            palabra «Menú», y como el rótulo cabe también a 375 px —cuesta 16 px
+            más que el icono, que salen de la obra, que es quien cede— el icono
+            sobraba en todos los anchos. */}
+        Menú
         <ChevronDown
           size={12}
           aria-hidden="true"
