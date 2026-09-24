@@ -16,7 +16,7 @@ trabajo, no la de la publicación.
 
 ---
 
-## El catálogo de perfiles, cotejado contra el prontuario — v260924.2 (2026-09-24)
+## El catálogo de perfiles, cotejado contra el prontuario — v260924.2 y v260924.3 (2026-09-24)
 
 ### Añadido
 - **HEA y HEB llegan hasta el 1000.** La lista se cortaba en el 400 y de ahí
@@ -44,6 +44,17 @@ trabajo, no la de la publicación.
   sección. El IPE sale limpio. Lo que se encontró queda vigilado por
   comprobaciones que no dependen de ninguna fuente, sólo de la geometría del
   perfil, incluido el UPN, que hasta ahora no tenía ninguna.
+- **El cajón de dos UPN se quedaba un 3 % corto** en flexión de eje débil. Sus
+  propiedades no están tabuladas en ninguna parte: se componen desde el UPN
+  suelto, y todas salían exactas menos ésa, que venía de un rectángulo a mano
+  que ignora el ala inclinada y los acuerdos del perfil. Ahora sale de la misma
+  composición que las demás. Iba del lado seguro, así que nada de lo calculado
+  con ella se queda corto; los pilares que estuvieran justos bajan un poco de
+  aprovechamiento.
+- El dibujo de la sección de pilares describía el cajón como dos UPN «soldadas
+  alma contra alma», que es la disposición contraria a la que se calcula y se
+  dibuja. Sólo lo leía un lector de pantalla, pero decía lo contrario de lo que
+  se ve.
 
 
 ## Dos datos que no se podían leer — v260924.1 (2026-09-24)
