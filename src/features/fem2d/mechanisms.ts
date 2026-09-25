@@ -156,7 +156,7 @@ export const NON_MECHANISM_ROWS: readonly string[] = [
   // se lista aparte para no exigir su presencia (una barra arriostrada no la da).
   'ltb', 'LTB',
   // Armado y detalle (HA)
-  'as-min', 'as-min-comp', 'as-min-mech', 'as-max', 'nBars-min',
+  'as-min', 'as-min-comp', 'as-min-mech', 'as-max', 'nBars-min', 'long-bar-diam-min',
   'bar-spacing', 'bar-spacing-x', 'bar-spacing-y', 'bar-spacing-circ',
   'bar-spacing-impossible', 'rho-w-min', 'stirrup-spacing-max',
   'stirrup-legs-spacing', 'stirrup-diam', 'stirrup-spacing',

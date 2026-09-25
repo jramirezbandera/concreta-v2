@@ -523,33 +523,60 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     });
   }
 
-  // as-min geom (CE Anejo 19 §9.5.2 — cuantía geométrica)
-  // Cuant\u00eda geom\u00e9trica m\u00ednima 0.002\u00b7Ac (CE Anejo 19 §9.5.2 / EC2 \u00a79.5.2).
-  // El 0.003 anterior no correspond\u00eda a ninguna referencia; la rama mec\u00e1nica
-  // (0.10\u00b7NEd/f_yc,d) cubre la necesidad estructural por separado.
-  const As_min = 0.002 * b * h;
-  checks.push(makeCheck(
-    'as-min',
-    'Armadura m\u00ednima geom.: As \u2265 0,002\u00b7b\u00b7h',
-    As_min, As_total,
-    `${As_total.toFixed(0)} mm\u00b2`,
-    `\u2265 ${As_min.toFixed(0)} mm\u00b2`,
-    'CE Anejo 19 §9.5.2',
-  ));
+  // Cuantía mínima — CE Anejo 19 §9.5.2(2) (BOE, pág. 771 del PDF). El CE no
+  // tiene el 0,002·Ac del Eurocódigo, que se comprobaba aquí hasta el
+  // 2026-09-25. Pide, en el caso general, A's,min = 0,05·N_Ed/f_yc,d EN CADA
+  // CARA (figura A19.9.11), con f_yc,d = f_yd ≤ 400 N/mm²; y en compresión
+  // simple con armado simétrico —el rectangular lo es siempre— As,min =
+  // 0,10·N_Ed/f_yd en total (9.12). Con flexión esviada se comprueban las
+  // cuatro caras, así que manda la familia más floja; las esquinas cuentan en
+  // las dos caras que forman.
+  const NEd_comp = Math.max(0, NEd_N);
+  const compresionSimple = MEdy === 0 && MEdz === 0;
+  if (compresionSimple) {
+    const As_min_912 = 0.10 * NEd_comp / fyd;
+    checks.push(makeCheck(
+      'as-min-mech',
+      'Armadura m\u00ednima, compresi\u00f3n simple: As \u2265 0,10\u00b7N_Ed/f_yd',
+      As_min_912, As_total,
+      `${As_total.toFixed(0)} mm\u00b2`,
+      `\u2265 ${As_min_912.toFixed(0)} mm\u00b2`,
+      'CE Anejo 19 §9.5.2(2) (9.12)',
+    ));
+  } else {
+    const fyc_d = Math.min(fyd, 400);                   // N/mm²
+    const As_cara_min = 0.05 * NEd_comp / fyc_d;        // mm² por cara
+    const As_cara_x = 2 * getBarArea(cornerBarDiam) + nBarsX * getBarArea(barDiamX);   // caras sup/inf
+    const As_cara_y = 2 * getBarArea(cornerBarDiam) + nBarsY * getBarArea(barDiamY);   // caras izq/der
+    const As_cara = Math.min(As_cara_x, As_cara_y);
+    checks.push(makeCheck(
+      'as-min-mech',
+      'Armadura m\u00ednima por cara: A\u2032s \u2265 0,05\u00b7N_Ed/f_yc,d',
+      As_cara_min, As_cara,
+      `${As_cara.toFixed(0)} mm\u00b2 (cara m\u00e1s floja)`,
+      `\u2265 ${As_cara_min.toFixed(0)} mm\u00b2`,
+      'CE Anejo 19 §9.5.2(2)',
+    ));
+  }
 
-  // as-min mech (CE Anejo 19 §9.5.2 — cuantía mecánica dependiente de carga)
-  // As · f_yc,d ≥ 0.10 · N_Ed,    con f_yc,d = min(f_yd, 400 N/mm²)
-  // Gobierna en pilares muy cargados con sección sobredimensionada.
-  const fyc_d = Math.min(fyd, 400);                   // N/mm²
-  const As_min_mech = 0.10 * NEd_N / fyc_d;           // mm²
-  checks.push(makeCheck(
-    'as-min-mech',
-    'Armadura m\u00ednima mec.: As\u00b7f_yc,d \u2265 0,10\u00b7N_Ed',
-    As_min_mech, As_total,
-    `${As_total.toFixed(0)} mm\u00b2`,
-    `\u2265 ${As_min_mech.toFixed(0)} mm\u00b2`,
-    'CE Anejo 19 §9.5.2',
-  ));
+  // Diámetro mínimo de las barras longitudinales — CE Anejo 19 §9.5.2(1): 12 mm.
+  {
+    const phiMin = Math.min(
+      cornerBarDiam,
+      nBarsX > 0 ? barDiamX : Infinity,
+      nBarsY > 0 ? barDiamY : Infinity,
+    );
+    // Es un sí o no: Ø12 cumple (con makeCheck, 12/12 = 1,00 salía fallo).
+    checks.push({
+      id: 'long-bar-diam-min',
+      description: 'Diámetro de las barras longitudinales ≥ 12 mm',
+      value: `Ø${phiMin}`,
+      limit: '≥ Ø12',
+      utilization: 12 / phiMin,
+      status: phiMin >= 12 ? 'ok' : 'fail',
+      article: 'CE Anejo 19 §9.5.2(1)',
+    });
+  }
 
   // as-max
   const As_max = 0.04 * b * h;
@@ -985,26 +1012,36 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
     article: 'CE Anejo 19 §5.8.8',
   });
 
-  // as-min geom
-  const As_min = 0.002 * Ac;
-  checks.push(makeCheck(
-    'as-min',
-    'Armadura mínima geom.: As ≥ 0,002·Ac',
-    As_min, As_total,
-    `${As_total.toFixed(0)} mm²`, `≥ ${As_min.toFixed(0)} mm²`,
-    'CE Anejo 19 §9.5.2',
-  ));
-
-  // as-min mech
+  // Cuantía mínima — CE Anejo 19 §9.5.2(2), sin el 0,002·Ac del Eurocódigo
+  // (ver la sección rectangular). En compresión simple, (9.12): As,min =
+  // 0,10·N_Ed/f_yd. Con flexión, el CE da 0,05·N_Ed/f_yc,d por cara y un anillo
+  // no tiene caras: se exige el total equivalente a las dos opuestas,
+  // 0,10·N_Ed/f_yc,d (f_yc,d = f_yd ≤ 400 N/mm²).
+  const NEd_comp = Math.max(0, NEd_N);
+  const compresionSimple = MEdy === 0 && MEdz === 0;
   const fyc_d = Math.min(fyd, 400);
-  const As_min_mech = (0.10 * NEd_N) / fyc_d;
+  const As_min_mech = compresionSimple ? (0.10 * NEd_comp) / fyd : (0.10 * NEd_comp) / fyc_d;
   checks.push(makeCheck(
     'as-min-mech',
-    'Armadura mínima mec.: As·f_yc,d ≥ 0,10·N_Ed',
+    compresionSimple
+      ? 'Armadura mínima, compresión simple: As ≥ 0,10·N_Ed/f_yd'
+      : 'Armadura mínima: As ≥ 2 · 0,05·N_Ed/f_yc,d (dos caras opuestas)',
     As_min_mech, As_total,
     `${As_total.toFixed(0)} mm²`, `≥ ${As_min_mech.toFixed(0)} mm²`,
-    'CE Anejo 19 §9.5.2',
+    compresionSimple ? 'CE Anejo 19 §9.5.2(2) (9.12)' : 'CE Anejo 19 §9.5.2(2)',
   ));
+
+  // Diámetro mínimo de las barras longitudinales — CE Anejo 19 §9.5.2(1): 12 mm.
+  // Es un sí o no: Ø12 cumple (con makeCheck, 12/12 = 1,00 salía fallo).
+  checks.push({
+    id: 'long-bar-diam-min',
+    description: 'Diámetro de las barras longitudinales ≥ 12 mm',
+    value: `Ø${circBarDiam}`,
+    limit: '≥ Ø12',
+    utilization: 12 / circBarDiam,
+    status: circBarDiam >= 12 ? 'ok' : 'fail',
+    article: 'CE Anejo 19 §9.5.2(1)',
+  });
 
   // as-max
   const As_max = 0.04 * Ac;

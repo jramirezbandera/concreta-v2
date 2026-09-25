@@ -61,7 +61,7 @@ describe('RC Columns — FTUX defaults', () => {
     const r = calcRCColumn(inp());
     expect(r.valid).toBe(true);
     const governingIds = ['biaxial-check', 'lambda-y', 'lambda-z', 'nd-max',
-      'as-min', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y',
+      'as-min-mech', 'long-bar-diam-min', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y',
       'stirrup-diam', 'stirrup-spacing', 'stirrup-densification'];
     for (const id of governingIds) {
       const ch = r.checks.find((c) => c.id === id);
@@ -324,13 +324,19 @@ describe('RC Columns — N-M interaction fails', () => {
 // ── Reinforcement limit checks ───────────────────────────────────────────────
 
 describe('RC Columns — Reinforcement limit checks', () => {
-  it('as-min fails when As < 0.002·b·h (fix auditoría #52)', () => {
-    // CE Anejo 19 §9.5.2 → 0.002·Ac = 180 mm²; 4×Ø6 = 113 mm² < 180 → fail.
-    const r = calcRCColumn(inp({ cornerBarDiam: 6 }));
-    expect(r.valid).toBe(true);
-    const ch = r.checks.find((c) => c.id === 'as-min');
-    expect(ch?.status).toBe('fail');
-    expect(ch?.limit).toContain('180');
+  it('sin cuantía geométrica 0,002·Ac: el CE Anejo 19 §9.5.2 no la tiene (2026-09-25)', () => {
+    const r = calcRCColumn(inp());
+    expect(r.checks.some((c) => c.id === 'as-min')).toBe(false);
+  });
+
+  it('diámetro de las barras longitudinales ≥ 12 mm (CE Anejo 19 §9.5.2(1))', () => {
+    const ok = calcRCColumn(inp({ cornerBarDiam: 12 })).checks.find((c) => c.id === 'long-bar-diam-min')!;
+    expect(ok.status).toBe('ok');
+    const r = calcRCColumn(inp({ cornerBarDiam: 16, nBarsX: 2, barDiamX: 10 }));
+    const ch = r.checks.find((c) => c.id === 'long-bar-diam-min')!;
+    expect(ch.status).toBe('fail');
+    expect(ch.value).toBe('Ø10');
+    expect(ch.article).toBe('CE Anejo 19 §9.5.2(1)');
   });
 
   it('as-max fails when As > 0.04·b·h', () => {
@@ -342,8 +348,8 @@ describe('RC Columns — Reinforcement limit checks', () => {
   });
 
   it('as-min-mech passes for defaults (low axial load)', () => {
-    // Nd=500 kN → As_min_mech = 0.10·500000/400 = 125 mm²
-    // As = 4×Ø16 = 804 mm² > 125 → ok
+    // Nd=500 kN con flexión → por cara 0,05·500 000/400 = 62,5 mm²
+    // Cara = 2×Ø16 = 402 mm² > 62,5 → ok
     const r = calcRCColumn(inp());
     expect(r.valid).toBe(true);
     const ch = r.checks.find((c) => c.id === 'as-min-mech');
@@ -351,24 +357,40 @@ describe('RC Columns — Reinforcement limit checks', () => {
   });
 
   it('as-min-mech fails when As·f_yc,d < 0.10·N_Ed (high load, light reinforcement)', () => {
-    // Nd=2000 kN, cornerBarDiam=12 → As = 4×113 = 452 mm²
+    // Nd=2000 kN, cornerBarDiam=12 → cara = 2×113 = 226 mm²
     // f_yc,d = min(fyd, 400) = 400 N/mm² (fyk=500 → fyd=434.78)
-    // As_min_mech = 0.10·2 000 000/400 = 500 mm² > 452 → fail
+    // Por cara 0,05·2 000 000/400 = 250 mm² > 226 → fail
     const r = calcRCColumn(inp({ Nd: 2000, cornerBarDiam: 12 }));
     expect(r.valid).toBe(true);
     const ch = r.checks.find((c) => c.id === 'as-min-mech');
     expect(ch?.status).toBe('fail');
   });
 
-  it('as-min-mech uses f_yc,d cap of 400 N/mm² (not fyd) for B500S', () => {
-    // fyk=500, fyd=434.78 but f_yc,d capped to 400
-    // Nd=1000 kN → As_min_mech = 0.10·1 000 000/400 = 250 mm²
-    // With raw fyd it would be 0.10·1 000 000/434.78 = 230 mm² (non-conservative)
+  it('as-min-mech con flexión: 0,05·N_Ed/f_yc,d EN CADA CARA, f_yc,d ≤ 400 (CE Anejo 19 §9.5.2(2))', () => {
+    // fyk=500 → fyd=434.78, f_yc,d = 400. Nd=1000 kN → 0,05·1 000 000/400
+    // = 125 mm² por cara (hasta el 2026-09-25 se pedían 250 sobre el total).
     const r = calcRCColumn(inp({ Nd: 1000 }));
     expect(r.valid).toBe(true);
-    const ch = r.checks.find((c) => c.id === 'as-min-mech');
-    // As = 804 mm² > 250 → ok, but verify limit string reflects 250 not 230
-    expect(ch?.limit).toBe('\u2265 250 mm\u00b2');
+    const ch = r.checks.find((c) => c.id === 'as-min-mech')!;
+    expect(ch.limit).toBe('\u2265 125 mm\u00b2');
+    expect(ch.value).toContain('402');          // la cara: 2×Ø16
+    expect(ch.article).toBe('CE Anejo 19 §9.5.2(2)');
+  });
+
+  it('as-min-mech manda la cara más floja con flexión esviada', () => {
+    // 2 intermedias Ø20 en las caras sup/inf: esa cara 2×201 + 2×314 = 1030,
+    // la izq/der sólo las esquinas, 402 mm²
+    const r = calcRCColumn(inp({ Nd: 1000, nBarsX: 2, barDiamX: 20 }));
+    expect(r.checks.find((c) => c.id === 'as-min-mech')!.value).toContain('402');
+  });
+
+  it('as-min-mech en compresión simple: 0,10·N_Ed/f_yd en total (9.12)', () => {
+    // MEdy = MEdz = 0, armado simétrico: 0,10·1 000 000/434,78 = 230 mm²
+    const r = calcRCColumn(inp({ Nd: 1000, MEdy: 0, MEdz: 0 }));
+    const ch = r.checks.find((c) => c.id === 'as-min-mech')!;
+    expect(ch.limit).toBe('\u2265 230 mm\u00b2');
+    expect(ch.value).toContain('804');          // el total, 4×Ø16
+    expect(ch.article).toBe('CE Anejo 19 §9.5.2(2) (9.12)');
   });
 
   it('nBars-min always passes since we always have 4 corner bars', () => {
