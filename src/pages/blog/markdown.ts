@@ -96,7 +96,7 @@ export function renderMarkdown(body: string): { html: string; toc: TocEntry[] } 
       const p = bq.querySelector('p');
       // The ⚠ / ✓ marker only picks the colour: once the label is out, it and
       // the dash after it would otherwise open the body («⚠ — los cajones…»).
-      if (p) p.innerHTML = p.innerHTML.replace(/^[\s\u26A0\uFE0F\u2713\u2014\u2013\-:]*/, '');
+      if (p) p.innerHTML = p.innerHTML.replace(/^(?:\s|\u26A0\uFE0F?|\u2713|\u2014|\u2013|-|:)*/, '');
       bq.insertBefore(head, bq.firstChild);
     }
     bq.className = cls;
