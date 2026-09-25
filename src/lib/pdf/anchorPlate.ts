@@ -24,9 +24,12 @@ const CW = PAGE_W - 2 * M;
 // con drift entre UI y PDF. Ahora son single-source desde anchorBars; el
 // boundary unicode→ASCII se aplica vía pdfStr() en cada uso.
 
+// El acabado es descriptivo: la placa asienta sobre mortero y el motor usa
+// Cf,d = 0,20 en los dos casos (CE Anejo 26 §6.2.2(6)). Hasta el 2026-09-25
+// el PDF seguía imprimiendo «Rugosa (mu = 0.40)», que el cálculo no aplicaba.
 const SURF_LABEL: Record<PedestalSurface, string> = {
-  smooth:    'Lisa (mu = 0.20)',
-  roughened: 'Rugosa (mu = 0.40)',
+  smooth:    'Lisa (Cf,d = 0,20)',
+  roughened: 'Rugosa (Cf,d = 0,20)',
 };
 
 // Versión corta de DISPOSICION_LABEL (geometria.ts): la columna derecha de la
@@ -73,7 +76,7 @@ export async function exportAnchorPlatePDF(
   const fmtSi = (v: number, q: Quantity) => formatQuantity(v, q, system, { precision: 1 });
 
   // ── 1. Header ──────────────────────────────────────────────────────────
-  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Placa de anclaje con barras corrugadas (CE Anejo 18 / Anejo 11)', M);
+  const titleBaseY = drawElementTitle(doc, elementTitle, 'Concreta - Placa de anclaje con barras corrugadas (CE Anejo 26 / EN 1992-4)', M);
 
   setGray(doc, 130);
   doc.setFont('helvetica', 'normal');
@@ -349,8 +352,10 @@ export async function exportAnchorPlatePDF(
     ['Nc (compresion)', fmtSi(solver.Nc, 'force')],
     ['Ft total (grupo)', fmtSi(solver.Ft_total, 'force')],
     ['Barras traccionadas', `${solver.n_t} de ${solver.bolts.length}`],
-    ['Brazo palanca x_c', `${fmt(solver.x_c, 0)} mm`],
   ];
+  // El solver biaxial no tiene brazo único y publica x_c = 0: imprimirlo
+  // como «0 mm» era un dato falso.
+  if (solver.x_c > 0) kv.push(['Brazo palanca x_c', `${fmt(solver.x_c, 0)} mm`]);
 
   doc.setFontSize(7.5);
   for (const [k, v] of kv) {
@@ -449,6 +454,33 @@ export async function exportAnchorPlatePDF(
   }
 
 
+  // ── 5b. Avisos de validación ──────────────────────────────────────────
+  // Un aviso de fallo («las barras pisan el perfil: no es construible») fuerza
+  // el INCUMPLE aunque ninguna comprobación pase del 100 %. Hasta el
+  // 2026-09-25 no salían en el papel: el veredicto se quedaba sin explicación.
+  if (result.warnings.length > 0) {
+    y += 3;
+    ensure(12);
+    setGray(doc, 30);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('AVISOS', M, y);
+    y += 4.5;
+    for (const w of result.warnings) {
+      const etiqueta = w.severity === 'fail' ? 'INCUMPLE' : 'AVISO';
+      doc.setFontSize(7);
+      const lineas = doc.splitTextToSize(pdfStr(w.message), CW - 22) as string[];
+      ensure(lineas.length * 3.2 + 1.5);
+      setGray(doc, w.severity === 'fail' ? 0 : 60);
+      doc.setFont('helvetica', 'bold');
+      doc.text(etiqueta, M, y);
+      setGray(doc, 40);
+      doc.setFont('helvetica', 'normal');
+      doc.text(lineas, M + 22, y);
+      y += lineas.length * 3.2 + 1.5;
+    }
+  }
+
   // ── 6. Verdict banner ─────────────────────────────────────────────────
   y += 4;
   ensure(14);
@@ -471,7 +503,14 @@ export async function exportAnchorPlatePDF(
       (best, c) => (best === null || c.utilization > best.utilization ? c : best),
       null,
     );
-  const govSuffix = governing ? `  (rige: ${pdfStr(governing.id)})` : '';
+  // Rige la comprobación pésima si pasa del 100 %; si no, el INCUMPLE lo pone
+  // un aviso de validación y es ese el que se nombra. Por su descripción, no
+  // por el id interno («concrete-interaction»), que salía tal cual.
+  const avisoFallo = result.warnings.find((w) => w.severity === 'fail');
+  const rige = avisoFallo && (governing === null || governing.utilization <= 1)
+    ? 'barras no construibles, ver avisos'
+    : governing?.description;
+  const govSuffix = rige ? `  (rige: ${pdfStr(rige)})` : '';
   doc.text(
     `VEREDICTO GLOBAL: ${STATUS_LABEL[st]}  (utilizacion max: ${isFinite(utMax) ? utMax.toFixed(1) : '---'}%)${govSuffix}`,
     PAGE_W / 2, y + 1.5, { align: 'center' },
@@ -495,7 +534,7 @@ export async function exportAnchorPlatePDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.text(
-      'Concreta - concreta.app  |  CE Anejo 18 (placa base) + Anejo 11 (anclajes) + Anejo 19 (hormigon)  |  gM0=1.05, gMc=1.50',
+      'Concreta - concreta.app  |  CE Anejo 26 (placa base) + EN 1992-4 (anclajes) + CE Anejo 19 (hormigon)  |  gM0=1.05, gMc=1.50',
       M, footerY,
     );
     setGray(doc, 150);
