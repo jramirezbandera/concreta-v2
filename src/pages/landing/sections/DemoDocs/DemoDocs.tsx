@@ -1,7 +1,21 @@
-// DemoDocs.tsx — "Recursos" section: video demo card + docs/blog/changelog stack.
+// DemoDocs.tsx — "Recursos" section: the latest release notes + docs/blog stack.
+//
+// It used to lead with a «DEMO · 4 MIN» video card and a «Changelog v0.4» card,
+// both linking to this same section: there was no video and no v0.4. The big
+// card is now the newest CHANGELOG post, read from the blog itself, so it moves
+// on its own when the next one is published.
 
+import { Link } from 'react-router';
 import { sectionEyebrow } from '../../constants';
+import { ALL_POSTS } from '../../../blog/posts';
 import './demo-docs.css';
+
+const NOVEDADES = ALL_POSTS.find((p) => p.category === 'CHANGELOG');
+
+function fecha(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+}
 
 export function DemoDocsSection() {
   return (
@@ -10,57 +24,49 @@ export function DemoDocsSection() {
         <div className="section-head">
           <div>
             <div className="section-eyebrow">{sectionEyebrow('recursos')}</div>
-            <h2 className="section-title">Vídeo y documentación.</h2>
+            <h2 className="section-title">Novedades y documentación.</h2>
           </div>
           <p className="section-lede">
-            Si prefieres ver antes de probar, una demo de 4 minutos cubre los
-            casos típicos. La documentación técnica explica cada fórmula con
-            su origen normativo y sus limitaciones.
+            Cada tanda de cambios se cuenta en el blog, con lo que conviene
+            recalcular. La documentación técnica explica cada módulo con su
+            origen normativo, sus usos y sus limitaciones.
           </p>
         </div>
 
         <div className="demo-docs-grid">
-          <a className="demo-card" href="#recursos">
-            <div className="demo-thumb dot-grid">
-              <div className="demo-play">
-                <svg viewBox="0 0 32 32" width="20" height="20"><polygon points="11,8 11,24 24,16" fill="currentColor" /></svg>
+          {NOVEDADES ? (
+            <Link className="demo-card news-card" to={`/blog/${NOVEDADES.slug}`}>
+              <div className="news-body dot-grid">
+                <div className="demo-thumb-label mono">NOVEDADES · {fecha(NOVEDADES.date)}</div>
+                <div className="demo-thumb-title news-title">{NOVEDADES.title}</div>
+                <p className="news-excerpt">{NOVEDADES.excerpt}</p>
               </div>
-              <div className="demo-thumb-overlay">
-                <div className="demo-thumb-label mono">DEMO · 4 MIN</div>
-                <div className="demo-thumb-title">Calcula una viga HA y exporta el PDF</div>
+              <div className="demo-foot">
+                <span className="mono dim">{NOVEDADES.read} de lectura</span>
+                <span className="link-arrow">Leer las novedades →</span>
               </div>
-            </div>
-            <div className="demo-foot">
-              <span className="mono dim">vídeo · 04:12</span>
-              <span className="link-arrow">Ver demo →</span>
-            </div>
-          </a>
+            </Link>
+          ) : (
+            <span />
+          )}
 
           <div className="docs-stack">
-            <a className="resource-card" href="#normativa">
+            <Link className="resource-card" to="/normativa">
               <div className="resource-mark mono">DOCS</div>
               <div className="resource-body">
                 <h3 className="resource-title">Documentación técnica</h3>
                 <p className="resource-desc">Cada módulo, su formulación, sus usos y sus limitaciones. Integrada en la página de normativa por norma y por módulo.</p>
               </div>
               <span className="resource-arr mono">→</span>
-            </a>
-            <a className="resource-card" href="#blog">
+            </Link>
+            <Link className="resource-card" to="/blog">
               <div className="resource-mark mono">BLOG</div>
               <div className="resource-body">
                 <h3 className="resource-title">Interpretación normativa</h3>
                 <p className="resource-desc">Artículos cortos sobre el Código Estructural y el CTE escritos por gente que calcula a diario.</p>
               </div>
               <span className="resource-arr mono">→</span>
-            </a>
-            <a className="resource-card" href="#recursos">
-              <div className="resource-mark mono">v0.4</div>
-              <div className="resource-body">
-                <h3 className="resource-title">Changelog</h3>
-                <p className="resource-desc">Cada release lista qué se ha implementado, qué se ha corregido y qué artículos normativos cubre.</p>
-              </div>
-              <span className="resource-arr mono">→</span>
-            </a>
+            </Link>
           </div>
         </div>
       </div>

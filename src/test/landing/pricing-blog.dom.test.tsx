@@ -73,7 +73,7 @@ describe('Blog listing', () => {
     fireEvent.click(screen.getByRole('button', { name: /CHANGELOG/ }));
     expect(screen.getByRole('heading', { name: /changelog · 1 artículo/i })).toBeInTheDocument();
     // the changelog post is shown, a tutorial post is not
-    expect(screen.getByRole('heading', { name: /v0\.4 —/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Novedades de septiembre/ })).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: /Punzonamiento en placas/ }),
     ).not.toBeInTheDocument();

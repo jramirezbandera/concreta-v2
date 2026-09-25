@@ -1,4 +1,4 @@
-/* demo-docs.css — "Recursos" section (video demo card + docs/blog/changelog stack).
+/* demo-docs.css — "Recursos" section (latest release notes + docs/blog stack).
    Consumed by ./DemoDocs.tsx. */
 
 .landing-root {
@@ -19,19 +19,7 @@
   .demo-card:hover {
     border-color: var(--accent);
   }
-  .demo-thumb {
-    position: relative;
-    background: var(--bg-canvas);
-    aspect-ratio: 16 / 10;
-    overflow: hidden;
-    border-bottom: 1px solid var(--border-sub);
-  }
-  .demo-thumb-overlay {
-    position: absolute;
-    left: 32px;
-    bottom: 32px;
-    z-index: 2;
-  }
+
   .demo-thumb-label {
     font-size: 11px;
     color: var(--accent);
@@ -45,22 +33,7 @@
     max-width: 18ch;
     text-wrap: balance;
   }
-  .demo-play {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 2;
-    width: 64px;
-    height: 64px;
-    background: var(--color-btn-primary-bg);
-    color: var(--color-btn-primary-fg);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: var(--glow-play);
-  }
+
   .demo-foot {
     padding: 14px 18px;
     display: flex;
@@ -118,5 +91,29 @@
   }
   .resource-card:hover .resource-arr {
     color: var(--accent);
+  }
+
+  /* The newest release notes, in the slot the video card had. Text on the
+     dot grid instead of a thumbnail: there is no picture to show, and a fake
+     one is what this card used to be. */
+  .news-body {
+    flex: 1;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 4px;
+    min-height: 240px;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .news-title {
+    max-width: 26ch;
+  }
+  .news-excerpt {
+    margin: 10px 0 0;
+    max-width: 62ch;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
   }
 }

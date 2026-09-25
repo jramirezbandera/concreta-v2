@@ -62,16 +62,12 @@ Un caso real: en un edificio de viviendas con pilares de 30 × 30 en esquina y f
 Cuando hay una abertura (paso de instalaciones, hueco de escalera) dentro de 6·d desde la cara del pilar, el CE obliga a truncar el perímetro u1 por las líneas radiales tangentes a la abertura. Es el caso menos conocido y el que más sorpresas da en obra.
 
 > ✓ **caso real**
-> Si tu placa tiene un hueco de 40 × 40 cm a 60 cm de un pilar 30 × 30 con d = 200 mm, el perímetro u1 se reduce aproximadamente un 18%. Concreta lo recalcula automáticamente al introducir las coordenadas del hueco.
+> Si tu placa tiene un hueco de 40 × 40 cm a 60 cm de un pilar 30 × 30 con d = 200 mm, el perímetro u1 se reduce aproximadamente un 18%. El módulo de Concreta todavía no descuenta huecos: en ese caso, calcula a mano el u1 reducido y compruébalo con él.
 
 ## Conclusión
 
 El punzonamiento es uno de esos cálculos donde la fórmula es sencilla pero los detalles geométricos del perímetro u1 marcan la diferencia entre cumplir y no cumplir. Los tres casos vistos (borde, esquina y huecos) son los que en práctica generan más fallos en revisión por visado.
 
-Aquí tienes el archivo de Concreta con los tres casos resueltos. Pega el enlace en otro navegador y verás los inputs y resultados completos sin tener que instalar nada:
-
-```
-concreta.tools/rc-punching?s=eJxLs7E1MdGzMjAwLDcyNzC1MNS0MdSxBQAo3wKw
-```
+Los casos de borde y esquina se repiten en un minuto: abre el módulo de punzonamiento en `concreta.tools/horm/punzonamiento`, cambia la posición del pilar y copia el enlace desde Ajustes. El caso viaja entero en la URL, así que quien lo abra verá los mismos datos y resultados sin instalar nada.
 
 Si tienes dudas sobre un caso concreto, escríbeme. Y si detectas algo en Concreta que no coincide con tu interpretación de la norma, abre un issue en GitHub — los cálculos los revisamos en abierto.

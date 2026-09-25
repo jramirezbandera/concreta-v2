@@ -1,6 +1,11 @@
 // LandingFooter — site footer shared by the landing and the /normativa subpage.
 
 import { Link } from 'react-router';
+import { ALL_POSTS } from '../blog/posts';
+
+// «Novedades» opens the newest release notes; the blog's CHANGELOG category
+// is where they live. «Demo» is gone: there never was a video.
+const NOVEDADES = ALL_POSTS.find((p) => p.category === 'CHANGELOG');
 
 export function LandingFooter() {
   return (
@@ -23,7 +28,6 @@ export function LandingFooter() {
               <li><Link to="/#modulos">Módulos</Link></li>
               <li><Link to="/pricing">Precio</Link></li>
               <li><Link to="/normativa">Normativa</Link></li>
-              <li><Link to="/#recursos">Demo</Link></li>
             </ul>
           </div>
           <div>
@@ -31,7 +35,7 @@ export function LandingFooter() {
             <ul>
               <li><Link to="/blog">Blog</Link></li>
               <li><Link to="/normativa">Documentación</Link></li>
-              <li><Link to="/#recursos">Changelog</Link></li>
+              <li><Link to={NOVEDADES ? `/blog/${NOVEDADES.slug}` : '/blog'}>Novedades</Link></li>
             </ul>
           </div>
           <div>
