@@ -218,7 +218,9 @@ between `<div className="h-px bg-border-main" />` (after Features) and the Modul
 most when competing for engineers who heard about Concreta from a colleague — they'll check
 the landing before trying it.
 
-### Landing: blog subpages — make post cards lead somewhere (design review 2026-05-17)
+### ~~Landing: blog subpages — make post cards lead somewhere (design review 2026-05-17)~~
+
+**Status:** HECHO (comprobado 2026-09-25): existen las rutas `/blog` y `/blog/:slug`, y `BlogSection` pinta las tarjetas con `PostCard` a partir de `ALL_POSTS` (`src/pages/blog/`), con enlace a «Todos los artículos».
 
 **What:** the landing's blog section (`src/pages/landing/sections.tsx`, `BlogSection`) shows 3
 post cards with hover-lift and a `→` arrow — they look clickable but their `href` is `#blog`,
@@ -277,8 +279,8 @@ When a user rapidly edits multiple fields, `setSearchParams` may fire after `loc
 - [ ] URL versioning (`?v=1&b=300...`) if external integrations are built on top
 - [ ] Custom section input for steel profiles (currently bundled IPE/HEA/HEB only)
 - [ ] Mat foundations (losas) — 2D plate theory, requires separate module
-- [ ] `<title>` tag per module (`Viga HEM — Concreta`) — `document.title` on route change
-- [ ] PWA icons — create `public/icons/icon-192.png` and `icon-512.png` (referenced in manifest)
+- [x] `<title>` tag per module — DONE: `RouteHelmet` pinta el `<title>` de cada ruta desde `src/data/routeMeta.ts` («Vigas de hormigón armado — Concreta») (comprobado 2026-09-25)
+- [x] PWA icons — DONE: `public/icons/` tiene `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` y `apple-touch-icon-180.png`, y el manifiesto de `vite.config.ts` los cita (comprobado 2026-09-25)
 
 ### Creep magnification factor Kφ in RC Columns second-order calc (eng review 2026-03-30)
 
@@ -333,9 +335,9 @@ Priority: P3 — implement after talking to first users. They'll tell you what f
 - [ ] RC Columns: per-axis beta (beta_y, beta_z) instead of single shared beta. Useful for columns with asymmetric end conditions (e.g. fixed-pinned in one direction, fixed-fixed in the other). Currently `Lk = L × beta` is the same for both axes. Minor change in `defaults.ts` + `rcColumns.ts` + `RCColumnsInputs.tsx`. ~30 min.
 - [x] `@media print` CSS rule for browser Ctrl+P — DONE (added to src/index.css 2026-03-27)
 - [ ] Content-Security-Policy headers via `vercel.json`
-- [ ] Color contrast audit — `accent` (#38bdf8) on `bg-primary` (#0f172a) at 11-12px font-mono. Check WCAG AA for small text (4.5:1 required). The ratio is ~4.9:1 so likely passes but worth confirming with a tool before public launch.
+- [x] Color contrast audit — `accent` — DONE en el design review del 2026-09-21: en oscuro `#38bdf8` da 9,12:1 sobre la base Ónice actual; en claro NO pasaba (sky-600, 4,10:1) y bajó a sky-700 `#0369a1` (5,42-5,93:1). Medido sobre las tres superficies, anotado en `src/index.css`.
 - [ ] SVG a11y: add `<title>` and `<desc>` tags to all module diagrams (M/V/δ, I-section, punzonamiento perimeter, zapata plan, etc.). Currently screen readers get nothing from the SVG canvas. Pan-module pass after the diagram legibility work lands. Est ~15 min CC per module × 13 modules.
-- [ ] PDF font embedding QA: after the diagram legibility fix (steel-beams design doc 2026-04-19) lands, run a PDF export and verify Geist Sans/Mono actually render in the exported PDF. svg2pdf + jsPDF silently fall back to Helvetica if the font isn't registered via `doc.addFont()`. If fallback is observed, either register Geist explicitly or switch the PDF `fontFamily` to `ui-monospace, monospace` (grayscale mode already uses #333/#555/#888 so the visual impact is small). ~10 min QA.
+- [x] ~~PDF font embedding QA~~ — RESUELTO por otra vía: los exportadores embeben una Arimo registrada como la Helvetica de jsPDF (`src/lib/pdf/fuente.ts`, con sus pruebas en `src/test/pdf/fuente.dom.test.ts`), así que ya no hay caída silenciosa a Helvetica que vigilar. Texto original: after the diagram legibility fix (steel-beams design doc 2026-04-19) lands, run a PDF export and verify Geist Sans/Mono actually render in the exported PDF. svg2pdf + jsPDF silently fall back to Helvetica if the font isn't registered via `doc.addFont()`. If fallback is observed, either register Geist explicitly or switch the PDF `fontFamily` to `ui-monospace, monospace` (grayscale mode already uses #333/#555/#888 so the visual impact is small). ~10 min QA.
 - [ ] `ff` sagging label ratio (design doc 2026-04-19): the hard-coded 0.5 ratio for `ff` midspan sagging is exact for a uniformly distributed load and approximate otherwise. Today `calcSteelBeam` only supports UDL. If point loads or triangular loads are ever added to the steel-beams module (or any other beam module uses the same diagram pattern), replace `MEd × 0.5` with a value derived from the actual load case. Cheap to fix at the source when it arrives.
 
 ### rcBeams: report As_req alongside bending check
@@ -369,9 +371,9 @@ These should be **warn-level** (not fail-level, not hard errors) check rows in `
 
 **Depends on:** none.
 
-### units-toggle: audit shared calc files antes de ship
+### ~~units-toggle: audit shared calc files antes de ship~~
 
-**Status:** DEFERRED (plan-eng-review 2026-04-21). Blocks shipping `feat/units-toggle`.
+**Status:** HECHO (comprobado 2026-09-25): el `git grep` de abajo sobre los cinco ficheros no devuelve nada. Originalmente: DEFERRED (plan-eng-review 2026-04-21), bloqueaba `feat/units-toggle`.
 
 El design doc del toggle kg/cm² ↔ kN/m² inventarió los 14 módulos en `src/features/` pero no los archivos compartidos en `src/lib/calculations/`: `beamCases.ts`, `loadGen.ts`, `rcSlabs.ts`, `rcTSection.ts`, `steelColumnBC.ts`. Pueden contener strings hardcoded con unidades (ej. `value: "${x.toFixed(1)} kN"`) que se escaparían del barrido si nadie los revisa. Correr un grep por `'kN'|'kNm'|'N/mm'|'MPa'` en esos 5 archivos antes de mergear `feat/units-toggle`; si hay matches, migrar con el mismo patrón `CheckRow { valueNum, valueQty }`.
 
@@ -419,9 +421,9 @@ El review acordó añadir `quantity?: Quantity` al `Label` en `src/lib/text/labe
 
 **Depends on:** `feat/units-toggle` en implementación.
 
-### units-toggle: CheckRow shape soporta valores no-numéricos vía fallback string
+### ~~units-toggle: CheckRow shape soporta valores no-numéricos vía fallback string~~
 
-**Status:** SPEC (plan-eng-review 2026-04-21, codex flag — decision iteration 8).
+**Status:** HECHO (comprobado 2026-09-25): `CheckRow` en `src/lib/calculations/types.ts` lleva `valueNum`/`valueQty` y `valueStr`/`limitStr` de reserva, tal como se especificó aquí. Originalmente: SPEC (plan-eng-review 2026-04-21, codex flag — decision iteration 8).
 
 El refactor del CheckRow no puede asumir que todos los checks son `{ valueNum, valueQty }`. Hay casos legítimos hoy: `'∞'` (isolatedFooting.ts:468 cuando no hay vuelco), strings tipo `'3 barras'`, ratios adimensionales, booleanos cumple/no-cumple. **Shape final:**
 
@@ -492,9 +494,9 @@ Capturados durante /plan-eng-review 2026-04-28 sobre el design doc Javier-main-d
 
 **Depends on:** V1.1 ship (embed real en pantalla).
 
-### CI gate para los 7 casos canónicos del solver FEM
+### ~~CI gate para los 7 casos canónicos del solver FEM~~
 
-**Status:** TODO post-V1 ship. Capturado en eng-review.
+**Status:** HECHO, con una puerta más ancha que la pedida: `.github/workflows/ci.yml` corre lint, build y la suite ENTERA (`bun run test:run`) en cada pull request y en cada push fuera de `main`, así que `solver.test.ts` va dentro. No hay un job propio con la etiqueta «fem-solver-canonical» (comprobado 2026-09-25). Originalmente: TODO post-V1 ship, capturado en eng-review.
 
 **What:** configurar GitHub Actions / pipeline para ejecutar `vitest run src/test/fem-analysis/solver.test.ts` en cada PR. Cualquier divergencia >1e-6 vs solución analítica = build red, no merge.
 
@@ -958,10 +960,9 @@ de anclaje/flexión del perfil paralelo (longitud de desarrollo embebida) antes 
 paralelo; solo entonces reincorporar su huella a `buildCross` con la longitud eficaz real.
 **Depends on:** TODO de anclaje de brazos embebidos (design doc).
 
-### Modo claro — tematizar la landing page
+### ~~Modo claro — tematizar la landing page~~
 
-**Status:** DIFERIDO (eng-review modo claro, 2026-06-09) — la app entera responde al
-tema, pero `src/pages/landing/` se queda siempre-oscura en esta PR.
+**Status:** HECHO en `8e78aa0` (2026-06-13, «tema claro por defecto en landing y marketing»): `src/pages/landing/styles/tokens.css` responde a `[data-theme]` igual que la app (comprobado 2026-09-25). Originalmente: DIFERIDO (eng-review modo claro, 2026-06-09).
 
 **What:** portar el sistema de tokens propio de la landing (`.landing-root` en
 `src/pages/landing/styles/tokens.css`, ~24 hex en 7 archivos CSS) al esquema
@@ -1107,9 +1108,11 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Depends on / blocked by:** nada. PR propia, pequeña.
 
-## Anejo de cálculo — los 14 módulos que quedaron fuera de la v1
+## ~~Anejo de cálculo — los 14 módulos que quedaron fuera de la v1~~
 
-**Status:** APLAZADO CONSCIENTEMENTE — plan-eng-review del anejo de cálculo (2026-09-07, decisión D1). Design doc: `~/.gstack/projects/jramirezbandera-concreta-v2/javie-main-design-20260907-190349.md`.
+**Status:** HECHO (comprobado el 2026-09-25). `src/lib/anejo/modules/` tiene los 26 adaptadores, con los 14 de esta lista dentro (micropilotes, taludes, escollera, empresillado, sección compuesta, placas, muros de fábrica, punzonamiento, encepados, muros, madera y los dos FEM). Taludes dejó de ser especial al rehacerse los PDF al abrir la obra: su PDF se congela como el de cualquier otro (cabecera de `slopeStability.ts`).
+
+Origen: plan-eng-review del anejo de cálculo (2026-09-07, decisión D1). Design doc: `~/.gstack/projects/jramirezbandera-concreta-v2/javie-main-design-20260907-190349.md`.
 
 **What:** extender el anejo automático a los módulos que la v1 deja fuera: micropilotes, taludes, escollera, empresillado, sección compuesta, placas de anclaje, muros de fábrica, punzonamiento, encepados, muros de contención, madera (vigas y pilares) y los dos FEM. La v1 cubre sólo los 10 de uso corriente: vigas y pilares de hormigón, zapatas aisladas, forjados, vigas y pilares de acero, sismo, más los tres que ya pasan por `Block[]` (materiales, cargas por planta, ficha DB SE).
 
@@ -1173,9 +1176,11 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Depends on / blocked by:** nada.
 
-## Pruebas — el renombrado del anejo se pasa del timeout bajo carga
+## ~~Pruebas — el renombrado del anejo se pasa del timeout bajo carga~~
 
-**Status:** DIFERIDO — plan-eng-review del panel de obra (2026-09-12, D13).
+**Status:** HECHO por la salida del «Cons»: la prueba lleva su propio tiempo, 20 s (`AnejoModule.dom.test.tsx:468`, desde `ea0ad2b`, 2026-09-15), porque repintar el título dentro del PDF con pdf-lib es legítimamente lento. Comprobado el 2026-09-25: la suite entera pasa con la máquina ocupada.
+
+Origen: plan-eng-review del panel de obra (2026-09-12, D13).
 
 **What:** que `src/test/anejo/AnejoModule.dom.test.tsx > renombrar y ver desde la fila > renombrar cambia el capítulo en la lista, y lo dice` deje de agotar los 5.000 ms por defecto de vitest.
 
@@ -1189,9 +1194,11 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Depends on / blocked by:** nada.
 
-## Un solo patrón para leer almacenes externos desde React
+## ~~Un solo patrón para leer almacenes externos desde React~~
 
-**Status:** DIFERIDO — plan-eng-review del panel de obra (2026-09-12, D14).
+**Status:** HECHO (comprobado el 2026-09-25). `lib/proyecto` ya sigue el patrón: `useProyectoActivo` lee con `useSyncExternalStore(suscribirProyectoActivo, instantaneaActivo, …)`, y los `storage`/`focus` que quedan en `index.ts` son la suscripción del propio patrón, no una lectura a mano. `PwaUpdatePrompt` conserva sus `focus`/`visibilitychange` a propósito, como ya sospechaba el «Cons»: no lee un dato de obra, vuelve a preguntar al service worker si hay versión nueva al volver a la pestaña.
+
+Origen: plan-eng-review del panel de obra (2026-09-12, D14).
 
 **What:** llevar `src/lib/proyecto/index.ts` y `src/components/pwa/PwaUpdatePrompt.tsx` al patrón `useSyncExternalStore` que ya usa `src/lib/anejo/useAnejo.ts` y que estrenarán las publicaciones y la obra en el rediseño.
 
@@ -1369,7 +1376,7 @@ Encontrado por `/design-review` el 2026-09-17 (detector impeccable, 25 hits, con
 
 **Context:** `src/features/{cargas-planta,incendio,materiales,memoria-dbse,viento-nieve}/index.tsx`; `src/components/ui/Campo.tsx` (la nota corta que sólo aparece con el modo Ayuda); plan en `~/.gstack/projects/jramirezbandera-concreta-v2/jramirezbandera-main-design-20260922-menu-asistente.md`.
 
-**Depends on / blocked by:** el Menú agrupado (T1 de ese plan): es donde iría la fila.
+**Depends on / blocked by:** nada ya. Dependía del Menú agrupado (T1 de ese plan), que está hecho y publicado desde v260924.0; hoy el desplegable se llama «Ajustes» y es donde iría la fila.
 
 ## Las insignias ok / warn / fail no llegan a AA en el tema claro
 
@@ -1399,6 +1406,10 @@ Encontrado por `/design-review` el 2026-09-17 (detector impeccable, 25 hits, con
 
 **Cons:** es una tabla, y darle ancho al nombre se lo quita a las cifras, que en Cargas por planta ya se midieron al píxel para los 14 px del móvil.
 
-**Context:** `src/features/cargas-planta/Lineales.tsx` (la clase `INPUT` de la fila); para reproducirlo, recorrer el DOM de `/acciones/cargas-planta` a 375 px buscando los campos visibles con `scrollWidth > clientWidth`.
+**Causa (medida el 2026-09-25):** la tabla es `w-full table-fixed` con cinco columnas fijas (116 + 96 + 112 + 104 + 44 = 472 px) y el nombre «se queda con el resto». A 375 px el hueco es de 349 px: no hay resto, la columna del nombre mide **0 px**, la tabla desborda a 472 y se desliza de lado igualmente, y de paso la cabecera «Elemento» se monta sobre «Peso por m²». A 900 px el nombre ya tiene 402 px.
+
+**Arreglo propuesto:** el mismo que ya usa la tabla principal del módulo (`Tabla.tsx:170`, `style={{ minWidth: anchoPx }}`): darle a la tabla un `minWidth` de las columnas fijas más un suelo para el nombre. Probado en vivo con 200 px (tabla de 672): «Cerramiento de fachada» (necesita 188) se lee entero y el resto de la fila se ve deslizando; el nombre más largo del catálogo, «Tabicón u hoja simple de ladrillo», pide 238. Desde 900 px no cambia nada, porque el hueco ya pasa de 672.
+
+**Context:** `src/features/cargas-planta/Lineales.tsx:81` (la tabla) y `:116` (la caja); para reproducirlo, recorrer el DOM de `/acciones/cargas-planta` a 375 px buscando los campos visibles con `scrollWidth > clientWidth`.
 
 **Depends on / blocked by:** nada.
