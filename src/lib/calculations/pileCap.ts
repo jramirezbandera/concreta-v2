@@ -48,7 +48,8 @@
 //   C-C-T de §6.5.4, k2=0.85·ν'·fcd) — ver check 'strut-capacity'
 // CE Anejo 19 §6.5.4 — nodo C-C-C bajo el pilar (k1=1.0·ν'·fcd)
 // CE Anejo 19 §8.4.4   — anchorage length
-// CE Anejo 19 §9.2.1.1  — minimum reinforcement
+// EHE-08 42.3.2 (= CE Anejo 19 §9.2.1.1 (9.1)) — minimum reinforcement de la
+//   sección: el CE excluye los encepados (§9.8.1) y el módulo sigue la EHE-08
 // CE Anejo 19 §8.2 — maximum bar spacing
 // CTE DB-SE-C §5.1.4 — geometric requirements (spacing, edge, depth)
 //
@@ -1116,7 +1117,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
       As_min_x, As_bot_tot_x,
       `${As_min_x.toFixed(0)} mm²`,
       `${As_bot_tot_x.toFixed(0)} mm²`,
-      'CE Anejo 19 §9.2.1.1 (9.1)',
+      'EHE-08 42.3.2 (= CE A19 (9.1))',
     ));
   }
 
@@ -1138,7 +1139,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
         As_min_y, As_prov_y,
         `${As_min_y.toFixed(0)} mm²`,
         `${As_prov_y.toFixed(0)} mm²`,
-        'CE Anejo 19 §9.2.1.1 (9.1)',
+        'EHE-08 42.3.2 (= CE A19 (9.1))',
       ));
     }
   }

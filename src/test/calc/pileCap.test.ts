@@ -107,7 +107,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
   it('el mínimo de sección tiene fila propia y se marca cuál manda', () => {
     const tie = r.checks.find((c) => c.id === 'tie-steel-x')!;
     const min = r.checks.find((c) => c.id === 'tie-steel-min-x')!;
-    expect(min.article).toBe('CE Anejo 19 §9.2.1.1 (9.1)');
+    expect(min.article).toBe('EHE-08 42.3.2 (= CE A19 (9.1))');
     // aquí manda el tirante (la malla cubre el mínimo de sobra)
     expect(tie.description).toMatch(/manda$/);
     expect(min.description).not.toMatch(/manda$/);
