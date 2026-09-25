@@ -192,7 +192,7 @@ const RC_PHI_EF = 2.0;
  *  "pésima" sería mentir. Las filas con NEd dentro (as-min-mech, λ vs λ_lim,
  *  nm-*, nd-max, 5.38, biaxial) SÍ se etiquetan. */
 const RC_COL_COMBO_INDEPENDENT = new Set([
-  'long-bar-diam-min', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y',
+  'as-min', 'long-bar-diam-min', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y',
   'bar-spacing-circ', 'stirrup-diam', 'stirrup-spacing', 'stirrup-densification',
 ]);
 

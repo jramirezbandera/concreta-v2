@@ -61,7 +61,7 @@ describe('RC Columns — FTUX defaults', () => {
     const r = calcRCColumn(inp());
     expect(r.valid).toBe(true);
     const governingIds = ['biaxial-check', 'lambda-y', 'lambda-z', 'nd-max',
-      'as-min-mech', 'long-bar-diam-min', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y',
+      'as-min', 'as-min-mech', 'long-bar-diam-min', 'as-max', 'nBars-min', 'bar-spacing-x', 'bar-spacing-y',
       'stirrup-diam', 'stirrup-spacing', 'stirrup-densification'];
     for (const id of governingIds) {
       const ch = r.checks.find((c) => c.id === id);
@@ -92,9 +92,11 @@ describe('RC Columns — FTUX defaults', () => {
     expect(r.lapLength).toBeGreaterThan(0);
   });
 
-  it('checks array has 17 entries', () => {
+  it('checks array has 18 entries', () => {
+    // 2026-09-25: +1 por el diámetro mínimo Ø12 del CE §9.5.2(1)
+    // (long-bar-diam-min); as-min (0,002·Ac, Eurocódigo) sigue.
     const r = calcRCColumn(inp());
-    expect(r.checks).toHaveLength(17);
+    expect(r.checks).toHaveLength(18);
   });
 
   it('result has all required fields', () => {
@@ -324,9 +326,15 @@ describe('RC Columns — N-M interaction fails', () => {
 // ── Reinforcement limit checks ───────────────────────────────────────────────
 
 describe('RC Columns — Reinforcement limit checks', () => {
-  it('sin cuantía geométrica 0,002·Ac: el CE Anejo 19 §9.5.2 no la tiene (2026-09-25)', () => {
-    const r = calcRCColumn(inp());
-    expect(r.checks.some((c) => c.id === 'as-min')).toBe(false);
+  it('as-min: 0,002·Ac del Eurocódigo, porque el CE §9.5.2 no fija cuantía geométrica', () => {
+    // EN 1992-1-1 §9.5.2(2): 0,002·300·300 = 180 mm²; 4×Ø6 = 113 mm² < 180 → fail.
+    const r = calcRCColumn(inp({ cornerBarDiam: 6 }));
+    expect(r.valid).toBe(true);
+    const ch = r.checks.find((c) => c.id === 'as-min')!;
+    expect(ch.status).toBe('fail');
+    expect(ch.limit).toContain('180');
+    expect(ch.article).toBe('EN 1992-1-1 §9.5.2(2)');
+    expect(ch.description).toMatch(/el CE no la fija/);
   });
 
   it('diámetro de las barras longitudinales ≥ 12 mm (CE Anejo 19 §9.5.2(1))', () => {

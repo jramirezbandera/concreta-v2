@@ -523,9 +523,22 @@ export function calcRCColumn(inp: RCColumnInputs): RCColumnResult {
     });
   }
 
-  // Cuantía mínima — CE Anejo 19 §9.5.2(2) (BOE, pág. 771 del PDF). El CE no
-  // tiene el 0,002·Ac del Eurocódigo, que se comprobaba aquí hasta el
-  // 2026-09-25. Pide, en el caso general, A's,min = 0,05·N_Ed/f_yc,d EN CADA
+  // Cuantía geométrica mínima: el CE (§9.5.2) no fija ninguna, así que se
+  // aplica la del Eurocódigo, EN 1992-1-1 §9.5.2(2), valor recomendado
+  // 0,002·Ac. Criterio del usuario (2026-09-25): donde el CE no fija mínimo,
+  // el del Eurocódigo, citado como tal.
+  const As_min_geo = 0.002 * b * h;
+  checks.push(makeCheck(
+    'as-min',
+    'Armadura mínima geométrica: As ≥ 0,002·Ac (Eurocódigo; el CE no la fija)',
+    As_min_geo, As_total,
+    `${As_total.toFixed(0)} mm²`,
+    `≥ ${As_min_geo.toFixed(0)} mm²`,
+    'EN 1992-1-1 §9.5.2(2)',
+  ));
+
+  // Cuantía mínima mecánica — CE Anejo 19 §9.5.2(2) (BOE, pág. 771 del PDF),
+  // que sustituye la mecánica del Eurocódigo (0,10·N_Ed/f_yd). Pide, en el caso general, A's,min = 0,05·N_Ed/f_yc,d EN CADA
   // CARA (figura A19.9.11), con f_yc,d = f_yd ≤ 400 N/mm²; y en compresión
   // simple con armado simétrico —el rectangular lo es siempre— As,min =
   // 0,10·N_Ed/f_yd en total (9.12). Con flexión esviada se comprueban las
@@ -1012,8 +1025,18 @@ function calcRCColumnCirc(inp: RCColumnInputs): RCColumnResult {
     article: 'CE Anejo 19 §5.8.8',
   });
 
-  // Cuantía mínima — CE Anejo 19 §9.5.2(2), sin el 0,002·Ac del Eurocódigo
-  // (ver la sección rectangular). En compresión simple, (9.12): As,min =
+  // Cuantía geométrica mínima del Eurocódigo, que el CE no fija (ver la
+  // sección rectangular): EN 1992-1-1 §9.5.2(2), 0,002·Ac.
+  const As_min_geo = 0.002 * Ac;
+  checks.push(makeCheck(
+    'as-min',
+    'Armadura mínima geométrica: As ≥ 0,002·Ac (Eurocódigo; el CE no la fija)',
+    As_min_geo, As_total,
+    `${As_total.toFixed(0)} mm²`, `≥ ${As_min_geo.toFixed(0)} mm²`,
+    'EN 1992-1-1 §9.5.2(2)',
+  ));
+
+  // Cuantía mínima mecánica — CE Anejo 19 §9.5.2(2) (ver la sección rectangular). En compresión simple, (9.12): As,min =
   // 0,10·N_Ed/f_yd. Con flexión, el CE da 0,05·N_Ed/f_yc,d por cara y un anillo
   // no tiene caras: se exige el total equivalente a las dos opuestas,
   // 0,10·N_Ed/f_yc,d (f_yc,d = f_yd ≤ 400 N/mm²).

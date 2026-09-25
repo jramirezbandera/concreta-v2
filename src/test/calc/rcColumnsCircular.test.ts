@@ -247,12 +247,12 @@ describe('Circular column — checks', () => {
   it('has circular checks and omits rectangular ones', () => {
     const present = ids();
     for (const id of ['lambda', 'flexion-check', 'nm-res', 'bar-spacing-circ',
-      'as-min-mech', 'long-bar-diam-min', 'as-max', 'nBars-min', 'stirrup-diam', 'stirrup-spacing',
+      'as-min', 'as-min-mech', 'long-bar-diam-min', 'as-max', 'nBars-min', 'stirrup-diam', 'stirrup-spacing',
       'stirrup-densification', 'nd-max']) {
       expect(present).toContain(id);
     }
     for (const id of ['lambda-z', 'cond-5.38a', 'cond-5.38b', 'bar-spacing-y',
-      'bar-spacing-x', 'biaxial-check', 'nm-y', 'nm-z', 'as-min']) {
+      'bar-spacing-x', 'biaxial-check', 'nm-y', 'nm-z']) {
       expect(present).not.toContain(id);
     }
   });
