@@ -223,9 +223,11 @@ describe('anchorPlate adapter — reglas de seguridad', () => {
     expect(riskFor(p, 'pedestal_h')).toBeDefined();
   });
 
-  it('declarar rugosa una superficie lisa es riesgo (μ pasa de 0.2 a 0.4)', () => {
+  it('declarar rugosa una superficie lisa NO es riesgo: el motor usa Cf,d = 0,20 con las dos', () => {
+    // Hasta el 2026-09-25 la regla avisaba de un μ = 0,4 que el cálculo ya no
+    // aplicaba desde la auditoría #26.
     const current: AnchorPlateInputs = { ...anchorPlateDefaults, surface_type: 'smooth' };
-    expect(riskFor(plan({ surface_type: 'roughened' }, current), 'surface_type')?.why).toContain('rozamiento');
+    expect(riskFor(plan({ surface_type: 'roughened' }, current), 'surface_type')).toBeUndefined();
   });
 
   it('lo contrario (rugosa → lisa) NO es riesgo: es el lado conservador', () => {

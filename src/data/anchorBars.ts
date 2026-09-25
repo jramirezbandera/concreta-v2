@@ -11,7 +11,7 @@ export type RebarDiam  = 8 | 10 | 12 | 16 | 20 | 25 | 32;
  *  - patilla            : doblado 90° (α1=0.7 si cd > 3·φ, si no 1.0).
  *  - gancho             : doblado ≥135° (mismo α1 condicional).
  *  - arandela_tuerca    : cabeza ensanchada (arandela + tuerca) al fondo,
- *                         transfiere por aplastamiento — pull-out CE Anejo 11 §7.2.1.5. */
+ *                         transfiere por aplastamiento — pull-out EN 1992-4 §7.2.1.5. */
 export type BottomAnchorage =
   | 'prolongacion_recta'
   | 'patilla'
@@ -122,7 +122,7 @@ export function needsBondAnchorage(kind: BottomAnchorage): boolean {
   return kind === 'prolongacion_recta' || kind === 'patilla' || kind === 'gancho';
 }
 
-/** Does this bottom anchorage transfer load by bearing (pull-out CE Anejo 11 §7.2.1.5)? */
+/** Does this bottom anchorage transfer load by bearing (pull-out EN 1992-4 §7.2.1.5)? */
 export function needsPullout(kind: BottomAnchorage): boolean {
   return kind === 'arandela_tuerca';
 }

@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import type { AnchorPlateInputs } from '../../data/defaults';
-import type { AnchorPlateResult } from '../../lib/calculations/anchorPlate';
+import { resolveEdges, type AnchorPlateResult } from '../../lib/calculations/anchorPlate';
 import { sectionOutline, outlinePathD } from '../../lib/sections';
 import {
   huellaPerfil,
@@ -238,6 +238,7 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
       <g>
         {/* Pedestal outline */}
         <rect
+          data-role="macizo-planta"
           x={pCx - pw / 2}
           y={pCy - ph / 2}
           width={pw}
@@ -571,6 +572,67 @@ export function AnchorPlateSVG({ inp, result, mode, width, height, system = 'si'
         <text x={pCx + plateW / 2 + 11} y={pCy} fill={C.dim} fontSize={9} textAnchor="start" dominantBaseline="middle" style={MONO}>
           b = {inp.plate_b}
         </text>
+
+        {/* Cotas cX y cY (2026-09-25): el usuario no sabía de qué barra se
+            medía cX. Arrancan en el eje de la fila exterior de barras y miden
+            lo que usa el CÁLCULO (cX1 hacia +x, cY1 hacia +y), no lo que se
+            dibuja: si el macizo está mal descrito (c ≠ e + m), la cota no llega
+            a la cara pintada o se pasa, y el aviso del motor lo explica.
+            cX va en la franja entre la placa y la cara +y del macizo; cY, en
+            la franja de la izquierda, de canto como manda el plano. */}
+        {(() => {
+          const xb = inp.plate_a / 2 - inp.bar_edge_x;   // fila exterior +x
+          const yb = inp.plate_b / 2 - inp.bar_edge_y;   // fila exterior +y
+          const { cX1: cx, cY1: cy } = resolveEdges(inp);
+          const X = (mm: number) => pCx + mm * escala;
+          const Y = (mm: number) => pCy + mm * escala;
+          // Línea de cota en mitad de la franja, y nunca pegada a la placa.
+          const yCotaX = pCy + plateH / 2 + Math.max((inp.plate_margin_y * escala) / 2, 8);
+          const xCotaY = pCx - plateW / 2 - Math.max((inp.plate_margin_x * escala) / 2, 8);
+          const cuerpo = (texto: string, hueco: number) =>
+            anchoEstimado(texto, 9) <= hueco ? 9 : Math.max(9 * 0.7, (hueco * 9) / anchoEstimado(texto, 9));
+          const textoX = `cX = ${cx}`;
+          const textoY = `cY = ${cy}`;
+          const cuerpoX = cuerpo(textoX, cx * escala - 4);
+          const cuerpoY = cuerpo(textoY, cy * escala - 4);
+          return (
+            <>
+              <g data-role="cota-cX" stroke={C.dim} strokeWidth={0.5}>
+                <line x1={X(xb)} y1={Y(yb)} x2={X(xb)} y2={yCotaX + 3} strokeDasharray="1.5 1.5" />
+                <line x1={X(xb + cx)} y1={yCotaX - 3} x2={X(xb + cx)} y2={yCotaX + 3} />
+                <line x1={X(xb)} y1={yCotaX} x2={X(xb + cx)} y2={yCotaX} />
+              </g>
+              <text
+                data-role="cota-cX-texto"
+                x={X(xb + cx / 2)}
+                y={yCotaX - 3}
+                fill={C.dim}
+                fontSize={cuerpoX}
+                textAnchor="middle"
+                style={MONO}
+              >
+                {textoX}
+              </text>
+              <g data-role="cota-cY" stroke={C.dim} strokeWidth={0.5}>
+                <line x1={X(-xb)} y1={Y(yb)} x2={xCotaY - 3} y2={Y(yb)} strokeDasharray="1.5 1.5" />
+                <line x1={xCotaY - 3} y1={Y(yb + cy)} x2={xCotaY + 3} y2={Y(yb + cy)} />
+                <line x1={xCotaY} y1={Y(yb)} x2={xCotaY} y2={Y(yb + cy)} />
+              </g>
+              <text
+                data-role="cota-cY-texto"
+                x={xCotaY - 3}
+                y={Y(yb + cy / 2)}
+                fill={C.dim}
+                fontSize={cuerpoY}
+                textAnchor="middle"
+                transform={`rotate(-90 ${xCotaY - 3} ${Y(yb + cy / 2)})`}
+                style={MONO}
+              >
+                {textoY}
+              </text>
+            </>
+          );
+        })()}
       </g>
 
       {/* ═══════════ ALZADO ═══════════ */}

@@ -209,3 +209,97 @@ describe('AnchorPlateSVG — pilar 2UPN en cajón (2026-09-23)', () => {
     expect(montar().cajas('perfil-alzado')).toHaveLength(3);
   });
 });
+
+// ─── Cotas cX y cY (2026-09-25) ──────────────────────────────────────────
+// El usuario no sabía de qué barra se medía cX. La planta la acota desde el
+// eje de la fila exterior de barras, con la medida que usa el CÁLCULO: si el
+// macizo está mal descrito, la cota no llega a la cara dibujada.
+
+/** Caja estimada de un <text> (monoespaciada: 0,6·cuerpo por carácter). */
+function cajaTexto(t: Element): Caja {
+  const fs = Number(t.getAttribute('font-size'));
+  const w = (t.textContent ?? '').length * fs * 0.6;
+  const x = Number(t.getAttribute('x'));
+  const y = Number(t.getAttribute('y'));
+  const ancla = t.getAttribute('text-anchor') ?? 'start';
+  const x0 = ancla === 'middle' ? x - w / 2 : ancla === 'end' ? x - w : x;
+  const medio = t.getAttribute('dominant-baseline') === 'middle';
+  const y0 = medio ? y - fs / 2 : y - 0.8 * fs;
+  if (/rotate\(-90/.test(t.getAttribute('transform') ?? '')) {
+    // De canto: lee de abajo arriba y el ojo de la letra mira a la izquierda.
+    const y0r = ancla === 'middle' ? y - w / 2 : y - w;
+    return { x: x - 0.8 * fs, y: y0r, w: fs, h: w };
+  }
+  return { x: x0, y: y0, w, h: fs };
+}
+const solapan = (a: Caja, b: Caja) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+describe('AnchorPlateSVG — cotas cX y cY del macizo', () => {
+  const PILAR_1: Partial<AnchorPlateInputs> = {
+    NEd: 200, NEd_G: 120, Mx: 45, My: 10, VEd: 40, Vx: 40, Vy: 0,
+    plate_a: 400, plate_b: 400, bar_nLayout: 6, bar_edge_x: 50, bar_edge_y: 50, fck: 30,
+    pedestal_cX: 200, pedestal_cX1: 200, pedestal_cX2: 200,
+    pedestal_cY: 200, pedestal_cY1: 200, pedestal_cY2: 200,
+    plate_margin_x: 150, plate_margin_y: 150,
+  };
+
+  it('cX arranca en el eje de la fila exterior de barras y llega a la cara +x del macizo', () => {
+    const { svg, barras, cajas } = montar(PILAR_1);
+    const placa = cajas('placa-planta')[0];
+    const escala = placa.w / 400;
+    const lineas = Array.from(svg.querySelectorAll('[data-role="cota-cX"] line'));
+    const cota = lineas[lineas.length - 1];
+    const xBarra = Math.max(...barras.map((b) => b.cx));
+    expect(Number(cota.getAttribute('x1'))).toBeCloseTo(xBarra, 3);
+    expect(Number(cota.getAttribute('x2')) - Number(cota.getAttribute('x1'))).toBeCloseTo(200 * escala, 3);
+    const macizo = cajas('macizo-planta')[0];
+    expect(Number(cota.getAttribute('x2'))).toBeCloseTo(macizo.x + macizo.w, 3);
+    expect(svg.querySelector('[data-role="cota-cX-texto"]')!.textContent).toBe('cX = 200');
+    expect(svg.querySelector('[data-role="cota-cY-texto"]')!.textContent).toBe('cY = 200');
+  });
+
+  it('cY baja de la fila exterior en y hasta la cara +y del macizo', () => {
+    const { svg, barras, cajas } = montar(PILAR_1);
+    const lineas = Array.from(svg.querySelectorAll('[data-role="cota-cY"] line'));
+    const cota = lineas[lineas.length - 1];
+    expect(Number(cota.getAttribute('y1'))).toBeCloseTo(Math.max(...barras.map((b) => b.cy)), 3);
+    const macizo = cajas('macizo-planta')[0];
+    expect(Number(cota.getAttribute('y2'))).toBeCloseTo(macizo.y + macizo.h, 3);
+  });
+
+  it('macizo mal descrito (cX = 200 con ex + mX = 250): la cota se queda 50 mm antes de la cara', () => {
+    const { svg, cajas } = montar({ ...PILAR_1, bar_edge_x: 100 });
+    const escala = cajas('placa-planta')[0].w / 400;
+    const lineas = Array.from(svg.querySelectorAll('[data-role="cota-cX"] line'));
+    const x2 = Number(lineas[lineas.length - 1].getAttribute('x2'));
+    const macizo = cajas('macizo-planta')[0];
+    expect(macizo.x + macizo.w - x2).toBeCloseTo(50 * escala, 3);
+  });
+
+  const CASOS: Array<[string, Partial<AnchorPlateInputs>]> = [
+    ['defaults', {}],
+    ['pilar 1', PILAR_1],
+    ...([4, 6, 8, 12] as const).map((n): [string, Partial<AnchorPlateInputs>] => [`disposición ${n}`, { bar_nLayout: n }]),
+    ['momento débil dominante (eje neutro tumbado)', { Mx: 0, My: 45 }],
+    ['momento débil negativo', { Mx: 5, My: -45 }],
+    ['macizo justo (vuelo 60)', { plate_margin_x: 60, plate_margin_y: 60, ...{ pedestal_cX: 100, pedestal_cX1: 100, pedestal_cX2: 100, pedestal_cY: 100, pedestal_cY1: 100, pedestal_cY2: 100 } }],
+    ['macizo grande (vuelo 400)', { plate_margin_x: 400, plate_margin_y: 400, ...{ pedestal_cX: 440, pedestal_cX1: 440, pedestal_cX2: 440, pedestal_cY: 440, pedestal_cY1: 440, pedestal_cY2: 440 } }],
+  ];
+  for (const [nombre, patch] of CASOS) {
+    it(`${nombre}: los rótulos de cX y cY no pisan ningún otro texto ni se salen del lienzo`, () => {
+      const { svg } = montar(patch);
+      const todos = Array.from(svg.querySelectorAll('text'));
+      for (const rol of ['cota-cX-texto', 'cota-cY-texto']) {
+        const t = svg.querySelector(`[data-role="${rol}"]`)!;
+        const caja = cajaTexto(t);
+        expect(caja.x, `${rol} se sale por la izquierda`).toBeGreaterThanOrEqual(0);
+        expect(caja.x + caja.w, `${rol} se sale por la derecha`).toBeLessThanOrEqual(720);
+        for (const otro of todos) {
+          if (otro === t) continue;
+          expect(solapan(caja, cajaTexto(otro)), `${rol} pisa «${otro.textContent}»`).toBe(false);
+        }
+      }
+    });
+  }
+});

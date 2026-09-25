@@ -10,15 +10,19 @@
 // (grout), sujeta a la cabeza del macizo por el grupo de barras traccionadas
 // y por compresión directa del mortero.
 //
-// Norma de referencia: Código Estructural (RD 470/2021), España. Anejos
-// aplicables:
-//   - Anejo 18 — Uniones en estructuras de acero (placa base, T-stub,
-//     rigidizadores). Eurocódigo de referencia secundaria: EC3 1-8.
-//   - Anejo 11 — Anclajes en hormigón (cono, pull-out, splitting, modos
-//     de fallo en cortante). Eurocódigo de referencia secundaria: EN 1992-4.
+// Normas de referencia. Del Código Estructural (RD 470/2021):
+//   - Anejo 26 — Uniones (placa base, secciones en T equivalentes,
+//     rozamiento §6.2.2, soldaduras §4.5.3). Es el EC3 1-8 con su misma
+//     numeración.
 //   - Anejo 19 — Hormigón estructural (longitud de anclaje §8.4, fctd).
 //     Eurocódigo de referencia secundaria: EC2.
 //   - Anejo 22 — Esbeltez de placa en compresión (rigidizadores §5.5).
+// Y fuera del CE, que no incorpora la parte 4 del EC2:
+//   - EN 1992-4 — Anclajes en hormigón (cono, pull-out, splitting, modos
+//     de fallo en cortante e interacción).
+// Hasta el 2026-09-25 el módulo citaba «CE Anejo 18» para la placa base y
+// «CE Anejo 11» para los anclajes: en el CE el 18 son las bases de proyecto
+// y el 11 el enderezado de muestras de acero en rollo (cotejado en el BOE).
 //
 // Factores parciales: γc=1.5  γs=1.15  γM0=1.05  γM2=1.25  γMc=1.5  γinst=1.0.
 
@@ -75,7 +79,7 @@ const GAMMA_S   = 1.15;  // EC2 §2.4.2.4 — reinforcement
 const GAMMA_M0  = 1.05;
 const GAMMA_M2  = 1.25;
 const GAMMA_MC  = 1.5;   // EN 1992-4 Tab 4.1 — concrete cone / splitting / pull-out
-// Pull-out coefficient k2 per EN 1992-4 §7.2.1.5(1) / CE Anejo 11:
+// Pull-out coefficient k2 per EN 1992-4 §7.2.1.5(1):
 //   k2 = 7.5 (cracked concrete, default)
 //   k2 = 10.5 (uncracked concrete, ψc,N = 1.4 applied at member level)
 const PULLOUT_K2_CRACKED   = 7.5;
@@ -113,7 +117,7 @@ const BETA_W: Record<'S235' | 'S275' | 'S355', number> = {
 //     direccionales quedaron en el default sembrado).
 //   - Si el usuario configuró asimetría (cX1≠cX2 o cY1≠cY2), se usan los
 //     valores direccionales.
-function resolveEdges(inp: AnchorPlateInputs) {
+export function resolveEdges(inp: AnchorPlateInputs) {
   const symX = inp.pedestal_cX1 === inp.pedestal_cX2;
   const symY = inp.pedestal_cY1 === inp.pedestal_cY2;
   return {
@@ -190,6 +194,57 @@ export function edgeAxisPatch(axis: 'x' | 'y', c1: number, c2: number): Partial<
   return axis === 'x'
     ? { pedestal_cX1: c1, pedestal_cX2: c2, pedestal_cX: Math.min(c1, c2) }
     : { pedestal_cY1: c1, pedestal_cY2: c2, pedestal_cY: Math.min(c1, c2) };
+}
+
+// ─── El macizo, medido dos veces ─────────────────────────────────────────
+//
+// El macizo entra por dos casillas que describen la MISMA cara: c, de la fila
+// exterior de barras a la cara (lo que ven los anclajes: cono, splitting,
+// rotura del borde por cortante), y m, del borde de la placa a esa cara (el
+// vuelo que ve la presión bajo placa y que dibuja la planta). Con e la
+// distancia de la barra al borde de la placa, c = e + m. Con la placa
+// descentrada (c1 ≠ c2) la presión sólo se reparte hasta la cara más cercana,
+// así que la igualdad es min(c1, c2) = e + m.
+//
+// El pilar 1 del usuario (2026-09-25) tenía e = 100, m = 150 y c = 200: los
+// anclajes calculaban un macizo de 600 y el dibujo enseñaba uno de 700. Nada
+// lo avisaba, y la casilla c no decía de qué barra se medía.
+
+/** Distancia de la fila exterior de barras a la cara que cuadra con e y m. */
+export function cDesdeMargen(e: number, m: number): number {
+  return e + m;
+}
+
+/**
+ * Patch de un eje del macizo al editar c (c1 y/o c2), m o e por su casilla:
+ * devuelve los tres coherentes. Editar c deja las barras donde están y mueve
+ * el vuelo; editar m o e mueve las caras del macizo lo mismo en los dos lados,
+ * y conserva la asimetría si la había.
+ */
+export function pedestalAxisPatch(
+  axis: 'x' | 'y',
+  inp: AnchorPlateInputs,
+  cambio: { c1?: number; c2?: number; m?: number; e?: number },
+): Partial<AnchorPlateInputs> {
+  const edges = resolveEdges(inp);
+  const [c1Actual, c2Actual] = axis === 'x' ? [edges.cX1, edges.cX2] : [edges.cY1, edges.cY2];
+  const campoE = axis === 'x' ? 'bar_edge_x' : 'bar_edge_y';
+  const campoM = axis === 'x' ? 'plate_margin_x' : 'plate_margin_y';
+  let e = inp[campoE];
+  let m = inp[campoM];
+  let c1 = c1Actual, c2 = c2Actual;
+  if (cambio.c1 !== undefined || cambio.c2 !== undefined) {
+    c1 = cambio.c1 ?? c1Actual;
+    c2 = cambio.c2 ?? c2Actual;
+    m = Math.max(0, Math.min(c1, c2) - e);
+  } else {
+    if (cambio.m !== undefined) m = cambio.m;
+    if (cambio.e !== undefined) e = cambio.e;
+    const desplazamiento = cDesdeMargen(e, m) - Math.min(c1Actual, c2Actual);
+    c1 = c1Actual + desplazamiento;
+    c2 = c2Actual + desplazamiento;
+  }
+  return { ...edgeAxisPatch(axis, c1, c2), [campoE]: e, [campoM]: m };
 }
 
 // ─── Rebar design strengths per bar (helper) ─────────────────────────────
@@ -390,7 +445,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
   }
 
   // CR2 (PR7a) — Partial-lift via rectangular plastic block equilibrium
-  // (CE Anejo 18 §6.2.5 / EC3 1-8 §6.2.5).
+  // (CE Anejo 26 §6.2.5 / EC3 1-8 §6.2.5).
   //
   // Compression block: depth y_c from the compressed plate edge, width
   // b_eq = plate_b (T-stub-effective width refinement deferred to a later
@@ -537,7 +592,7 @@ export function solveAxisAligned4(inp: AnchorPlateInputs): SolverResult {
     noSolution: saturated,
     note: saturated
       ? `Tracción agotada — Ft/barra ${d(Ft_per_bar, 1)} kN > FtRd ${d(FtRd_kN, 1)} kN`
-      : 'Tracción parcial — bloque plástico rectangular (CE Anejo 18 §6.2.5)',
+      : 'Tracción parcial — bloque plástico rectangular (CE Anejo 26 §6.2.5)',
     block: bloqueAxial(inp, saturated ? (Nc * 1000) / A_c : y_c, sgn),
     residuals: { SN_kN: 0, SMx_kNm: SMx_residual_kNm, SMy_kNm: 0 },
   };
@@ -589,7 +644,7 @@ export function solveBiaxial(inp: AnchorPlateInputs): SolverResult {
   // (bars[i].Ft = FtRd_per_bar_kN) que sobreestimaba la tracción y forzaba
   // a checkBoltTension a util ≡ 1.00 en todo caso biaxial.
   //
-  // Modelo (CE Anejo 18 §6.2.5 plástico):
+  // Modelo (CE Anejo 26 §6.2.5 plástico):
   //   - Eje neutro: línea x·cos(φ) + y·sin(φ) = d. Barras con p_i := x_i·cos +
   //     y_i·sin < d están traccionadas.
   //   - Ft_i = min(α · sd_i, FtRd), donde sd_i = d − p_i ≥ 0 y α [N/mm] es
@@ -1031,7 +1086,7 @@ export function solveAnchorPlate(inp: AnchorPlateInputs): SolverResult {
 export function bearingConcentration(inp: AnchorPlateInputs): {
   Kj: number; a1: number; b1: number;
 } {
-  // Fórmula CE Anejo 22 §6.2.5(4) ahora vive en ./ec3BasePlate (única fuente de verdad
+  // Fórmula CE Anejo 26 §6.2.5(7) ahora vive en ./ec3BasePlate (única fuente de verdad
   // compartida con cruceta.ts). Math idéntica — sin drift de constantes.
   return concentrationKj(
     inp.plate_a, inp.plate_b, inp.plate_margin_x, inp.plate_margin_y, inp.pedestal_h,
@@ -1103,7 +1158,7 @@ export function checkPlateCompression(
     limit: `${fmtF(Nc_Rd_kN, system)} (fjd=${fmtS(fjd, system)}, Aeff=${(A_eff / 100).toFixed(0)} cm², c=${c.toFixed(0)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 18 §6.2.5',
+    article: 'CE Anejo 26 §6.2.5',
   };
 }
 
@@ -1138,12 +1193,12 @@ export function checkPlateBending(inp: AnchorPlateInputs, fjd_MPa: number, syste
     limit: `mRd=${fmtM(m_Rd_Nmm_per_mm / 1000, system)} (c=${c_eff.toFixed(0)} mm · ${zona})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 18 §6.2.5',
+    article: 'CE Anejo 26 §6.2.5',
   };
 }
 
 // ─── Check 2b — Flexión de la placa en el lado de TRACCIÓN (T-stub) ──────
-// CE Anejo 18 / EC3 1-8 §6.2.4 Tabla 6.2: el lado traccionado de la placa
+// CE Anejo 26 §6.2.4 (EC3 1-8) Tabla 6.2: el lado traccionado de la placa
 // debe comprobarse como T-stub equivalente con tres modos de fallo:
 //   modo 1: plastificación completa de la placa     FT,1,Rd = 4·Mpl,Rd/m
 //   modo 2: placa + barra con efecto palanca        FT,2,Rd = (2·Mpl,Rd + n·FtRd)/(m+n)
@@ -1170,7 +1225,7 @@ export function checkPlateTensionTStub(
     limit: '—',
     utilization: 0,
     status: 'neutral',
-    article: 'CE Anejo 18 §6.2.4',
+    article: 'CE Anejo 26 §6.2.4',
   });
 
   const tBars = bars.filter((b) => b.inTension && b.Ft > 0);
@@ -1219,7 +1274,7 @@ export function checkPlateTensionTStub(
     } · leff=${leff.toFixed(0)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 18 §6.2.4',
+    article: 'CE Anejo 26 §6.2.4',
   };
 }
 
@@ -1243,9 +1298,28 @@ export function checkBoltTension(
   };
 }
 
+// ─── Rozamiento placa-mortero (CE Anejo 26 §6.2.2(6)) ─────────────────────
+// Ff,Rd = Cf,d · Nc,Ed, con Cf,d = 0,20 (mortero de arena y cemento; otros
+// morteros, por ensayo) y Nc,Ed «el valor de cálculo de la fuerza de
+// compresión normal al pilar»: el AXIL del pilar, no la compresión del bloque
+// bajo la placa. Hasta el 2026-09-25 se tomaba esa compresión (N + T de un
+// segundo solver con NEd,G y los momentos ELU enteros): con el pilar 1 del
+// usuario (NEd,G = 120, Mx = 45) salían 213 kN y 42,6 kN de rozamiento, que
+// se comían los 40 kN de cortante; con el texto del CE son 24 kN.
+//
+// Se toma el menor de NEd y NEd,G: NEd es el axil de la combinación que
+// acompaña a este cortante y NEd,G lo que es seguro que está. Si el pilar
+// tracciona, no hay rozamiento. La placa asienta SIEMPRE sobre mortero, así
+// que el acabado del macizo (surface_type) no lo modula.
+export const CF_D_ROZAMIENTO = 0.2;
+
+function compresionRozamiento(inp: AnchorPlateInputs): number {
+  return Math.max(0, Math.min(inp.NEd, inp.NEd_G));
+}
+
 // ─── Check 4 — Cortante en barras ────────────────────────────────────────
-// EN 1992-4 §6.2.2: fricción bajo placa usa la envolvente permanente µ·Nc,G.
-// Cortante residual se reparte entre las barras (plástico: Fv = 0.6·As·fyd).
+// CE Anejo 26 §6.2.2(8): Fv,Rd = Ff,Rd + n·Fvb,Rd. El cortante que no se
+// lleva el rozamiento se reparte entre las barras (plástico: Fv = 0.6·As·fyd).
 //
 // H10 (PR5) — usar bars.length (lo que el solver modeló) en vez de
 // inp.bar_nLayout (lo que el usuario declaró). Aunque CR4 ya garantiza que
@@ -1255,16 +1329,12 @@ export function checkBoltTension(
 export function checkBoltShear(
   inp: AnchorPlateInputs,
   bars: AnchorBarPosition[],
-  Nc_G_kN: number,
   system: UnitSystem = 'si',
 ): CheckRow {
-  // Cf,d = 0.20 (EC3 1-8 §6.2.2(6) / CE Anejo 18): la placa asienta SIEMPRE
-  // sobre mortero de nivelación (grout) y el plano que gobierna es
-  // placa-mortero; el 0.4 'rugoso' anterior carecía de respaldo normativo
-  // para esta junta (rugosizar el pedestal bajo el grout no la mejora).
-  // Otros valores requieren ensayo. surface_type ya no modula la fricción.
-  const mu = 0.2;
-  const Vfric_kN = mu * Math.max(0, Nc_G_kN);
+  // El 0.4 'rugoso' de antes carecía de respaldo normativo para la junta
+  // placa-mortero (rugosizar el macizo bajo el mortero no la mejora).
+  const Nc_kN = compresionRozamiento(inp);
+  const Vfric_kN = CF_D_ROZAMIENTO * Nc_kN;
 
   const { FvRd_kN: FvRd_per_bar_kN } = barStrengths(inp);
   const nBars = bars.length;
@@ -1282,16 +1352,16 @@ export function checkBoltShear(
     id: 'bolt-shear',
     description: 'Cortante en barras',
     value: `VEd=${fmtF(Vmag, system)}`,
-    limit: `VRd=${fmtF(V_Rd_total_kN, system)} (μ·Nc,G=${fmtF(Vfric_kN, system)} + ${nBars}·FvRd)`,
+    limit: `VRd=${fmtF(V_Rd_total_kN, system)} (Ff=0,20·${fmtF(Nc_kN, system)}=${fmtF(Vfric_kN, system)} + ${nBars}·FvRd)`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 11 §6.2.2',
+    article: 'CE Anejo 26 §6.2.2',
   };
 }
 
 // ─── Check 5 — Interacción N+V en anclajes (CR6, PR8b) ──────────────────
 //
-// EN 1992-4 §7.2.3 / CE Anejo 11 §7.2.3 — interacción para anclajes en
+// EN 1992-4 §7.2.3 (tabla 7.3) — interacción para anclajes en
 // hormigón. La forma EC3 1-8 Tab 3.4 (Fv/FvRd + Ft/(1.4·FtRd) ≤ 1.0) es
 // para PERNOS pre-tensados y NO aplica a barras corrugadas en hormigón.
 //
@@ -1311,17 +1381,12 @@ export function checkBoltShear(
 export function checkBoltInteraction(
   inp: AnchorPlateInputs,
   bars: AnchorBarPosition[],
-  Nc_G_kN: number,
   system: UnitSystem = 'si',
 ): CheckRow {
   const { FtRd_kN, FvRd_kN } = barStrengths(inp);
 
-  // H6 (Phase 3): la fricción se basa en la compresión real bajo placa
-  // bajo combinación cuasi-permanente (Nc,G del solver-G), no en el axil
-  // total NEd_G. Cuando hay tracción permanente, Nc,G = NEd,G + Ft,G > NEd,G.
-  // Cf,d = 0.20 (EC3 1-8 §6.2.2(6), junta placa-grout) — ver checkBoltShear.
-  const mu = 0.2;
-  const Vfric_kN = mu * Math.max(0, Nc_G_kN);
+  // El mismo rozamiento que checkBoltShear (CE Anejo 26 §6.2.2(6)).
+  const Vfric_kN = CF_D_ROZAMIENTO * compresionRozamiento(inp);
   // |V| via resolveShear (consistente con checkBoltShear y modos de hormigón).
   const { Vmag } = resolveShear(inp);
   const Vbars_kN = Math.max(0, Vmag - Vfric_kN);
@@ -1343,7 +1408,7 @@ export function checkBoltInteraction(
     limit: `≤ 1,00 (FvEd=${fmtF(FvEd_per_bar_kN, system)} · FtEd=${fmtF(FtMax_kN, system)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 11 §7.2.3',
+    article: 'EN 1992-4 §7.2.3',
   };
 }
 
@@ -1491,7 +1556,7 @@ export function checkConcreteCone(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 11 §7.2.1.4',
+      article: 'EN 1992-4 §7.2.1.4',
     };
   }
 
@@ -1539,8 +1604,8 @@ export function checkConcreteCone(
   // H1 (Phase 2 Tier 2) — factores ψec,N + ψre,N (+ ψM,N reservado).
   // Patrón replicado de checkSplitting (PR6).
   //
-  // ψec,N por excentricidad del grupo tensionado (EN 1992-4 §7.2.1.4(6) /
-  // CE Anejo 11). eN se mide del centroide ponderado por Ft al BARICENTRO
+  // ψec,N por excentricidad del grupo tensionado (EN 1992-4 §7.2.1.4(6)).
+  // eN se mide del centroide ponderado por Ft al BARICENTRO
   // GEOMÉTRICO del grupo traccionado (EN 1992-4 §7.2.1.4(6) / Fig. 7.6), no
   // al centro de la placa: con 2 barras igualmente cargadas en x=−150 el eN
   // correcto es 0 (la versión anterior daba 150 → ψec=0.75, 25% de cono
@@ -1580,7 +1645,7 @@ export function checkConcreteCone(
     limit: `NRd,c=${fmtF(NRd_c_kN, system)} (Ac/Ac0=${d((Ac_N / Ac_N0), 2)} · ψs=${d(psi_s, 2)} · ψec=${d(psi_ec_N, 2)} · ψre=${d(psi_re_N, 2)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 11 §7.2.1.4',
+    article: 'EN 1992-4 §7.2.1.4',
   };
 }
 
@@ -1601,7 +1666,7 @@ export function checkPullout(
       limit: 'Regido por check 6 (EC2 §8.4)',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 11 §7.2.1.5',
+      article: 'EN 1992-4 §7.2.1.5',
     };
   }
 
@@ -1625,7 +1690,7 @@ export function checkPullout(
     limit: `NRd,p=${fmtF(NRd_p_kN, system)} (k2=${d(k2, 1)}, ${crackTag}, Ah=${Ah_mm2.toFixed(0)} mm², OD=${inp.washer_od} mm)`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 11 §7.2.1.5',
+    article: 'EN 1992-4 §7.2.1.5',
   };
 }
 
@@ -1640,7 +1705,7 @@ export function checkPullout(
 //   3. Multiplicaba NRd,sp por tBars.length — espurio, EN 1992-4 no lo
 //      incluye; el escalado por grupo ya está en Ac/Ac0.
 //
-// Modelo CE Anejo 11 §7.2.1.6 (≈ EN 1992-4 §7.2.1.6):
+// Modelo EN 1992-4 §7.2.1.7:
 //   NRd,sp = N0Rd,c · (Ac,N/Ac,N0) · ψh,sp · ψec,sp · ψs,sp
 // donde:
 //   ψh,sp = max(1, min((h/(2·hef))^(2/3), (2·c_max/hef)^(2/3)))
@@ -1667,7 +1732,7 @@ export function checkSplitting(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 11 §7.2.1.6',
+      article: 'EN 1992-4 §7.2.1.7',
     };
   }
 
@@ -1688,7 +1753,7 @@ export function checkSplitting(
       limit: 'No crítico',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 11 §7.2.1.6',
+      article: 'EN 1992-4 §7.2.1.7',
     };
   }
 
@@ -1752,7 +1817,7 @@ export function checkSplitting(
     limit: `NRd,sp=${fmtF(NRd_sp_kN, system)} (ψh=${d(psi_h_sp, 2)} · ψec=${d(psi_ec_sp, 2)} · ψs=${d(psi_s_sp, 2)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 11 §7.2.1.6',
+    article: 'EN 1992-4 §7.2.1.7',
   };
 }
 
@@ -1780,7 +1845,7 @@ export function checkStiffener(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 18 §4.5.3 + Anejo 22 §5.5',
+      article: 'CE Anejo 26 §4.5.3 + Anejo 22 §5.5',
     };
   }
 
@@ -1847,13 +1912,13 @@ export function checkStiffener(
     } (${governs})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 18 §4.5.3 + Anejo 22 §5.5 y §6.2.4',
+    article: 'CE Anejo 26 §4.5.3 + Anejo 22 §5.5 y §6.2.4',
   };
 }
 
 // ─── Check 11 — Concrete edge breakout en cortante (CR6, PR8b) ──────────
 //
-// EN 1992-4 §7.2.2.4 / CE Anejo 11 §7.2.2.4. Pre-PR8b este modo no se
+// EN 1992-4 §7.2.2.5. Pre-PR8b este modo no se
 // modelaba: checkBoltShear sólo cubría steel shear + fricción. Para placas
 // cerca de un borde y cortante perpendicular, este modo gobierna.
 //
@@ -1861,7 +1926,9 @@ export function checkStiffener(
 //   V0Rk,c = k9 · dnom^α · lf^β · √fck · c1^1.5
 //     con k9 = 1.7 (fisurado) / 2.4 (no fisurado),
 //     α = 0.1·(lf/c1)^0.5, β = 0.1·(dnom/c1)^0.2 (exponentes VARIABLES),
-//     lf = min(hef, 8·dnom) (limitada per EN)
+//     lf = min(hef, 12·dnom) si dnom ≤ 24 mm; min(hef, max(8·dnom, 300))
+//     si dnom > 24 mm. El tope 8·dnom (el de la ETAG 001 y el ACI 318) se
+//     usó aquí hasta el 2026-09-25 y restaba ~9 % a VRd,c con Ø20.
 //   VRk,c = V0Rk,c · (Ac,V/Ac,V0) · ψs,V · ψh,V · ψec,V · ψα,V · ψre,V
 //   VRd,c = VRk,c / γMc
 //
@@ -1885,7 +1952,7 @@ export function checkConcreteEdgeBreakout(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 11 §7.2.2.4',
+      article: 'EN 1992-4 §7.2.2.5',
     };
   }
 
@@ -1897,7 +1964,7 @@ export function checkConcreteEdgeBreakout(
   // V0Rk,c — anchor único en hormigón sin restricciones, carga normal a un
   // borde a c1. EN 1992-4:2018 Eq (7.40), exponentes variables.
   const k9 = inp.concrete_cracked ? 1.7 : 2.4;
-  const lf = Math.min(hef, 8 * dnom);
+  const lf = Math.min(hef, dnom <= 24 ? 12 * dnom : Math.max(8 * dnom, 300));
   const alpha_exp = 0.1 * Math.pow(lf / c1, 0.5);
   const beta_exp = 0.1 * Math.pow(dnom / c1, 0.2);
   const V0Rk_N = k9
@@ -1952,13 +2019,13 @@ export function checkConcreteEdgeBreakout(
     limit: `VRd,c=${fmtF(VRd_kN, system)} (c1=${c1.toFixed(0)} · ψs=${d(psi_s, 2)} · ψh=${d(psi_h, 2)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 11 §7.2.2.4',
+    article: 'EN 1992-4 §7.2.2.5',
   };
 }
 
 // ─── Check 12 — Concrete pry-out en cortante (CR6, PR8b) ────────────────
 //
-// EN 1992-4 §7.2.2.3 / CE Anejo 11 §7.2.2.3. Fallo por cortante que
+// EN 1992-4 §7.2.2.4. Fallo por cortante que
 // arranca un cono de hormigón hacia atrás (lejos del borde cargado).
 // Aplica cuando los anclajes están lejos del borde (caso "interior") y
 // el cortante puede levantar el hormigón en el extremo embebido.
@@ -1982,7 +2049,7 @@ export function checkConcretePryout(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 11 §7.2.2.3',
+      article: 'EN 1992-4 §7.2.2.4',
     };
   }
 
@@ -2025,7 +2092,7 @@ export function checkConcretePryout(
     limit: `VRd,cp=${fmtF(VRd_cp_kN, system)} (k=${d(k_pryout, 1)} · NRd,c=${fmtF(NRd_c_kN, system)})`,
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 11 §7.2.2.3',
+    article: 'EN 1992-4 §7.2.2.4',
   };
 }
 
@@ -2052,7 +2119,7 @@ export function checkConcreteBreakoutV(
       limit: 'No aplica',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 11 §7.2.2.5',
+      article: 'EN 1992-4 §7.2.2.5',
     };
   }
   // hef < 60: aplicar el modo. Para PR8b, fall-back conservador usando
@@ -2062,7 +2129,7 @@ export function checkConcreteBreakoutV(
     ...eb,
     id: 'concrete-breakout-v',
     description: 'Rotura por breakout en cortante (hef somero)',
-    article: 'CE Anejo 11 §7.2.2.5',
+    article: 'EN 1992-4 §7.2.2.5',
   };
 }
 
@@ -2137,11 +2204,28 @@ export function validateAnchorPlate(inp: AnchorPlateInputs): ValidationWarning[]
   if (hol.some((h) => h.vecina < 2 * phi)) {
     w.push({ field: 'bar_spacing_x', message: 'Barras a menos de 2·φ entre ejes', severity: 'warn' });
   }
+  // El macizo descrito dos veces tiene que cuadrar (ver pedestalAxisPatch).
+  // Aviso y no fallo: no se sabe cuál de las dos medidas es la buena.
+  const edges = resolveEdges(inp);
+  const ejes = [
+    { eje: 'x', c: Math.min(edges.cX1, edges.cX2), e: inp.bar_edge_x, m: inp.plate_margin_x, campo: 'pedestal_cX' },
+    { eje: 'y', c: Math.min(edges.cY1, edges.cY2), e: inp.bar_edge_y, m: inp.plate_margin_y, campo: 'pedestal_cY' },
+  ] as const;
+  for (const { eje, c, e, m, campo } of ejes) {
+    const esperada = cDesdeMargen(e, m);
+    if (Math.abs(c - esperada) > 0.5) {
+      w.push({
+        field: campo,
+        message: `El macizo no cuadra en ${eje}: la barra exterior está a e${eje} + m${eje.toUpperCase()} = ${e} + ${m} = ${esperada} mm de la cara, pero c${eje.toUpperCase()} = ${c} mm. Los anclajes calculan con ${c} y la presión bajo la placa con un vuelo de ${m}.`,
+        severity: 'warn',
+      });
+    }
+  }
   return w;
 }
 
 // ─── Check 14 — Interacción N+V para modos de fallo del HORMIGÓN ─────────
-// EN 1992-4 §7.2.3.2 / CE Anejo 11 §7.2.3 (Tab 7.3): cuando gobiernan modos
+// EN 1992-4 §7.2.3 (tabla 7.3): cuando gobiernan modos
 // de hormigón, además de las comprobaciones individuales se exige
 //   (NEd/NRd,c)^1.5 + (VEd/VRd,c)^1.5 ≤ 1.0
 // combinando las utilizaciones PÉSIMAS de los modos de hormigón en tracción
@@ -2169,7 +2253,7 @@ export function checkConcreteNVInteraction(
       limit: '—',
       utilization: 0,
       status: 'neutral',
-      article: 'CE Anejo 11 §7.2.3',
+      article: 'EN 1992-4 §7.2.3',
     };
   }
 
@@ -2181,7 +2265,7 @@ export function checkConcreteNVInteraction(
     limit: '≤ 1,00 (modos pésimos N y V)',
     utilization: util,
     status: toStatus(util),
-    article: 'CE Anejo 11 §7.2.3',
+    article: 'EN 1992-4 §7.2.3',
   };
 }
 
@@ -2248,8 +2332,8 @@ export function calcAnchorPlate(
       residuals: { SN_kN: 0, SMx_kNm: 0, SMy_kNm: 0 },
     };
     const checks: CheckRow[] = [
-      checkBoltShear(inp, bars, 0, system),
-      checkBoltInteraction(inp, bars, 0, system),
+      checkBoltShear(inp, bars, system),
+      checkBoltInteraction(inp, bars, system),
       checkConcreteEdgeBreakout(inp, bars, system),
       checkConcretePryout(inp, bars, system),
       checkConcreteBreakoutV(inp, bars, system),
@@ -2279,27 +2363,13 @@ export function calcAnchorPlate(
   // compression polygon without recomputing.
   solver.fjd_MPa = fjd;
 
-  // H6 (Phase 3): la fricción usa la compresión real bajo placa bajo combo
-  // cuasi-permanente (Nc,G), no el axil total NEd_G. Si hay momento permanente
-  // suficiente para producir tracción, Nc,G = NEd,G + Ft,G > NEd,G y la
-  // fricción real es mayor. Solo se ejecuta un segundo solver si NEd_G > 0;
-  // para NEd_G ≤ 0 no hay compresión bajo placa → fricción nula.
-  // Limitación: el módulo no expone Mx_G/My_G separados — usamos los mismos
-  // Mx/My de la combinación gobernante (la práctica común). Si se introduce
-  // envolvente de combinaciones (M15 futuro) habrá que separarlos.
-  let Nc_G_kN = 0;
-  if (inp.NEd_G > 0) {
-    const solverG = solveAnchorPlate({ ...inp, NEd: inp.NEd_G });
-    Nc_G_kN = solverG.Nc;
-  }
-
   const checks: CheckRow[] = [
     checkPlateCompression(inp, solver.Nc, system),
     checkPlateBending(inp, fjd, system),
     checkPlateTensionTStub(inp, solver.bolts, system),       // AUDIT-9 T-stub tracción
     checkBoltTension(inp, Ft_per_bar, system),
-    checkBoltShear(inp, solver.bolts, Nc_G_kN, system),
-    checkBoltInteraction(inp, solver.bolts, Nc_G_kN, system),
+    checkBoltShear(inp, solver.bolts, system),
+    checkBoltInteraction(inp, solver.bolts, system),
     checkAnchorageLength(inp, solver.bolts),
     checkConcreteCone(inp, solver.bolts, solver.Ft_total, system),
     checkConcreteEdgeBreakout(inp, solver.bolts, system),    // PR8b CR6

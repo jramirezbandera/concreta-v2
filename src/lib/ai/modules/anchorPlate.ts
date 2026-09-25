@@ -1,6 +1,6 @@
 /**
  * Adapter del asistente IA para el módulo Placas de anclaje (ola 2, EN 1992-4 +
- * CE Anejo 22 §6.2.5).
+ * CE Anejo 26 §6.2.5).
  *
  * Particularidades del módulo:
  * - CAMPOS LEGACY SINCRONIZADOS. El estado guarda el cortante dos veces (`VEd`
@@ -31,7 +31,6 @@ import {
   detectSafetyRisks,
   lowerIsSafer,
   magnitudeIsSafer,
-  ordinalLevel,
   type SafetyRule,
 } from '../safety';
 import type { CheckRow } from '../../calculations/types';
@@ -74,9 +73,10 @@ const BAR_LAYOUTS: readonly number[] = [4, 6, 8, 12];
 const RIB_COUNTS: readonly number[] = [0, 2, 4];
 const SURFACES: readonly string[] = ['smooth', 'roughened'];
 
+// Descriptivo: el motor usa Cf,d = 0,20 en los dos (placa sobre mortero).
 const SURFACE_ES: Record<string, string> = {
-  smooth: 'Lisa (μ = 0.2)',
-  roughened: 'Rugosa (μ = 0.4)',
+  smooth: 'Lisa',
+  roughened: 'Rugosa',
 };
 
 // ── Payload schema (JSON Schema canónico PLANO, todo nullable) ────────────────
@@ -125,14 +125,14 @@ export const ANCHOR_PLATE_PAYLOAD_SCHEMA: Record<string, unknown> = {
     rib_h_mm: { type: ['number', 'null'], description: 'Altura del rigidizador, en mm. Solo con rigidizadores.' },
     rib_t_mm: { type: ['number', 'null'], description: 'Espesor del rigidizador, en mm. Solo con rigidizadores.' },
     fck_MPa: { type: ['integer', 'null'], enum: [...availableFck, null], description: 'Resistencia característica del hormigón del macizo, en MPa. Por debajo de 25 la app avisa; por debajo de 20 no es admisible para anclajes.' },
-    pedestal_cX1_mm: { type: ['number', 'null'], description: 'Distancia de la barra al borde del MACIZO en la dirección +x, en mm. Es una medida real del macizo de hormigón, no de la placa.' },
-    pedestal_cX2_mm: { type: ['number', 'null'], description: 'Distancia de la barra al borde del macizo en la dirección −x, en mm. Si el macizo es simétrico, igual a cX1.' },
-    pedestal_cY1_mm: { type: ['number', 'null'], description: 'Distancia de la barra al borde del macizo en la dirección +y, en mm.' },
-    pedestal_cY2_mm: { type: ['number', 'null'], description: 'Distancia de la barra al borde del macizo en la dirección −y, en mm.' },
+    pedestal_cX1_mm: { type: ['number', 'null'], description: 'Distancia del eje de la fila exterior de barras a la cara +x del MACIZO, en mm. Es una medida real del macizo de hormigón, no de la placa. Con la placa centrada vale bar_edge_x + plate_margin_x.' },
+    pedestal_cX2_mm: { type: ['number', 'null'], description: 'Distancia del eje de la fila exterior de barras a la cara −x del macizo, en mm. Si el macizo es simétrico, igual a cX1.' },
+    pedestal_cY1_mm: { type: ['number', 'null'], description: 'Distancia del eje de la fila exterior de barras a la cara +y del macizo, en mm. Con la placa centrada vale bar_edge_y + plate_margin_y.' },
+    pedestal_cY2_mm: { type: ['number', 'null'], description: 'Distancia del eje de la fila exterior de barras a la cara −y del macizo, en mm.' },
     pedestal_h_mm: { type: ['number', 'null'], description: 'Canto (altura) del macizo de hormigón, en mm.' },
     plate_margin_x_mm: { type: ['number', 'null'], description: 'Distancia del borde de la PLACA al borde del macizo en el eje fuerte, en mm (gobierna el ensanchamiento α de la presión de contacto).' },
     plate_margin_y_mm: { type: ['number', 'null'], description: 'Distancia del borde de la placa al borde del macizo en el eje débil, en mm.' },
-    surface_type: { type: ['string', 'null'], enum: [...SURFACES, null], description: 'Acabado de la superficie del macizo bajo la placa: "smooth" (lisa, μ = 0.2) o "roughened" (rugosa, μ = 0.4). Gobierna la fricción que resiste el cortante.' },
+    surface_type: { type: ['string', 'null'], enum: [...SURFACES, null], description: 'Acabado de la superficie del macizo bajo la placa: "smooth" (lisa) o "roughened" (rugosa). Es descriptivo: la placa asienta sobre mortero y el rozamiento se calcula siempre con Cf,d = 0,20.' },
     weld_throat_mm: { type: ['number', 'null'], description: 'Espesor de garganta del cordón de soldadura pilar-placa, en mm (informativo).' },
     warnings: { type: 'array', items: { type: 'string' }, description: 'Avisos: conversiones de unidades realizadas, ambigüedades, datos del enunciado ignorados.' },
   },
@@ -145,7 +145,7 @@ const PROMPT_RULES = `Reglas específicas del módulo Placas de anclaje:
 2. SIGNO DEL AXIL: NEd_kN es positivo en COMPRESIÓN. NEd_G_kN es la parte cuasi-permanente de ese axil (peso propio y permanentes): es la que da fricción contra el cortante, así que no la infles.
 3. CORTANTE: si el enunciado da un cortante único sin dirección, ponlo en Vx_kN (eje fuerte) y deja Vy_kN = 0.
 4. POSICIÓN DE LAS BARRAS: las coloca la app a partir de la placa (plate_a, plate_b), las distancias al borde de la PLACA (bar_edge_x, bar_edge_y) y el número/disposición (bar_nLayout): esquinas (4), tres por extremo del eje fuerte (6), anillo (8) o anillo con pares (12). Solo con 12 existe una separación: bar_spacing_x/y es la distancia entre las dos barras de cada par central. Las barras van SIEMPRE fuera del pilar y de los rigidizadores; si el enunciado las pone sobre un rigidizador, avísalo en warnings en vez de forzarlo.
-5. DOS GEOMETRÍAS DISTINTAS que se confunden con facilidad: bar_edge_* es de la barra al borde de la PLACA; pedestal_cX1..cY2 es de la barra al borde del MACIZO de hormigón (y gobiernan la rotura de cono por borde). Si el macizo es simétrico, cX1 = cX2 y cY1 = cY2.
+5. TRES MEDIDAS QUE CUADRAN ENTRE SÍ y se confunden con facilidad: bar_edge_* es de la barra exterior al borde de la PLACA; plate_margin_* es del borde de la placa a la cara del MACIZO; pedestal_cX1..cY2 es de la barra exterior a la cara del macizo (gobierna la rotura del borde por cortante y el cono). Con la placa centrada, pedestal_cX1 = bar_edge_x + plate_margin_x (y lo mismo en y): si el enunciado da dos, deduce la tercera así; si las da las tres y no cuadran, avísalo en warnings. Si el macizo es simétrico, cX1 = cX2 y cY1 = cY2.
 6. El anclaje inferior (bottom_anchorage) y la conexión superior (top_connection) son independientes. Solo "arandela_tuerca" activa la comprobación de pull-out y necesita washer_od_mm; los otros tres anclan por adherencia y necesitan un hef suficiente.
 7. En este módulo son DATOS del problema, no variables de diseño: los esfuerzos (Mx, My, Vx, Vy), el axil (NEd y NEd_G) y la geometría real del macizo (pedestal_cX1..cY2, pedestal_h, plate_margin_x/y, surface_type). Para que una placa cumpla actúa SIEMPRE sobre la RESISTENCIA: placa más gruesa o más grande, más barras o de más diámetro, más profundidad de anclaje (hef), rigidizadores, mejor hormigón. Y OJO con una trampa propia de este módulo: SUBIR el axil de compresión "mejora" el resultado (alivia la tracción de los anclajes, que es lo que suele fallar) — no lo toques para hacer cumplir la placa. Tampoco agrandes el macizo ni sus distancias a los bordes, que son medidas de la obra.`;
 
@@ -330,11 +330,12 @@ export const PAIR_GATE_REASON =
  *   peligroso es AUMENTARLO. La compresión centra la resultante y alivia la
  *   tracción de los anclajes, que es el fallo que gobierna una placa con momento.
  * - `NEd_G` igual, y más directo: es el axil cuasi-permanente que RESISTE por
- *   fricción (μ·Nc,G) frente al cortante. Inflarlo regala capacidad a cortante.
+ *   fricción (0,20·NEd,G) frente al cortante. Inflarlo regala capacidad a cortante.
  * Los momentos y cortantes van con `magnitudeIsSafer`: el solver es biaxial y el
  * signo solo decide qué barras traccionan — la demanda es el módulo.
  *
- * `surface_type` es ordinal por el μ real del motor (rugosa 0.4 > lisa 0.2).
+ * `surface_type` no tiene regla: el motor usa Cf,d = 0,20 con los dos acabados
+ * (hasta el 2026-09-25 la tenía, con un μ = 0,4 que el cálculo ya no aplicaba).
  *
  * Los campos LEGACY (`VEd`, `pedestal_cX`, `pedestal_cY`) NO tienen regla: son
  * espejo de los canónicos, no existen en el payload y `buildPlan` los escribe sin
@@ -357,7 +358,7 @@ export const ANCHOR_PLATE_SAFETY_RULES: ReadonlyArray<SafetyRule<AnchorPlateInpu
     field: 'NEd_G',
     confirmKey: 'NEd_G_kN',
     level: lowerIsSafer,
-    why: 'El axil cuasi-permanente es el que RESISTE el cortante por fricción (μ·Nc,G): inflarlo regala capacidad a cortante. Es la parte permanente del axil, y la fija la estructura, no el proyectista de la placa.',
+    why: 'El axil cuasi-permanente es el que RESISTE el cortante por fricción (0,20·NEd,G): inflarlo regala capacidad a cortante. Es la parte permanente del axil, y la fija la estructura, no el proyectista de la placa.',
   },
   { field: 'pedestal_cX1', confirmKey: 'pedestal_cX1_mm', level: lowerIsSafer, why: 'La distancia de la barra al borde del macizo es una medida real de la obra: agrandarla aleja la rotura de cono por borde sin que el macizo se haya movido.' },
   { field: 'pedestal_cX2', confirmKey: 'pedestal_cX2_mm', level: lowerIsSafer, why: 'La distancia de la barra al borde del macizo es una medida real de la obra: agrandarla aleja la rotura de cono por borde sin que el macizo se haya movido.' },
@@ -366,13 +367,6 @@ export const ANCHOR_PLATE_SAFETY_RULES: ReadonlyArray<SafetyRule<AnchorPlateInpu
   { field: 'pedestal_h', confirmKey: 'pedestal_h_mm', level: lowerIsSafer, why: 'El canto del macizo es una medida real de la obra: agrandarlo relaja el factor de hendimiento (splitting) sin que el macizo haya crecido.' },
   { field: 'plate_margin_x', confirmKey: 'plate_margin_x_mm', level: lowerIsSafer, why: 'La distancia de la placa al borde del macizo es una medida real de la obra: agrandarla ensancha el área de reparto de la presión de contacto.' },
   { field: 'plate_margin_y', confirmKey: 'plate_margin_y_mm', level: lowerIsSafer, why: 'La distancia de la placa al borde del macizo es una medida real de la obra: agrandarla ensancha el área de reparto de la presión de contacto.' },
-  {
-    // Nivel = −μ: lo conservador es la superficie LISA (μ = 0.2). Declararla
-    // rugosa (μ = 0.4) DUPLICA la fricción que resiste el cortante.
-    field: 'surface_type', // payload `surface_type`: mismo nombre ⇒ sin confirmKey
-    level: ordinalLevel({ smooth: -0.2, roughened: -0.4 }),
-    why: 'El acabado de la superficie del macizo fija el coeficiente de rozamiento (lisa 0.2 · rugosa 0.4): declararla rugosa duplica la fricción que resiste el cortante, y eso hay que garantizarlo en obra.',
-  },
 ];
 
 function rangeReason(value: number, min: number, max: number, unit: string): string {

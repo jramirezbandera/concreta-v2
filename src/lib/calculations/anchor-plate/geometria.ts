@@ -353,7 +353,7 @@ export function rectAPoligono(r: Rect): Pt[] {
   return [{ x: r.x1, y: r.y1 }, { x: r.x2, y: r.y1 }, { x: r.x2, y: r.y2 }, { x: r.x1, y: r.y2 }];
 }
 
-// ─── Área eficaz de compresión (T-stub equivalente, CE Anejo 18 §6.2.5) ────
+// ─── Área eficaz de compresión (T-stub equivalente, CE Anejo 26 §6.2.5) ────
 
 export interface AreaEficaz {
   /** mm² — unión de las franjas de ancho c alrededor del perfil y de las

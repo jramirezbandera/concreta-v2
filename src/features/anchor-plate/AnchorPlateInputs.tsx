@@ -13,7 +13,7 @@ import { CollapsibleSection } from '../../components/ui/CollapsibleSection';
 import { InputLabel } from '../../components/ui/InputLabel';
 import { UnitNumberInput } from '../../components/units/UnitNumberInput';
 import { RawNumberInput } from '../../components/units/RawNumberInput';
-import { edgeAxisPatch, shearPatch, type ValidationWarning } from '../../lib/calculations/anchorPlate';
+import { pedestalAxisPatch, shearPatch, type ValidationWarning } from '../../lib/calculations/anchorPlate';
 import { FAMILIAS_PERFIL, normalizarDisposicion, tallasPerfil } from '../../lib/calculations/anchor-plate/geometria';
 
 interface Props {
@@ -301,7 +301,7 @@ const HELP = {
   sectionType: 'Serie del perfil metálico del soporte: I/H laminado (IPE, HEA, HEB, IPN) o cajón de dos UPN soldadas por las puntas de las alas (2UPN).',
   sectionSize: 'Designación del perfil dentro de la serie. En 2UPN, la de cada UPN: 2UPN 200 son dos UPN 200.',
   NEd: 'Axil de cálculo (ELU). Positivo en compresión.',
-  NEdG: 'Axil cuasipermanente (parte sostenida de la carga), para fluencia/aplastamiento del hormigón.',
+  NEdG: 'Axil que es seguro que está: el de las cargas permanentes. Da el rozamiento de la placa con el mortero, que resiste parte del cortante: 0,20 × el menor de NEd y NEd,G (CE Anejo 26 §6.2.2).',
   Mx: 'Momento de cálculo (ELU) respecto al eje fuerte.',
   My: 'Momento de cálculo (ELU) respecto al eje débil.',
   VEd: 'Cortante de cálculo (ELU) en la base del soporte.',
@@ -315,8 +315,8 @@ const HELP = {
   barGrade: 'Grado del acero de las barras de anclaje.',
   sx: 'Separación entre las dos barras de cada par central de los lados paralelos al eje fuerte (sólo con 12 barras).',
   sy: 'Separación entre las dos barras de cada par central de los lados paralelos al eje débil (sólo con 12 barras).',
-  ex: 'Distancia de las barras al borde de la placa (eje fuerte). Las barras se colocan fuera del pilar y de las cartelas; si pisan acero, la app avisa.',
-  ey: 'Distancia de las barras al borde de la placa (eje débil).',
+  ex: 'Distancia del eje de las barras exteriores al borde de la placa, en x (eje fuerte). Las barras se colocan fuera del pilar y de las cartelas; si pisan acero, la app avisa. El macizo no se mueve al cambiarla: cX la sigue.',
+  ey: 'Distancia del eje de las barras exteriores al borde de la placa, en y (eje débil). El macizo no se mueve al cambiarla: cY la sigue.',
   hef: 'Profundidad efectiva de anclaje de la barra en el hormigón.',
   bottomAnchorage: 'Dispositivo de anclaje en el extremo inferior de la barra (gancho, patilla, arandela+tuerca…).',
   topConnection: 'Forma de conexión de la barra con la placa.',
@@ -325,15 +325,15 @@ const HELP = {
   ribT: 'Espesor de las cartelas. Van pegadas a las caras del pilar y recorren la placa de borde a borde.',
   fck: 'Resistencia característica del hormigón del pedestal.',
   pedestalH: 'Canto del macizo de hormigón bajo la placa.',
-  cX: 'Distancia de la barra al borde del pedestal en el eje X.',
-  cY: 'Distancia de la barra al borde del pedestal en el eje Y.',
-  cX1: 'Distancia barra→borde en la cara +x.',
-  cX2: 'Distancia barra→borde en la cara −x.',
-  cY1: 'Distancia barra→borde en la cara +y.',
-  cY2: 'Distancia barra→borde en la cara −y.',
-  mX: 'Distancia del borde de la placa al borde del pedestal (eje X); define el área de reparto.',
-  mY: 'Distancia del borde de la placa al borde del pedestal (eje Y); define el área de reparto.',
-  surface: 'Acabado de la interfaz placa-hormigón. La fricción de cálculo usa Cf,d=0.20 en ambos casos (plano placa-mortero, CE Anejo 22 §6.2.2): el acabado es descriptivo, no modula µ.',
+  cX: 'Cuánto hormigón queda por fuera de las barras, en x: desde el eje de la fila de barras más cercana a la cara del macizo hasta esa cara (la cota cX de la planta). Con la placa centrada es ex + mX, así que al cambiar cX se mueve mX y al revés. Es la medida que decide la rotura del borde por cortante: la resistencia crece con cX^1,5.',
+  cY: 'Cuánto hormigón queda por fuera de las barras, en y: desde el eje de la fila de barras más cercana a la cara del macizo hasta esa cara (la cota cY de la planta). Con la placa centrada es ey + mY, así que al cambiar cY se mueve mY y al revés.',
+  cX1: 'Placa descentrada en el macizo (p. ej. junto a una medianera): de la fila exterior de barras a la cara +x.',
+  cX2: 'Placa descentrada en el macizo: de la fila exterior de barras a la cara −x.',
+  cY1: 'Placa descentrada en el macizo: de la fila exterior de barras a la cara +y.',
+  cY2: 'Placa descentrada en el macizo: de la fila exterior de barras a la cara −y.',
+  mX: 'Vuelo del macizo fuera de la placa, en x: del borde de la placa a la cara del macizo. Define el área de reparto de la presión bajo la placa. Es cX − ex: al cambiarlo se mueve cX. Con la placa descentrada, el de la cara más cercana.',
+  mY: 'Vuelo del macizo fuera de la placa, en y: del borde de la placa a la cara del macizo. Define el área de reparto de la presión bajo la placa. Es cY − ey: al cambiarlo se mueve cY.',
+  surface: 'Acabado de la interfaz placa-hormigón. Es descriptivo: la placa asienta sobre mortero y el rozamiento de cálculo usa Cf,d = 0,20 en los dos casos (CE Anejo 26 §6.2.2).',
   weld: 'Garganta del cordón de soldadura. Se usa en el check de soldadura de los rigidizadores (Fw,Rd); mínimo práctico 3 mm (EN 1993-1-8 §4.5.2).',
 } as const;
 
@@ -367,13 +367,15 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
   };
   // Legacy cX/cY con toggle OFF: cX1=cX2=cX. Con toggle ON el legacy es el
   // eco "simétrico" y solo se escribe a sí mismo (los direccionales mandan).
+  // Fuera de ese caso, c, m y e se escriben juntos (pedestalAxisPatch): son la
+  // misma cara del macizo medida desde la barra y desde la placa.
   const setLegacyCX = (v: number) => {
     if (edgesDirectional) setField('pedestal_cX', v);
-    else applyPatch(edgeAxisPatch('x', v, v));
+    else applyPatch(pedestalAxisPatch('x', state, { c1: v, c2: v }));
   };
   const setLegacyCY = (v: number) => {
     if (edgesDirectional) setField('pedestal_cY', v);
-    else applyPatch(edgeAxisPatch('y', v, v));
+    else applyPatch(pedestalAxisPatch('y', state, { c1: v, c2: v }));
   };
   // VEd con toggle OFF = cortante escalar en +x (Vx=VEd, Vy=0).
   const setLegacyVEd = (v: number) => {
@@ -483,9 +485,9 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
             <FieldWarn field="bar_spacing_y" warnings={warnings} />
           </>
         )}
-        <NumField label="ex" sub="dist. borde placa" help={HELP.ex} field="bar_edge_x" value={state.bar_edge_x as number} unit="mm" integer setField={setField} />
+        <NumField label="ex" sub="barra→borde placa" help={HELP.ex} field="bar_edge_x" value={state.bar_edge_x as number} unit="mm" integer setField={(_f, v) => applyPatch(pedestalAxisPatch('x', state, { e: v as number }))} />
         <FieldWarn field="bar_edge_x" warnings={warnings} />
-        <NumField label="ey" sub="dist. borde placa" help={HELP.ey} field="bar_edge_y" value={state.bar_edge_y as number} unit="mm" integer setField={setField} />
+        <NumField label="ey" sub="barra→borde placa" help={HELP.ey} field="bar_edge_y" value={state.bar_edge_y as number} unit="mm" integer setField={(_f, v) => applyPatch(pedestalAxisPatch('y', state, { e: v as number }))} />
         <FieldWarn field="bar_edge_y" warnings={warnings} />
         <NumField label="hef" sub="prof. anclaje" help={HELP.hef} field="bar_hef" value={state.bar_hef as number} unit="mm" integer setField={setField} />
         <FieldWarn field="bar_hef" warnings={warnings} />
@@ -551,8 +553,10 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         />
         <FieldWarn field="fck" warnings={warnings} />
         <NumField label="h"   sub="canto macizo" help={HELP.pedestalH} field="pedestal_h" value={state.pedestal_h as number} unit="mm" integer setField={setField} />
-        <NumField label="cX"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c1)'} help={HELP.cX} field="pedestal_cX" value={state.pedestal_cX as number} unit="mm" integer setField={(_f, v) => setLegacyCX(v as number)} />
-        <NumField label="cY"  sub={edgesDirectional ? 'barra→borde (simétrico)' : 'barra→borde (c2)'} help={HELP.cY} field="pedestal_cY" value={state.pedestal_cY as number} unit="mm" integer setField={(_f, v) => setLegacyCY(v as number)} />
+        <NumField label="cX"  sub={edgesDirectional ? 'barra→cara (simétrico)' : 'barra exterior→cara'} help={HELP.cX} field="pedestal_cX" value={state.pedestal_cX as number} unit="mm" integer setField={(_f, v) => setLegacyCX(v as number)} />
+        <FieldWarn field="pedestal_cX" warnings={warnings} />
+        <NumField label="cY"  sub={edgesDirectional ? 'barra→cara (simétrico)' : 'barra exterior→cara'} help={HELP.cY} field="pedestal_cY" value={state.pedestal_cY as number} unit="mm" integer setField={(_f, v) => setLegacyCY(v as number)} />
+        <FieldWarn field="pedestal_cY" warnings={warnings} />
         <ExpandToggle
           open={edgesDirectional}
           onToggle={() => setEdgesDirectional((o) => !o)}
@@ -560,14 +564,14 @@ export function AnchorPlateInputsPanel({ state, setField, warnings }: Props) {
         />
         {edgesDirectional && (
           <>
-            <NumField label="cX1" sub="cara +x"  help={HELP.cX1} field="pedestal_cX1" value={state.pedestal_cX1 as number} unit="mm" integer setField={(_f, v) => applyPatch(edgeAxisPatch('x', v as number, state.pedestal_cX2 as number))} />
-            <NumField label="cX2" sub="cara −x"  help={HELP.cX2} field="pedestal_cX2" value={state.pedestal_cX2 as number} unit="mm" integer setField={(_f, v) => applyPatch(edgeAxisPatch('x', state.pedestal_cX1 as number, v as number))} />
-            <NumField label="cY1" sub="cara +y"  help={HELP.cY1} field="pedestal_cY1" value={state.pedestal_cY1 as number} unit="mm" integer setField={(_f, v) => applyPatch(edgeAxisPatch('y', v as number, state.pedestal_cY2 as number))} />
-            <NumField label="cY2" sub="cara −y"  help={HELP.cY2} field="pedestal_cY2" value={state.pedestal_cY2 as number} unit="mm" integer setField={(_f, v) => applyPatch(edgeAxisPatch('y', state.pedestal_cY1 as number, v as number))} />
+            <NumField label="cX1" sub="cara +x"  help={HELP.cX1} field="pedestal_cX1" value={state.pedestal_cX1 as number} unit="mm" integer setField={(_f, v) => applyPatch(pedestalAxisPatch('x', state, { c1: v as number }))} />
+            <NumField label="cX2" sub="cara −x"  help={HELP.cX2} field="pedestal_cX2" value={state.pedestal_cX2 as number} unit="mm" integer setField={(_f, v) => applyPatch(pedestalAxisPatch('x', state, { c2: v as number }))} />
+            <NumField label="cY1" sub="cara +y"  help={HELP.cY1} field="pedestal_cY1" value={state.pedestal_cY1 as number} unit="mm" integer setField={(_f, v) => applyPatch(pedestalAxisPatch('y', state, { c1: v as number }))} />
+            <NumField label="cY2" sub="cara −y"  help={HELP.cY2} field="pedestal_cY2" value={state.pedestal_cY2 as number} unit="mm" integer setField={(_f, v) => applyPatch(pedestalAxisPatch('y', state, { c2: v as number }))} />
           </>
         )}
-        <NumField label="mX"  sub="placa→borde (α)"  help={HELP.mX} field="plate_margin_x" value={state.plate_margin_x as number} unit="mm" integer setField={setField} />
-        <NumField label="mY"  sub="placa→borde (α)"  help={HELP.mY} field="plate_margin_y" value={state.plate_margin_y as number} unit="mm" integer setField={setField} />
+        <NumField label="mX"  sub="placa→cara macizo"  help={HELP.mX} field="plate_margin_x" value={state.plate_margin_x as number} unit="mm" integer setField={(_f, v) => applyPatch(pedestalAxisPatch('x', state, { m: v as number }))} />
+        <NumField label="mY"  sub="placa→cara macizo"  help={HELP.mY} field="plate_margin_y" value={state.plate_margin_y as number} unit="mm" integer setField={(_f, v) => applyPatch(pedestalAxisPatch('y', state, { m: v as number }))} />
         <SelectField
           label="Superficie"
           help={HELP.surface}

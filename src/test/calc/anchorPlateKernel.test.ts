@@ -158,10 +158,13 @@ describe('PR0 — backward compatibility: existing behaviour unchanged', () => {
     //     cono sube a 1.160; el edge breakout con c1 = 190 da 1.804:
     //     interacción = 1.160^1.5 + 1.804^1.5 = 3.672. El ejemplo sigue
     //     incumpliendo por el hormigón, como antes; la placa va al 44 %.
+    //   - 2026-09-25 (lf = 12·dnom, EN 1992-4 §7.2.2.5): el edge breakout
+    //     baja a 1.653 (VRd,c 27.7 → 30.2 kN) e interacción = 1.160^1.5 +
+    //     1.653^1.5 = 3.374.
     const r = calcAnchorPlate(anchorPlateDefaults);
     expect(r.valid).toBe(true);
     expect(r.checks).toHaveLength(15);    // PR8b: 13 · auditoría #8/#9: +2
-    expect(r.worstUtil).toBeCloseTo(3.672, 2);
+    expect(r.worstUtil).toBeCloseTo(3.374, 2);
     expect(r.warnings).toHaveLength(0);   // ninguna barra pisa acero ni roza una cartela
   });
 

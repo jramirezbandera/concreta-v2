@@ -1,4 +1,4 @@
-// EC3-1-8 / CE Anejo 18 §6.2.5 — base-plate bearing primitives.
+// EC3-1-8 / CE Anejo 26 §6.2.5 — base-plate bearing primitives.
 //
 // Pure scalar formulas with NO input-object coupling, shared by:
 //   • anchorPlate.ts — full base-plate / anchor solver
@@ -13,7 +13,7 @@ export const BETA_J = 2 / 3;
 /**
  * Concrete bearing strength of the joint, f_jd (MPa):
  *   f_jd = βj · α · fcd
- * α is the CE Anejo 22 §6.2.5(4) concentration factor Kj (1 ≤ α ≤ 3); pass α = 1 for
+ * α is the CE Anejo 26 §6.2.5(7) concentration factor Kj (1 ≤ α ≤ 3); pass α = 1 for
  * no concentration (conservative).
  */
 export function fjd(fcd: number, alpha = 1, betaj: number = BETA_J): number {

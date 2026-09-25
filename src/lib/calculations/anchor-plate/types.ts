@@ -8,7 +8,7 @@
 //   2. Decomposed shear (Vx, Vy) — needed for direction-aware checks.
 //   3. Solver residuals (ΣN, ΣMx, ΣMy) — needed for property tests in PR7a/b
 //      to verify equilibrium is actually satisfied, not just locally close.
-//   4. Pedestal height (h) — needed for splitting ψh,sp per CE Anejo 11 §7.2.1.6.
+//   4. Pedestal height (h) — needed for splitting ψh,sp per EN 1992-4 §7.2.1.7.
 //
 // The legacy `AnchorPlateInputs` (src/data/defaults.ts) is kept as the UI-facing
 // input shape. `adapter.toKernel(inputs)` projects it onto these kernel types.

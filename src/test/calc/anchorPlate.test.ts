@@ -50,7 +50,7 @@ describe('anchor plate — zero loads', () => {
     expect(ids).toContain('bolt-shear');
     expect(ids).toContain('concrete-edge-breakout');
     expect(ids).toContain('concrete-pryout');
-    expect(r.worstUtil).toBeCloseTo(1.925, 2);  // edge breakout gobierna
+    expect(r.worstUtil).toBeCloseTo(1.767, 2);  // edge breakout gobierna
     expect(r.overallStatus).toBe('fail');
   });
 });
@@ -684,19 +684,35 @@ describe('PR8b — CR6 concrete shear modes', () => {
 
   it('FTUX: edge breakout EN 1992-4 Eq (7.40) — oracle manual (fix auditoría #1)', () => {
     // Hand-calc EN 1992-4:2018 Eq (7.40), hormigón fisurado (k9=1.7):
-    //   dnom=20, hef=300 → lf = min(300, 8·20) = 160 mm; c1=200; fck=25
-    //   α = 0.1·(lf/c1)^0.5 = 0.1·(160/200)^0.5 = 0.08944
+    //   dnom=20 ≤ 24, hef=300 → lf = min(300, 12·20) = 240 mm; c1=200; fck=25
+    //   α = 0.1·(lf/c1)^0.5 = 0.1·(240/200)^0.5 = 0.10954
     //   β = 0.1·(dnom/c1)^0.2 = 0.1·(20/200)^0.2 = 0.06310
-    //   V0Rk = 1.7 · 20^0.08944 · 160^0.06310 · √25 · 200^1.5
-    //        = 1.7 · 1.3073 · 1.3774 · 5 · 2828.43 = 43 290 N
+    //   V0Rk = 1.7 · 20^0.10954 · 240^0.06310 · √25 · 200^1.5
+    //        = 1.7 · 1.3884 · 1.4132 · 5 · 2828.43 = 47 171 N
     //   Ac,V/Ac,V0 = 1.0 (widthPerp = 2·c2 + gw = 600 = 3·c1), ψs = 0.90, ψh = 1.0
-    //   VRd,c = 43.29 · 0.90 / 1.5 = 25.97 kN → util = 50/25.97 = 1.925 → FAIL
+    //   VRd,c = 47.17 · 0.90 / 1.5 = 28.30 kN → util = 50/28.30 = 1.767 → FAIL
+    // Hasta el 2026-09-25 lf se topaba en 8·dnom = 160 (el de la ETAG 001 y el
+    // ACI 318) y daba 25.97 kN → 1.925.
     // Pre-fix, la fórmula k1=1.6 con exponentes fijos tipo ACI daba
     // VRd,c ≈ 92 kN (×3.5 sobreestimado) y este caso salía verde.
     const r = calcAnchorPlate(LEGACY);
     const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
-    expect(eb.utilization).toBeCloseTo(1.925, 2);
+    expect(eb.utilization).toBeCloseTo(1.767, 2);
     expect(eb.status).toBe('fail');
+  });
+
+  it('lf del edge breakout: 12·dnom hasta Ø24 y max(8·dnom, 300) por encima (EN 1992-4 §7.2.2.5)', () => {
+    // Con hef = 400: Ø20 → lf = 240 (12·20); Ø32 → lf = max(256, 300) = 300.
+    // Se comprueba contra la fórmula a mano con el mismo c1 = 200 y ψs = 0.90.
+    const v0 = (d: number, lf: number) =>
+      1.7 * Math.pow(d, 0.1 * Math.sqrt(lf / 200)) * Math.pow(lf, 0.1 * Math.pow(d / 200, 0.2))
+        * Math.sqrt(25) * Math.pow(200, 1.5);
+    const util = (d: 20 | 32, lf: number) => 50 / (v0(d, lf) * 0.9 / 1.5 / 1000);
+    for (const [d, lf] of [[20, 240], [32, 300]] as const) {
+      const r = calcAnchorPlate({ ...LEGACY, bar_diam: d, bar_hef: 400 });
+      const eb = r.checks.find((c) => c.id === 'concrete-edge-breakout')!;
+      expect(eb.utilization).toBeCloseTo(util(d, lf), 3);
+    }
   });
 
   it('macizo delgado: Ac,V recortado por h → factor neto √(h/1.5c1) (fix auditoría #5)', () => {
@@ -725,12 +741,13 @@ describe('PR8b — CR6 concrete shear modes', () => {
 
   it('interacción N+V hormigón: utilN^1.5 + utilV^1.5 — oracle (fix auditoría #8)', () => {
     // FTUX (post-#25, ψec por componente al baricentro): utilN = cono 0.663,
-    // utilV = edge breakout 1.925 → 0.663^1.5 + 1.925^1.5 = 0.540 + 2.671
-    // = 3.211 (EN 1992-4 §7.2.3.2). Dos modos al 0.85 individual darían
-    // 1.57 > 1: la norma exige este check aunque ambos estén en verde.
+    // utilV = edge breakout 1.767 (lf = 12·dnom) → 0.663^1.5 + 1.767^1.5
+    // = 0.540 + 2.348 = 2.888 (EN 1992-4 §7.2.3, tabla 7.3). Dos modos al
+    // 0.85 individual darían 1.57 > 1: la norma exige este check aunque ambos
+    // estén en verde.
     const r = calcAnchorPlate(LEGACY);
     const ci = r.checks.find((c) => c.id === 'concrete-interaction')!;
-    expect(ci.utilization).toBeCloseTo(3.211, 2);
+    expect(ci.utilization).toBeCloseTo(2.888, 2);
     expect(ci.status).toBe('fail');
   });
 
@@ -752,10 +769,30 @@ describe('PR8b — CR6 concrete shear modes', () => {
 
   it('fricción con Cf,d = 0.20 (EC3 1-8 §6.2.2(6)) — fix auditoría #26', () => {
     // Junta placa-grout: el 0.4 "rugoso" carecía de respaldo y era el default.
-    // FTUX: Nc,G = 195 kN → μ·Nc,G = 39.0 kN (antes 78.0).
+    // CE Anejo 26 §6.2.2(6): Nc,Ed es el AXIL del pilar, no la compresión del
+    // bloque bajo la placa. LEGACY: min(NEd, NEd,G) = min(200, 120) = 120 kN
+    // → Ff = 0.20·120 = 24.0 kN (con la compresión del bloque salían 39.0).
     const r = calcAnchorPlate(LEGACY);
     const bs = r.checks.find((c) => c.id === 'bolt-shear')!;
-    expect(bs.limit).toContain('39,0');
+    expect(bs.limit).toContain('0,20·120,0 kN=24,0 kN');
+  });
+
+  it('el rozamiento no crece con el momento: usa el axil, no N + T (CE Anejo 26 §6.2.2(6))', () => {
+    // El pilar 1 del usuario (2026-09-25): NEd,G = 120 con Mx = 45 daba una
+    // compresión de 213 kN bajo la placa y 42.6 kN de rozamiento, que se
+    // comían los 40 kN de cortante y dejaban las barras a FvEd = 0.
+    const fvEd = (Mx: number) => (calcAnchorPlate({ ...LEGACY, Mx, VEd: 40, Vx: 40 })
+      .checks.find((c) => c.id === 'bolt-interaction')!.limit ?? '').match(/FvEd=[\d,]+ kN/)![0];
+    // (40 − 24) / 4 barras = 4.0 kN por barra, con momento o sin él.
+    expect(fvEd(45)).toBe('FvEd=4,0 kN');
+    expect(fvEd(0)).toBe('FvEd=4,0 kN');
+  });
+
+  it('el rozamiento toma el menor de NEd y NEd,G, y nada si el pilar tracciona', () => {
+    const ff = (NEd: number, NEd_G: number) =>
+      calcAnchorPlate({ ...LEGACY, NEd, NEd_G }).checks.find((c) => c.id === 'bolt-shear')!.limit;
+    expect(ff(80, 120)).toContain('0,20·80,0 kN=16,0 kN');
+    expect(ff(-30, 0)).toContain('0,20·0,0 kN=0,0 kN');
   });
 
   it('anclaje con suelo lb,min = max(0.3·lb(fyd), 10φ, 100) — fix auditoría #27', () => {
@@ -828,7 +865,7 @@ describe('PR8b — CR6 concrete shear modes', () => {
     const r = calcAnchorPlate(LEGACY);
     const bi = r.checks.find((c) => c.id === 'bolt-interaction')!;
     expect(bi.value).toMatch(/\(\d+,\d{2}\)² \+ \(\d+,\d{2}\)²/);
-    expect(bi.article).toBe('CE Anejo 11 §7.2.3');
+    expect(bi.article).toBe('EN 1992-4 §7.2.3');
   });
 
   it('Vx/Vy direccional: si Vx=0, Vy=50, edge breakout proyecta a borde y', () => {
@@ -852,14 +889,14 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
     // resolveEdges resuelve cX1==cX2==pedestal_cX cuando los direccionales
     // están simétricos (estado pre-PR8a sin asimetría explícita).
     const r = calcAnchorPlate(LEGACY);
-    // Sentinel: interacción N+V del hormigón = 3.211 (post-fixes #8 y #25:
-    // cono ψec al baricentro: 0.663^1.5 + 1.925^1.5 = 3.211; antes 3.246,
-    // 1.925 con edge breakout solo, y 0.992 pre-auditoría).
+    // Sentinel: interacción N+V del hormigón = 2.888 (post-fixes #8 y #25 y
+    // lf = 12·dnom: 0.663^1.5 + 1.767^1.5 = 2.888; antes 3.211 con lf = 8·dnom,
+    // 3.246, 1.925 con edge breakout solo, y 0.992 pre-auditoría).
     // NO debe cambiar con resolveEdges sobre defaults simétricos. Se mira la
     // fila y no worstUtil porque LEGACY va sin cartelas y ahí la flexión de
     // placa (c = 100 mm) sube a 3.97 y pasa a mandar.
     const ci = r.checks.find((c) => c.id === 'concrete-interaction')!;
-    expect(ci.utilization).toBeCloseTo(3.211, 2);
+    expect(ci.utilization).toBeCloseTo(2.888, 2);
     // Con los direccionales simétricos (150/150) manda el legacy (200): es el
     // estado persistido pre-PR0, y tiene que dar lo mismo que LEGACY.
     const rDir = calcAnchorPlate({ ...LEGACY, pedestal_cX1: 150, pedestal_cX2: 150 });
