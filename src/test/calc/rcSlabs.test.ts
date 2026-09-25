@@ -313,24 +313,27 @@ describe('esbeltez L/d (CE Anejo 19 §7.4.2)', () => {
 });
 
 // ── As,min por variante (fix auditoría #39) ─────────────────────────────────
-describe('As,min losa maciza vs nervio (CE Anejo 19 §9.2.1.1)', () => {
-  it('maciza: As,min = max(0.26·fctm/fyk·b·d, 0.0013·b·d) — oracle manual', () => {
-    // h=350, Ø10 → d=315; C25 (fctm=2.56), B500:
-    //   0.26·2.56/500·1000·315 = 419 mm²/m (gobierna sobre 0.0013·b·d = 410)
-    // Pre-fix se exigía la cuantía de VIGA 2.8‰·b·h = 980 mm²/m (2.3× lo
-    // normativo): cualquier parrilla de losa razonable marcaba FAIL.
+describe('As,min losa maciza vs nervio (CE Anejo 19 §9.2.1.1 (9.1))', () => {
+  it('maciza: As,min = W/z · fctm,fl/fyd sobre la franja 1000 × h — oracle manual', () => {
+    // h = 350, C25 (fctm = 2,56), B500: W/z = 1000·350/4,8 = 72 917 mm²,
+    // fctm,fl = (1,6 − 0,35)·2,56 = 3,20 → 72 917·3,20/434,78 = 537 mm²/m.
+    // Hasta el 2026-09-25 era el 0,26·fctm/fyk·b·d del Eurocódigo (419), que el
+    // CE no adopta; y antes aún el 2,8 ‰·b·h de la EHE (980).
     const r = calcForjados({ ...base, variant: 'maciza' });
     const asmin = r.vano.checks.find((c) => c.id === 'as-min')!;
-    expect(asmin.value).toContain('419');
-    // Ø10/200 = 393 mm²/m queda marginal bajo CE (util 1.07), no 2.49 como antes.
-    expect(asmin.utilization).toBeCloseTo(419 / 393, 1);
+    expect(asmin.value).toContain('537');
+    // Ø10/200 = 393 mm²/m no llega al mínimo del CE en 35 cm.
+    expect(asmin.utilization).toBeCloseTo(536.7 / 392.7, 2);
   });
 
-  it('reticular mantiene 2.8‰·bw·h (nervio = viga)', () => {
+  it('reticular: la T bruta del nervio, W a la fibra traccionada', () => {
+    // bEff = min(820, 0,70·5000/5) = 700; T 700/50/120/350: A = 71 000 mm²,
+    // ySup = 113,73, I = 8,208·10⁸ mm⁴ → Winf = 3,474·10⁶, Wsup = 7,217·10⁶.
+    // Vano (tracciona abajo): 3,474·10⁶/280·3,20/434,78 = 91 mm² (antes 118,
+    // el 2,8 ‰·bw·h). Apoyo (ala en tracción): 7,217·10⁶/280·3,20/434,78 = 190.
     const r = calcForjados(base);
-    const asmin = r.vano.checks.find((c) => c.id === 'as-min')!;
-    // 0.0028·120·350 = 118 mm² (gobierna sobre el mín. mecánico ≈ 65 mm²)
-    expect(asmin.value).toContain('118');
+    expect(r.vano.checks.find((c) => c.id === 'as-min')!.value).toContain('91');
+    expect(r.apoyo.checks.find((c) => c.id === 'as-min')!.value).toContain('190');
   });
 });
 

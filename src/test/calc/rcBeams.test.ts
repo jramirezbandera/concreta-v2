@@ -95,9 +95,9 @@ describe('FTUX defaults', () => {
     expect(r.vano.checks.map((c) => c.id)).toContain('stirrup-spacing-max');
   });
 
-  it('vano checks include as-min-comp', () => {
+  it('sin mínimo de compresión: el CE Anejo 19 §9.2.1.1 no fija ninguno (2026-09-25)', () => {
     const r = calcRCBeam(base);
-    expect(r.vano.checks.map((c) => c.id)).toContain('as-min-comp');
+    expect(r.vano.checks.map((c) => c.id)).not.toContain('as-min-comp');
   });
 
   it('all check rows have article field referencing CE code', () => {
@@ -250,53 +250,52 @@ describe('Reinforcement limits', () => {
     expect(r.vano.checks.find((c) => c.id === 'as-min')!.status).toBe('fail');
   });
 
-  it('default AsComp (compression) satisfies as-min-comp', () => {
-    expect(calcRCBeam(base).vano.checks.find((c) => c.id === 'as-min-comp')!.status).toBe('ok');
-  });
-
-  it('AsComp (compression) < As,min -> as-min-comp fail', () => {
+  it('una viga sin armadura de compresión apreciable no incumple por ello', () => {
     const r = calcRCBeam({ ...base, vano_top_nBars: 1, vano_top_barDiam: 6 });
-    expect(r.vano.checks.find((c) => c.id === 'as-min-comp')!.status).toBe('fail');
+    expect(r.vano.checks.some((c) => c.id === 'as-min-comp')).toBe(false);
   });
 
-  // CE Anejo 19 §9.2.1.1 — geometric minimum uses gross area b·h,
-  // NOT the effective depth b·d. Regression for the ~10% unconservative bug.
-  it('as-min geometric minimum uses b·h (CE Anejo 19 §9.2.1.1), not b·d', () => {
-    // Default beam: b=300, h=500 → AsMinGeom = 0.0028·300·500 = 420 mm²
-    // Mechanical: 0.04·b·h·fcd/fyd = 0.04·300·500·(25/1.5)/(500/1.15)
-    //           = 6000·(16.67/434.78) = 6000·0.03833 = 230.0 mm²
-    // So geometric governs: As,min = 420 mm². A tiny As (e.g. 1∅6 = 28 mm²)
-    // should force the fail branch and expose the limit in the check label.
+  // CE Anejo 19 §9.2.1.1 (9.1): As,min = W/z · fctm,fl/fyd, z = 0,8·h, sobre la
+  // sección BRUTA b·h. Hasta el 2026-09-25 era el 2,8 ‰·b·h de la tabla 42.3.5
+  // de la EHE-08, que el CE no tiene: 420 mm² en esta viga.
+  it('as-min es la (9.1) del CE: 202 mm² en la viga 300×500 HA-25', () => {
+    // W/z = 300·500²/6 / (0,8·500) = 31 250 mm²; fctm,fl = (1,6 − 0,5)·2,56
+    // = 2,816 N/mm²; fyd = 434,78 → As,min = 31 250·2,816/434,78 = 202,4 mm².
+    // 1Ø6 = 28 mm² queda muy por debajo.
     const r = calcRCBeam({ ...base, vano_bot_nBars: 1, vano_bot_barDiam: 6 });
     const asMin = r.vano.checks.find((c) => c.id === 'as-min')!;
     expect(asMin.status).toBe('fail');
-    // Extract the limit from the value/limit fields (makeCheck stringifies)
-    // — parse "As,min = 420 mm²"
     const match = (asMin.value ?? '').match(/As,min\s*=\s*(\d+)/);
     expect(match).toBeTruthy();
-    const asMinParsed = Number(match![1]);
-    // b·h → 420 mm²; with the buggy b·d it was ~380 mm² (for d≈452).
-    // Assert the exact new value (± rounding) to catch any regression.
-    expect(asMinParsed).toBe(420);
+    expect(Number(match![1])).toBe(202);
+    expect(asMin.article).toBe('CE Anejo 19 §9.2.1.1 (9.1)');
   });
 
-  it('as-min scales with h when b·h is used', () => {
-    // Doubling h from 500 → 1000 with same cover must exactly double
-    // the geometric minimum (420 → 840). Under the old b·d formula the
-    // ratio would be slightly different because d scales non-linearly with h.
+  it('as-min con el canto: W/z crece con h y fctm,fl baja hasta fctm a 600 mm', () => {
+    // h = 1000: W/z = 300·1000/4,8 = 62 500 mm², fctm,fl = 2,56 → 368,0 mm²
     const r1 = calcRCBeam({ ...base, h: 500 });
     const r2 = calcRCBeam({ ...base, h: 1000 });
     const asMin1 = r1.vano.checks.find((c) => c.id === 'as-min')!;
     const asMin2 = r2.vano.checks.find((c) => c.id === 'as-min')!;
     const n1 = Number((asMin1.value ?? '').match(/As,min\s*=\s*(\d+)/)![1]);
     const n2 = Number((asMin2.value ?? '').match(/As,min\s*=\s*(\d+)/)![1]);
-    expect(n2 / n1).toBeCloseTo(2.0, 2);
+    expect(n1).toBe(202);
+    expect(n2).toBe(368);
   });
 
   it('As,total > As,max -> as-max fail', () => {
     // As,max = 0.04*300*500=6000mm2; tension 10*804.2=8042 alone exceeds limit
     const r = calcRCBeam({ ...base, vano_bot_nBars: 10, vano_bot_barDiam: 32 });
     expect(r.vano.checks.find((c) => c.id === 'as-max')!.status).toBe('fail');
+  });
+
+  it('as-max mira cada cara por su lado (§9.2.1.1(3)), no la suma', () => {
+    // 7Ø25 abajo = 3436 mm² y 6Ø25 arriba = 2945 mm²: suman 6381 > 6000,
+    // pero ninguna pasa de 0,04·Ac = 6000 mm².
+    const r = calcRCBeam({ ...base, vano_bot_nBars: 7, vano_bot_barDiam: 25, vano_top_nBars: 6, vano_top_barDiam: 25 });
+    const c = r.vano.checks.find((ch) => ch.id === 'as-max')!;
+    expect(c.utilization).toBeCloseTo(3436.1 / 6000, 3);
+    expect(c.status).not.toBe('fail');
   });
 });
 

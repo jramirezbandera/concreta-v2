@@ -9,6 +9,7 @@ import { getBarArea } from '../../data/rebar';
 import { GAMMA_C, wkMax } from '../../data/factors';
 import { getL0Factor } from '../../data/forjadoTipologias';
 import { solveTSection, solveRectangular, computeBEff } from './rcTSection';
+import { asMinRectangular, asMinTraccion, seccionT, CUANTIA_MAXIMA } from './cuantiaMinima';
 import { type CheckRow, type CheckStatus, toStatus, makeCheck as check, makeCheckQty as checkQ } from './types';
 import { dec } from '../units/format';
 
@@ -199,6 +200,9 @@ interface SectionCalcInputs {
   h:       number;   // total depth, used for As,min on full b·h
   cover:   number;
   bEff:    number;   // only for reticular vano T-section; else === b
+  /** Ala de la T bruta para las cuantías (§9.2.1.1): el ancho eficaz del
+   *  vano en las dos zonas del nervio; en maciza, el ancho de la franja. */
+  bFlange: number;
   bWeb:    number;
   hFlange: number;
   // materials
@@ -257,26 +261,23 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
     });
   }
 
-  // MIN REINFORCEMENT tension ─────────────────────────────────────────────
-  // Width: reticular usa siempre b_w (nervio = viga); maciza 1000.
-  const bRef = inp.variant === 'reticular' ? inp.bWeb : inp.b;
-  // Cuantía mínima por variante (fix auditoría #39):
-  //  - reticular (nervio = viga): 2.8‰·bw·h (EHE Tabla 42.3.5, viga B500)
-  //    + mínimo mecánico 0.04·Ac·fcd/fyd (EHE art. 42.3.2).
-  //  - maciza (LOSA): la cuantía de viga 2.8‰·b·h era 2-3× lo normativo y
-  //    daba falsos FAIL en losas conformes. Vía CE Anejo 19 §9.3.1.1 →
-  //    §9.2.1.1: As,min = max(0.26·fctm/fyk·b·d, 0.0013·b·d).
-  let AsMin: number;
-  if (inp.variant === 'maciza') {
-    AsMin = Math.max(
-      (0.26 * mat.fctm / inp.fyk) * bRef * inp.d,
-      0.0013 * bRef * inp.d,
-    );
-  } else {
-    const AsMinGeom = 0.0028 * bRef * inp.h;
-    const AsMinMec  = (0.04 * bRef * inp.h * fcd) / fyd;
-    AsMin = Math.max(AsMinGeom, AsMinMec);
-  }
+  // MIN REINFORCEMENT tension — CE Anejo 19 §9.2.1.1 (9.1), al que remite el
+  // §9.3.1.1(1) para las losas ─────────────────────────────────────────────
+  // As,min = W/z · fctm,fl/fyd, W de la sección BRUTA a la fibra traccionada.
+  //  - maciza: la franja b × h.
+  //  - reticular: la T del nervio con el ala eficaz del vano (§5.3.2.1); en
+  //    el vano tracciona la fibra inferior y en el apoyo la superior, con el
+  //    ala en tracción, así que ahí el mínimo sale mayor.
+  // Hasta el 2026-09-25 el nervio usaba el 2,8 ‰·bw·h de la tabla 42.3.5 de
+  // la EHE-08 y la maciza el valor recomendado del Eurocódigo (0,26·fctm/fyk·
+  // b·d ≥ 0,0013·b·d), que el CE no adopta: un tercio menos en 20 cm.
+  const T = inp.variant === 'reticular'
+    ? seccionT({ bf: inp.bFlange, hf: inp.hFlange, bw: inp.bWeb, h: inp.h })
+    : null;
+  const AsMin = T
+    ? asMinTraccion(inp.zone === 'vano' ? T.Winf : T.Wsup, inp.h, mat.fctm, fyd)
+    : asMinRectangular(inp.b, inp.h, mat.fctm, fyd);
+  const Ac = T ? T.A : inp.b * inp.h;
 
   checks.push(check(
     'as-min',
@@ -284,19 +285,20 @@ function calcSection(inp: SectionCalcInputs): ForjadosSectionResult {
     AsMin, inp.As,
     `As,min = ${AsMin.toFixed(0)} mm²`,
     `As = ${inp.As.toFixed(0)} mm²`,
-    'CE Anejo 19 §9.2.1.1',
+    'CE Anejo 19 §9.2.1.1 (9.1)',
   ));
 
-  // MAX REINFORCEMENT total (CE Anejo 19 §9.2.1.1) ──────────────────────────────
-  const AsTotal = inp.As + inp.AsComp;
-  const AsMax = 0.04 * bRef * inp.h;
+  // MAX REINFORCEMENT — CE Anejo 19 §9.2.1.1(3): la de tracción O la de
+  // compresión ≤ 0,04·Ac de la sección bruta, cada una por su lado.
+  const AsMaxCara = Math.max(inp.As, inp.AsComp);
+  const AsMax = CUANTIA_MAXIMA * Ac;
   checks.push(check(
     'as-max',
-    'Armadura máxima total',
-    AsTotal, AsMax,
-    `As,tot = ${AsTotal.toFixed(0)} mm²`,
+    'Armadura máxima (tracción o compresión)',
+    AsMaxCara, AsMax,
+    `As = ${AsMaxCara.toFixed(0)} mm²`,
     `As,max = ${AsMax.toFixed(0)} mm²`,
-    'CE Anejo 19 §9.2.1.1',
+    'CE Anejo 19 §9.2.1.1(3)',
   ));
 
   // BAR SPACING (CE Anejo 19 §8.2) ──────────────────────────────────────────
@@ -654,6 +656,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     variant, zone: 'vano',
     b: bFlexVano, d: dVano, h, cover,
     bEff: variant === 'reticular' ? bEff : bFlexVano,
+    bFlange: variant === 'reticular' ? bEff : bFlexVano,
     bWeb, hFlange,
     fck, fyk,
     As: AsVano, AsBase: AsVanoBase, AsRef: AsVanoRef, AsComp: AsVanoComp,
@@ -665,6 +668,7 @@ export function calcForjados(inp: ForjadosInputs): ForjadosResult {
     variant, zone: 'apoyo',
     b: bFlexApoyo, d: dApoyo, h, cover,
     bEff: bFlexApoyo,
+    bFlange: variant === 'reticular' ? bEff : bFlexApoyo,
     bWeb, hFlange,
     fck, fyk,
     As: AsApoyo, AsBase: AsApoyoBase, AsRef: AsApoyoRef, AsComp: AsApoyoComp,

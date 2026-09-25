@@ -60,7 +60,7 @@ export const PUNCHING_PAYLOAD_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'mode', 'position', 'isCircular', 'cx_mm', 'cy_mm', 'd_mm',
+    'mode', 'position', 'isCircular', 'cx_mm', 'cy_mm', 'd_mm', 'h_mm',
     'fck_MPa', 'fyk_MPa', 'barDiamSup_mm', 'sSup_mm', 'barDiamInf_mm', 'sInf_mm',
     'VEd_kN', 'hasShearReinf', 'swDiam_mm', 'swLegs', 'sr_mm', 'fywk_MPa',
     'colType', 'colSize', 'plateA_mm', 'plateB_mm', 'steelGrade', 'upnSize',
@@ -73,6 +73,7 @@ export const PUNCHING_PAYLOAD_SCHEMA: Record<string, unknown> = {
     cx_mm: { type: ['number', 'null'], description: 'Dimensión del pilar o del área cargada en dirección x, en mm (o el diámetro si es circular). En borde y esquina, cx es la dimensión PARALELA al borde libre.' },
     cy_mm: { type: ['number', 'null'], description: 'Dimensión del pilar o del área cargada en dirección y, en mm. En borde y esquina, cy es la dimensión PERPENDICULAR al borde libre (hacia el interior de la losa).' },
     d_mm: { type: ['number', 'null'], description: 'Canto ÚTIL de la losa en mm (de la fibra comprimida al centro de la armadura de tracción). En una losa de 25 cm con recubrimiento 4 cm son unos 200 mm.' },
+    h_mm: { type: ['number', 'null'], description: 'Canto TOTAL (espesor) de la losa en mm. Sólo cuenta para la cuantía mínima de la armadura de flexión. Si el enunciado da el espesor, va aquí y d_mm se estima a partir de él.' },
     fck_MPa: { type: ['integer', 'null'], enum: [...availableFck, null], description: 'Resistencia característica del hormigón de la losa en MPa (HA-25 → 25).' },
     fyk_MPa: { type: ['number', 'null'], description: 'Límite elástico del acero de la armadura de flexión, en MPa (B500S → 500).' },
     barDiamSup_mm: { type: ['integer', 'null'], enum: [...availableBarDiams, null], description: 'Diámetro de la malla de flexión de la cara SUPERIOR, en mm.' },
@@ -102,7 +103,7 @@ export const PUNCHING_PAYLOAD_SCHEMA: Record<string, unknown> = {
 
 const PROMPT_RULES = `Reglas específicas del módulo Punzonamiento:
 1. TODAS las longitudes van en MILÍMETROS (pilar, canto útil, separaciones, placa, bordes). Los enunciados dan el pilar en cm y la losa en cm: convierte y añade un warning.
-2. d_mm es el canto ÚTIL de la losa, NO su espesor: d ≈ espesor − recubrimiento − φ/2 (una losa de 25 cm con recubrimiento de 4 cm tiene d ≈ 200 mm). Si el enunciado da el canto total, haz la estimación, dilo en un warning y ofrécele al usuario afinarla.
+2. d_mm es el canto ÚTIL de la losa, NO su espesor: d ≈ espesor − recubrimiento − φ/2 (una losa de 25 cm con recubrimiento de 4 cm tiene d ≈ 200 mm). Si el enunciado da el canto total, ponlo en h_mm, estima d con él, dilo en un warning y ofrécele al usuario afinarla.
 3. CONVENCIÓN DE BORDE Y ESQUINA (importante): cx es la dimensión del pilar PARALELA al borde libre y cy la PERPENDICULAR, hacia el interior de la losa. Si el enunciado no permite distinguirlas, pregunta en "reply".
 4. Los tres modos: "pilar" es la reacción de un pilar con transferencia de momento (β = 1.15 en interior); "carga-puntual" es una carga sin momento (β = 1.0); "pilar-cruceta" es un pilar metálico sobre una cruceta de UPN. En modo cruceta el área cargada es LA PLACA de testa (plateA × plateB): el motor fuerza cx/cy a las dimensiones de la placa e ignora isCircular y los cercos, así que esos campos no se aplican. En los modos de losa, a la inversa, no se aplican los campos de la cruceta (placa, UPN, pilar metálico, bordes).
 5. VEd_kN es el esfuerzo de CÁLCULO (ELU), ya mayorado.
@@ -122,6 +123,7 @@ interface PunchingPayload {
   cx_mm: number | null;
   cy_mm: number | null;
   d_mm: number | null;
+  h_mm: number | null;
   fck_MPa: number | null;
   fyk_MPa: number | null;
   barDiamSup_mm: number | null;
@@ -168,6 +170,7 @@ function parsePayload(raw: unknown): PunchingPayload {
     cx_mm: finiteNumber(r.cx_mm),
     cy_mm: finiteNumber(r.cy_mm),
     d_mm: finiteNumber(r.d_mm),
+    h_mm: finiteNumber(r.h_mm),
     fck_MPa: finiteNumber(r.fck_MPa),
     fyk_MPa: finiteNumber(r.fyk_MPa),
     barDiamSup_mm: finiteNumber(r.barDiamSup_mm),
@@ -204,6 +207,7 @@ const LABELS = {
   cx_mm: 'Dimensión cx',
   cy_mm: 'Dimensión cy',
   d_mm: 'Canto útil d',
+  h_mm: 'Canto total h',
   fck_MPa: 'Hormigón fck',
   fyk_MPa: 'Acero de flexión fyk',
   barDiamSup_mm: 'Ø malla superior',
@@ -231,7 +235,7 @@ type PayloadKey = keyof typeof LABELS;
 
 /** ORDER del contrato: `mode` → `position` → `isCircular` → `hasShearReinf` → resto. */
 const KEY_ORDER: readonly PayloadKey[] = [
-  'mode', 'position', 'isCircular', 'cx_mm', 'cy_mm', 'd_mm',
+  'mode', 'position', 'isCircular', 'cx_mm', 'cy_mm', 'd_mm', 'h_mm',
   'fck_MPa', 'fyk_MPa', 'barDiamSup_mm', 'sSup_mm', 'barDiamInf_mm', 'sInf_mm',
   'VEd_kN', 'hasShearReinf', 'swDiam_mm', 'swLegs', 'sr_mm', 'fywk_MPa',
   'colType', 'colSize', 'plateA_mm', 'plateB_mm', 'steelGrade', 'upnSize',
@@ -426,6 +430,7 @@ function buildPunchingPlan(
 
   // --- Losa: canto útil, materiales y armado de flexión ---
   applyMm('d_mm', 'd', x.d_mm, 20, 2000);
+  applyMm('h_mm', 'h', x.h_mm, 40, 3000);
 
   if (x.fck_MPa !== null) {
     if (!availableFck.includes(x.fck_MPa)) {
@@ -585,7 +590,7 @@ function buildPunchingPlan(
   // --- notFound ---
   const values: Record<PayloadKey, unknown> = {
     mode: x.mode, position: x.position, isCircular: x.isCircular,
-    cx_mm: x.cx_mm, cy_mm: x.cy_mm, d_mm: x.d_mm,
+    cx_mm: x.cx_mm, cy_mm: x.cy_mm, d_mm: x.d_mm, h_mm: x.h_mm,
     fck_MPa: x.fck_MPa, fyk_MPa: x.fyk_MPa,
     barDiamSup_mm: x.barDiamSup_mm, sSup_mm: x.sSup_mm,
     barDiamInf_mm: x.barDiamInf_mm, sInf_mm: x.sInf_mm,
@@ -618,6 +623,7 @@ const SNAPSHOT_FIELDS: Readonly<Record<PayloadKey, StateKey>> = {
   cx_mm: 'cx',
   cy_mm: 'cy',
   d_mm: 'd',
+  h_mm: 'h',
   fck_MPa: 'fck',
   fyk_MPa: 'fyk',
   barDiamSup_mm: 'barDiamSup',

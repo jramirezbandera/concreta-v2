@@ -248,10 +248,14 @@ describe('Punzonamiento EC2 §6.4 (fix auditoría #30)', () => {
 describe('Anclaje de la armadura (fix auditoría #31)', () => {
   it('zapata rígida: lbd escalado por As,req/As,prov vs vuelo disponible — oracle', () => {
     // φ16 C25 B500S: fbd = 2.25·0.7·2.56/1.5 = 2.69 → lb(fyd) = 647 mm
-    // σsd ∝ As_adopted/As_prov ≈ 0.705 → lbd = 456 mm; disponible = 700−60 = 640.
+    // Manda el mínimo del CE (9.1) sobre 1000 × 600: 125 000·2,56/434,78
+    // = 736 mm²/m; Ø16/200 = 1005 → σsd/fyd = 0,732 → lbd = 474 mm (con el
+    // 0,26·fctm/fyk·b·d del Eurocódigo eran 708 mm²/m y 456 mm).
+    // Disponible = 700 − 60 = 640.
     const r = calcIsolatedFooting(base);
     const c = r.checks.find((ch) => ch.id === 'anclaje-x')!;
-    expect(c.value).toContain('456');
+    expect(r.As_min_x).toBeCloseTo(736.0, 0);
+    expect(c.value).toContain('474');
     expect(c.limit).toContain('640');
     expect(c.status).toBe('ok');
   });

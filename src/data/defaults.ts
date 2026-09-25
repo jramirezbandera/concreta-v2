@@ -539,6 +539,11 @@ export interface PunchingInputs {
   cy:            number;            // mm — column/area dim y (= cx if circular)
   isCircular:    boolean;           // only active when position='interior'
   d:             number;            // mm — effective depth of slab
+  /** mm — canto TOTAL de la losa. Sólo interviene en la cuantía mínima de la
+   *  armadura de flexión (CE Anejo 19 §9.2.1.1 (9.1)), que depende del canto y
+   *  no del canto útil. Estados guardados antes del 2026-09-25 lo reciben de
+   *  los defaults (250); si no supera a d, la fila queda pendiente. */
+  h:             number;
   fck:           number;            // MPa
   fyk:           number;            // MPa — flexural reinforcement steel
   barDiamSup:    number;            // mm — top face rebar diameter
@@ -576,6 +581,7 @@ export const punchingDefaults: PunchingInputs = {
   cy:            300,
   isCircular:    false,
   d:             200,     // mm — solid slab h≈250, cover≈40, rebar≈10
+  h:             250,     // mm — canto total de esa losa
   fck:           25,
   fyk:           500,
   barDiamSup:    12,     // Ø12@150 → As=0.754mm²/mm → ρl≈0.377% → vRdc≈0.507MPa

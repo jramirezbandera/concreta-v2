@@ -108,7 +108,7 @@ export function PunchingResults({ result }: PunchingResultsProps) {
       <ValueRow label="As,inf — armado cara inferior" value={`${(result.asInf * 1000).toFixed(0)} mm²/m`} />
       <ValueRow label="ρl — cuantía geométrica efectiva" value={dec(result.rhoL, 4)} />
       {result.rhoLClamped && (
-        <ValueRow label="ρl,mín — cuantía mínima (CE 9.1)" value={dec(result.rhoLMin, 4)} />
+        <ValueRow label="ρl,mín — cuantía mínima (CE 9.1)" value={result.rhoLMin > 0 ? dec(result.rhoLMin, 4) : 'falta h'} />
       )}
       <ValueRow label="vmín — resistencia mínima"    value={fmtStress(result.vMin)} />
       <ValueRow label="vEd,0 — tensión en cara del pilar" value={fmtStress(result.vEd0)} />

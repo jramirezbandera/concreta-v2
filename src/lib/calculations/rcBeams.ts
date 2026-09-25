@@ -18,6 +18,7 @@ import { getBarArea } from '../../data/rebar';
 import { GAMMA_C, wkMax } from '../../data/factors';
 import { type CheckRow, type CheckStatus, toStatus, makeCheck as check, makeCheckQty } from './types';
 import { solveAtULU } from './rcBeamsSection';
+import { asMinRectangular, CUANTIA_MAXIMA } from './cuantiaMinima';
 import { dec } from '../units/format';
 
 export type { CheckStatus, CheckRow } from './types';
@@ -278,14 +279,11 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     });
   }
 
-  // MIN REINFORCEMENT tension bars ──────────────────────────────────────
-  // Geometric minimum (CE Anejo 19 §9.2.1.1 Tabla 42.3.5): 2.8‰ of the GROSS
-  // cross-section area b·h (NOT b·d). Using b·d understates As,min by
-  // ~10 % for typical cover/depth and is unconservative.
-  // Mechanical minimum (CE Anejo 19 §9.2.1.1): 0.04·Ac·fcd/fyd, also on b·h.
-  const AsMinGeom = 0.0028 * inp.b * inp.h;
-  const AsMinMec  = (0.04 * inp.b * inp.h * fcd) / fyd;
-  const AsMin     = Math.max(AsMinGeom, AsMinMec);
+  // MIN REINFORCEMENT tension — CE Anejo 19 §9.2.1.1 (9.1) ─────────────────
+  // As,min = W/z · fctm,fl/fyd con W = b·h²/6 de la sección bruta y z = 0,8·h
+  // (ver cuantiaMinima.ts). Hasta el 2026-09-25 era el 2,8 ‰·b·h de la tabla
+  // 42.3.5 de la EHE-08, que el CE no tiene: el doble en una viga 30×50.
+  const AsMin = asMinRectangular(inp.b, inp.h, mat.fctm, fyd);
 
   checks.push(check(
     'as-min',
@@ -293,32 +291,23 @@ function calcSection(inp: SectionInputs): RCBeamSectionResult {
     AsMin, As,
     `As,min = ${AsMin.toFixed(0)} mm\u00b2`,
     `As = ${As.toFixed(0)} mm\u00b2`,
-    'CE Anejo 19 §9.2.1.1',
+    'CE Anejo 19 §9.2.1.1 (9.1)',
   ));
 
-  // MIN REINFORCEMENT compression bars — constructive minimum (CE Anejo 19 §9.2.1.1)
-  // Tension As,min formula applies only to tension steel (CE Anejo 19 §9.2.1.1 "traccionada").
-  // For compression bars: constructive minimum 0.001·b·d (two bars minimum).
-  const AsMinComp = 0.001 * inp.b * d;
-  checks.push(check(
-    'as-min-comp',
-    'Armadura minima compresion (constructiva)',
-    AsMinComp, AsComp,
-    `As,c,min = ${AsMinComp.toFixed(0)} mm\u00b2`,
-    `As,c = ${AsComp.toFixed(0)} mm\u00b2`,
-    'CE Anejo 19 §9.2.1.1',
-  ));
+  // Ya no hay mínimo de compresión: el 0,001·b·d «constructivo» citaba el
+  // §9.2.1.1, que no fija ninguno, y hacía INCUMPLIR una viga sin montaje.
 
-  // MAX REINFORCEMENT total (CE Anejo 19 §9.2.1.1) ─────────────────────────────
-  const AsTotal = As + AsComp;
-  const AsMax = 0.04 * inp.b * inp.h;
+  // MAX REINFORCEMENT — CE Anejo 19 §9.2.1.1(3): la de tracción O la de
+  // compresión ≤ 0,04·Ac, cada una por su lado (antes se sumaban).
+  const AsMaxCara = Math.max(As, AsComp);
+  const AsMax = CUANTIA_MAXIMA * inp.b * inp.h;
   checks.push(check(
     'as-max',
-    'Armadura maxima total (traccion + compresion)',
-    AsTotal, AsMax,
-    `As,tot = ${AsTotal.toFixed(0)} mm\u00b2`,
+    'Armadura maxima (traccion o compresion)',
+    AsMaxCara, AsMax,
+    `As = ${AsMaxCara.toFixed(0)} mm\u00b2`,
     `As,max = ${AsMax.toFixed(0)} mm\u00b2`,
-    'CE Anejo 19 §9.2.1.1',
+    'CE Anejo 19 §9.2.1.1(3)',
   ));
 
   // SHEAR (CE Anejo 19 §6.2) — delega en calcRcShear (compartida con el

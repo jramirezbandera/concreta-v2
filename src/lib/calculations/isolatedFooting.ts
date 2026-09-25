@@ -16,6 +16,7 @@
 
 import { type IsolatedFootingInputs } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
+import { asMinRectangular } from './cuantiaMinima';
 import { getBarArea } from '../../data/rebar';
 import { type CheckRow, makeCheck, makeCheckQty, makeCheckNeutral, toStatus } from './types';
 import { dec } from '../units/format';
@@ -428,9 +429,10 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     const omega = 1 - Math.sqrt(1 - 2 * mu_dim);
     return (omega * 1000 * d * fcd) / fyd;
   }
-  function minAs(d: number): number {
-    return Math.max(0.26 * fctm / inp.fyk * 1000 * d, 0.0013 * 1000 * d);
-  }
+  // As,min por metro, CE Anejo 19 §9.2.1.1 (9.1) sobre la franja 1000 × h de
+  // la zapata (hasta el 2026-09-25, el 0,26·fctm/fyk·b·d del Eurocódigo, que
+  // el CE no adopta). Es el mismo en las dos direcciones: depende de h, no de d.
+  const As_min_franja = asMinRectangular(1000, h * 1000, fctm, fyd);
 
   const As_req_bend_x = reqAs(MEd_x, d_x);
   const As_req_bend_y = reqAs(MEd_y, d_y);
@@ -443,8 +445,8 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
 
   const As_req_x = isRigid ? As_req_tie_x : As_req_bend_x;
   const As_req_y = isRigid ? As_req_tie_y : As_req_bend_y;
-  const As_min_x = minAs(d_x);
-  const As_min_y = minAs(d_y);
+  const As_min_x = As_min_franja;
+  const As_min_y = As_min_franja;
   const As_adopted_x = Math.max(As_req_x, As_min_x);
   const As_adopted_y = Math.max(As_req_y, As_min_y);
   const As_prov_x = (getBarArea(inp.phi_x) / inp.s_x) * 1000;
@@ -644,13 +646,13 @@ export function calcIsolatedFooting(inp: IsolatedFootingInputs): IsolatedFooting
     'cuantia-min-x', 'Cuantía mínima dir. x',
     As_min_x, As_prov_x,
     `${As_min_x.toFixed(0)} mm²/m`, `${As_prov_x.toFixed(0)} mm²/m`,
-    'CE Anejo 19 §9.2.1.1',
+    'CE Anejo 19 §9.2.1.1 (9.1)',
   ));
   checks.push(makeCheck(
     'cuantia-min-y', 'Cuantía mínima dir. y',
     As_min_y, As_prov_y,
     `${As_min_y.toFixed(0)} mm²/m`, `${As_prov_y.toFixed(0)} mm²/m`,
-    'CE Anejo 19 §9.2.1.1',
+    'CE Anejo 19 §9.2.1.1 (9.1)',
   ));
 
   // Separación x/y (always active, max 300 mm)

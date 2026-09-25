@@ -223,7 +223,7 @@ describe('rhoL', () => {
   });
 
   it('very sparse bars → rhoLClamped=true', () => {
-    // Ø8@200, d=200 → As = 50.3/200 = 0.2515; ρl = 0.001258 < rhoLMin≈0.00133 → clamped
+    // Ø8@200, d=200 → As = 50.3/200 = 0.2515; ρl = 0.001258 < rhoLMin = 0.00207 → clamped
     const r = calcPunching({ ...base, barDiamSup: 8, sSup: 200 });
     expect(r.rhoLClamped).toBe(true);
   });
@@ -250,13 +250,24 @@ describe('rhoL', () => {
   });
 });
 
-// ── ρl,min (CE Anejo 19 §9.2.1.1) ─────────────────────────────────────────────────────
+// ── ρl,min (CE Anejo 19 §9.2.1.1 (9.1)) ───────────────────────────────────────────────
 describe('rhoLMin', () => {
-  it('fck=25, fyk=500: rhoLMin = max(0.26·fctm/500, 0.0013)', () => {
-    // fctm(fck=25) ≈ 2.56 MPa
-    const fctm = 2.56;
-    const expected = Math.max(0.26 * fctm / 500, 0.0013);
-    expect(calcPunching(base).rhoLMin).toBeCloseTo(expected, 4);
+  it('losa h = 250, d = 200, HA-25: As,min = W/z·fctm,fl/fyd sobre 1000 × h, entre 1000·d', () => {
+    // W/z = 1000·250/4,8 = 52 083 mm²; fctm,fl = (1,6 − 0,25)·2,56 = 3,456;
+    // As,min = 52 083·3,456/434,78 = 414,0 mm²/m → ρl,min = 414,0/200 000
+    // = 0,00207 (el Eurocódigo daba 0,00133).
+    const expected = (1000 * 250 / 4.8) * (1.35 * 2.56) / (500 / 1.15) / (1000 * 200);
+    expect(calcPunching(base).rhoLMin).toBeCloseTo(expected, 6);
+    expect(calcPunching(base).rhoLMin).toBeCloseTo(0.00207, 5);
+  });
+
+  it('sin canto total que supere a d (estado anterior al campo), la fila queda pendiente', () => {
+    const r = calcPunching({ ...base, d: 400, h: 250 });
+    const row = r.checks.find((c) => c.id === 'punz-rho-min')!;
+    expect(row.status).toBe('neutral');
+    expect(row.limit).toMatch(/falta el canto total h/);
+    expect(r.rhoLMin).toBe(0);
+    expect(r.rhoLClamped).toBe(false);
   });
 });
 

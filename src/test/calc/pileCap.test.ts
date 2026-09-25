@@ -81,7 +81,11 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
   it('tirante: Ft ≈ 144.5 kN, As_tie ≈ 361 mm² (fyd = 400), 4Ø12 = 452 mm²', () => {
     expect(r.Ft_x).toBeCloseTo(144.47, 1);
     expect(r.As_tie_x).toBeCloseTo(361.2, 1);
-    expect(r.As_min_x).toBeCloseTo(1123.7, 0);
+    // As,min de la sección, CE Anejo 19 §9.2.1.1 (9.1): 1150 × 800 → W/z =
+    // 1150·800/4,8 = 191 667 mm², fctm,fl = max(0,8·2,56; 2,56) = 2,56 →
+    // 191 667·2,56/434,78 = 1128,5 mm² (con el 0,26·fctm/fyk·b·d del
+    // Eurocódigo eran 1123,7).
+    expect(r.As_min_x).toBeCloseTo(1128.5, 0);
     // La malla Ø12 c/100 de la cara inferior cubre el mínimo de sección entera
     expect(r.As_g_x_inf).toBeCloseTo(11 * 113.1, 0);
     expect(r.As_min_net_x).toBe(0);
@@ -103,7 +107,7 @@ describe('FTUX defaults (n=2, d_p=220)', () => {
   it('el mínimo de sección tiene fila propia y se marca cuál manda', () => {
     const tie = r.checks.find((c) => c.id === 'tie-steel-x')!;
     const min = r.checks.find((c) => c.id === 'tie-steel-min-x')!;
-    expect(min.article).toBe('CE Anejo 19 §9.2.1.1');
+    expect(min.article).toBe('CE Anejo 19 §9.2.1.1 (9.1)');
     // aquí manda el tirante (la malla cubre el mínimo de sobra)
     expect(tie.description).toMatch(/manda$/);
     expect(min.description).not.toMatch(/manda$/);
@@ -752,16 +756,20 @@ describe('Retícula 2 × 3 (n=6)', () => {
   });
 
   it('As,min de la sección se reparte entre las bandas del sentido: /3 en x y /2 en y con n=6, /2 con n=4', () => {
+    // CE Anejo 19 §9.2.1.1 (9.1) sobre la sección b × h del encepado:
+    // W/z = b·h/4,8 y fctm,fl = max((1,6 − h/1000)·fctm; fctm).
     const fctm = 2.56;
-    const total_x = Math.max(0.26 * (fctm / 500) * r.L_y * r.d_eff, 0.0013 * r.L_y * r.d_eff);
-    const total_y = Math.max(0.26 * (fctm / 500) * r.L_x * r.d_eff, 0.0013 * r.L_x * r.d_eff);
+    const minCE = (b: number, h: number) =>
+      (b * h / 4.8) * Math.max((1.6 - h / 1000) * fctm, fctm) / (500 / 1.15);
+    const total_x = minCE(r.L_y, inp6.h_enc);
+    const total_y = minCE(r.L_x, inp6.h_enc);
     expect(r.As_min_x).toBeCloseTo(total_x / 3, 3);
     expect(r.As_min_y!).toBeCloseTo(total_y / 2, 3);
     const r4 = calcPileCap({ ...base, n: 4 });
-    const total4 = Math.max(0.26 * (fctm / 500) * r4.L_y * r4.d_eff, 0.0013 * r4.L_y * r4.d_eff);
+    const total4 = minCE(r4.L_y, base.h_enc);
     expect(r4.As_min_x).toBeCloseTo(total4 / 2, 3);
-    // n=2: una banda, el mínimo entero (1123,7 mm² → 10Ø12, como en el FTUX)
-    expect(calcPileCap(base).As_min_x).toBeCloseTo(1123.7, 0);
+    // n=2: una banda, el mínimo entero (1128,5 mm², como en el FTUX)
+    expect(calcPileCap(base).As_min_x).toBeCloseTo(1128.5, 0);
   });
 
   it('n=2, 3 y 4 no cambian con la generalización (bielas equidistantes)', () => {
@@ -852,10 +860,12 @@ describe('Malla inferior en el As,min (n = 2)', () => {
     });
     expect(r.R_max).toBeCloseTo(313.32, 1);
     expect(r.As_tie_x).toBeCloseTo(476.5, 1);
-    expect(r.As_min_x).toBeCloseTo(1239.6, 1);
+    // (9.1) sobre 1000 × 900, HA-30: W/z = 187 500 mm², fctm,fl = 2,90 →
+    // 187 500·2,90/434,78 = 1250,6 mm² (con el Eurocódigo, 1239,6).
+    expect(r.As_min_x).toBeCloseTo(1250.6, 1);
     expect(r.As_g_x_inf).toBeCloseTo(5 * 113.1, 0);       // 1000 − 140 = 860 → 5 barras c/200
-    expect(r.As_min_net_x).toBeCloseTo(674.1, 1);
-    expect(r.As_adopted_x).toBeCloseTo(674.1, 1);          // manda el mínimo neto
+    expect(r.As_min_net_x).toBeCloseTo(685.1, 1);
+    expect(r.As_adopted_x).toBeCloseTo(685.1, 1);          // manda el mínimo neto
     expect(r.n_bars_x).toBe(4);                            // antes 7
     expect(r.As_prov_x).toBeCloseTo(804.4, 0);
     expect(r.As_bot_tot_x).toBeCloseTo(1369.9, 0);
@@ -866,7 +876,7 @@ describe('Malla inferior en el As,min (n = 2)', () => {
     const min = r.checks.find((c) => c.id === 'tie-steel-min-x')!;
     expect(min.description).toMatch(/manda$/);
     expect(tie.description).not.toMatch(/manda$/);
-    expect(min.utilization).toBeCloseTo(1239.6 / 1369.9, 3);
+    expect(min.utilization).toBeCloseTo(1250.6 / 1369.9, 3);
 
     // separación: 4 barras dejan 287 mm, pero la malla c/200 se intercala
     expect(r.s_bar_x).toBeCloseTo(860 / 3, 1);

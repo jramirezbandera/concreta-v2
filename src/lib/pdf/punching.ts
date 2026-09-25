@@ -151,7 +151,7 @@ export async function exportPunchingPDF(
     } else {
       lRow(`Soporte: cx = ${inp.cx} mm`, `cy = ${inp.cy} mm`);
     }
-    lRow(`Canto eficaz: d = ${inp.d} mm`);
+    lRow(`Canto eficaz: d = ${inp.d} mm`, `canto total: h = ${inp.h} mm`);
     lRow(`Posicion: ${POSITION_LABEL[inp.position] ?? inp.position}`);
     lRow(`beta = ${result.beta.toFixed(2)}${inp.betaMode === 'custom' ? ' (personalizado)' : ''}`);
     ly += 1;

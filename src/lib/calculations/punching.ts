@@ -5,10 +5,11 @@
 // CE Anejo 19 §6.4.3 — β eccentricity factor (simplified by position)
 // CE Anejo 19 §6.4.4 — vRd,c (without shear reinforcement)
 // CE Anejo 19 §6.4.5 — vRd,max (absolute max) and vRd,cs (with stirrups, α=90°)
-// CE Anejo 19 §9.2.1.1   — ρl,min (minimum flexural reinforcement)
+// CE Anejo 19 §9.2.1.1 (9.1) — ρl,min (minimum flexural reinforcement, ver cuantiaMinima.ts)
 
 import { type PunchingInputs, type CrucetaSteel, type PunchingPosition } from '../../data/defaults';
-import { getConcrete } from '../../data/materials';
+import { getConcrete, getFyd } from '../../data/materials';
+import { asMinRectangular } from './cuantiaMinima';
 import { getBarArea } from '../../data/rebar';
 import { type CheckRow, toStatus, makeCheckQty, WARN_UTIL } from './types';
 import { calcCruceta } from './cruceta';
@@ -208,8 +209,17 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
   // direcciones ortogonales (ρl = √(ρx·ρy) colapsa a ρ) — documentado en UI.
   const rhoLRaw = asTension / d;
 
-  // ρl,min per CE Anejo 19 §9.2.1.1: max(0.26·fctm/fyk, 0.0013)
-  const rhoLMin = Math.max(0.26 * fctm / inp.fyk, 0.0013);
+  // ρl,min de la losa por la cuantía mínima del CE, Anejo 19 §9.2.1.1 (9.1):
+  // As,min = W/z · fctm,fl/fyd sobre la franja 1000 × h, dividido entre 1000·d.
+  // Depende del canto TOTAL h; si h no supera a d (estado anterior al campo,
+  // que recibe h = 250 de los defaults) la fila queda pendiente. Hasta el
+  // 2026-09-25 era el max(0,26·fctm/fyk, 0,0013) del Eurocódigo, que el CE no
+  // adopta: un tercio menos en una losa de 20 cm.
+  const hLosa = inp.h;
+  const conCanto = hLosa > d;
+  const rhoLMin = conCanto
+    ? asMinRectangular(1000, hLosa, fctm, getFyd(inp.fyk)) / (1000 * d)
+    : 0;
   const rhoLClamped = rhoLRaw < rhoLMin;
   // Fix auditoría #136: la fórmula usa el ρl REAL (cap 0.02), sin suelo en
   // ρl,min — elevar al mínimo inflaba vRd,c con armado bajo mínimos (vmin lo
@@ -255,7 +265,17 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
 
   // punz-rho-min: ρl ≥ ρl,min
   // Always show; status=warn when clamp was applied (user's rho < min)
-  {
+  if (!conCanto) {
+    checks.push({
+      id:          'punz-rho-min',
+      description: 'ρl ≥ ρl,min',
+      value:       `ρl = ${dec(rhoLRaw, 4)}`,
+      limit:       `falta el canto total h de la losa (h = ${hLosa} mm no supera a d = ${d} mm)`,
+      utilization: 0,
+      status:      'neutral',
+      article:     'CE Anejo 19 §9.2.1.1 (9.1)',
+    });
+  } else {
     // Fix #136: utilización REAL ρmin/ρ (antes 0.85 hardcodeada al clampar)
     const rhoDisplay = rhoLRaw;
     const util = rhoDisplay > 0 ? rhoLMin / rhoDisplay : Infinity;
@@ -263,10 +283,10 @@ export function calcPunching(inp: PunchingInputs): PunchingResult {
       id:          'punz-rho-min',
       description: 'ρl ≥ ρl,min',
       value:       `ρl = ${dec(rhoDisplay, 4)}`,
-      limit:       `ρl,min = ${dec(rhoLMin, 4)}`,
+      limit:       `ρl,min = ${dec(rhoLMin, 4)} (h = ${hLosa} mm)`,
       utilization: util,
       status:      rhoLClamped ? 'warn' : toStatus(util),
-      article:     'CE Anejo 19 §9.2.1.1',
+      article:     'CE Anejo 19 §9.2.1.1 (9.1)',
     });
   }
 

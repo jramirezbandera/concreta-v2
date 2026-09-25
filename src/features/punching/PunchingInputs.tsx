@@ -439,6 +439,8 @@ export function PunchingInputsPanel({ state, setField }: PunchingInputsProps) {
           onClick={() => setField('isCircular', !(state.isCircular as boolean))}
         />
         <NumField labelKey="d_effective" field="d" value={state.d as number} setField={setField} />
+        <NumField label="Canto total" sub="h" field="h" value={state.h as number} unit="mm" setField={setField}
+          help="Espesor de la losa. Sólo cuenta para la cuantía mínima de la armadura de flexión (CE Anejo 19 §9.2.1.1), que depende del canto total y no del útil." />
       </CollapsibleSection>
 
       {/* MATERIALES */}

@@ -64,6 +64,7 @@ import { type PileCapInputs } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { getBarArea } from '../../data/rebar';
 import { GAMMA_S } from '../../data/factors';
+import { asMinRectangular } from './cuantiaMinima';
 import { type CheckRow, makeCheck, makeCheckQty } from './types';
 import { dec } from '../units/format';
 
@@ -454,13 +455,15 @@ export function autoCapDims(
   return { L_x, L_y };
 }
 
-// ── As_min (CE Anejo 19 §9.2.1.1) ───────────────────────────────────────────────────
-
-function calcAsMin(fctm: number, fyk: number, b: number, d: number): number {
-  return Math.max(
-    0.26 * (fctm / fyk) * b * d,
-    0.0013 * b * d,
-  );
+// ── As_min de la sección (CE Anejo 19 §9.2.1.1 (9.1)) ─────────────────────────
+// El CE deja fuera las cimentaciones profundas (§9.8.1) y el módulo sigue la
+// EHE-08 donde el CE calla; aquí no hay conflicto: la (9.1) del CE es la
+// cuantía mecánica mínima de la EHE-08 (art. 42.3.2). Sección b × h del
+// encepado, con el fyd del acero (fyk/γs): el tope de 400 N/mm² del art. 40.2
+// es para el tirante, no para este mínimo. Hasta el 2026-09-25 era el
+// 0,26·fctm/fyk·b·d del Eurocódigo, que no es ni del CE ni de la EHE-08.
+function calcAsMin(fctm: number, fyk: number, b: number, h: number): number {
+  return asMinRectangular(b, h, fctm, fyk / GAMMA_S);
 }
 
 // ── Main calculation ───────────────────────────────────────────────────────
@@ -777,7 +780,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
   const As_g_x_inf = n_g_x * getBarArea(phi_g);
 
   const As_tie_x = Ft_x * 1000 / fyd;
-  const As_min_x = calcAsMin(fctm, fyk, b_x, d_eff) / nb_min_x;
+  const As_min_x = calcAsMin(fctm, fyk, b_x, h_enc) / nb_min_x;
   const As_min_net_x = Math.max(As_min_x - As_g_x_inf, 0);
   // max(1, …): con la malla cubriendo el mínimo, el nº de barras lo fija sólo
   // el tirante y podría degenerar a 0 si R_max ≤ 0 (NaN aguas abajo).
@@ -807,7 +810,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
 
   if (Ft_y !== null) {
     As_tie_y = Ft_y * 1000 / fyd;
-    As_min_y = calcAsMin(fctm, fyk, b_y, d_eff) / nb_min_y;
+    As_min_y = calcAsMin(fctm, fyk, b_y, h_enc) / nb_min_y;
     As_adopted_y = Math.max(As_tie_y, As_min_y);
     n_bars_min_y = Math.max(1, Math.ceil(As_adopted_y / A_phi));
     n_bars_y = barsAuto ? n_bars_min_y : Math.max(1, Math.round(nBarUserY));
@@ -1113,7 +1116,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
       As_min_x, As_bot_tot_x,
       `${As_min_x.toFixed(0)} mm²`,
       `${As_bot_tot_x.toFixed(0)} mm²`,
-      'CE Anejo 19 §9.2.1.1',
+      'CE Anejo 19 §9.2.1.1 (9.1)',
     ));
   }
 
@@ -1135,7 +1138,7 @@ export function calcPileCap(inp: PileCapInputs): PileCapResult {
         As_min_y, As_prov_y,
         `${As_min_y.toFixed(0)} mm²`,
         `${As_prov_y.toFixed(0)} mm²`,
-        'CE Anejo 19 §9.2.1.1',
+        'CE Anejo 19 §9.2.1.1 (9.1)',
       ));
     }
   }

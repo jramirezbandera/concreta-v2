@@ -1402,19 +1402,19 @@ export const LABELS = {
 
   As_min_x: {
     sym: 'As,min,x',
-    descLong: 'Armadura mínima geométrica — dirección x',
+    descLong: 'Armadura mínima de tracción — dirección x',
     descShort: 'Mínima x',
     unit: 'mm²/m',
-    ref: 'CE Anejo 19 §9.2.1.1',
+    ref: 'CE Anejo 19 §9.2.1.1 (9.1)',
     modules: ['isolatedFooting', 'pileCap'],
   },
 
   As_min_y: {
     sym: 'As,min,y',
-    descLong: 'Armadura mínima geométrica — dirección y',
+    descLong: 'Armadura mínima de tracción — dirección y',
     descShort: 'Mínima y',
     unit: 'mm²/m',
-    ref: 'CE Anejo 19 §9.2.1.1',
+    ref: 'CE Anejo 19 §9.2.1.1 (9.1)',
     modules: ['isolatedFooting', 'pileCap'],
   },
 

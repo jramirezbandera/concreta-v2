@@ -219,14 +219,15 @@ describe('punching adapter — reglas de seguridad', () => {
 });
 
 describe('punching adapter — snapshot', () => {
-  it('defaults → 27 claves sin confirmar; plateT NO viaja (no tiene control en la UI)', () => {
+  it('defaults → 28 claves sin confirmar (h_mm desde 2026-09-25); plateT NO viaja (no tiene control en la UI)', () => {
     const snap = JSON.parse(punchingAdapter.snapshot(punchingDefaults));
     expect(snap.valores.mode).toBe('pilar');
     expect(snap.valores.cx_mm).toBe(300);
     expect(snap.valores.VEd_kN).toBe(260);
     expect(snap.valores).not.toHaveProperty('plateT');
     expect(snap.valores).not.toHaveProperty('plateT_mm');
-    expect(snap.sin_confirmar).toHaveLength(27);
+    expect(snap.valores.h_mm).toBe(250);
+    expect(snap.sin_confirmar).toHaveLength(28);
   });
 });
 

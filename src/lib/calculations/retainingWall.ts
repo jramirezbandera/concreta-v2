@@ -16,6 +16,7 @@
 import { type RetainingWallInputs } from '../../data/defaults';
 import { getConcrete } from '../../data/materials';
 import { GAMMA_S } from '../../data/factors';
+import { asMinRectangular } from './cuantiaMinima';
 import { makeCheck, makeCheckQty, makeCheckNeutral, toStatus, solveRCBending, type CheckRow } from './types';
 import { GAMMA_G, GAMMA_Q } from './loadGen';
 import { dec } from '../units/format';
@@ -159,10 +160,11 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
   const mat = getConcrete(inp.fck);
   const fcd  = mat.fcd;            // MPa
   const fyd  = inp.fyk / GAMMA_S;  // MPa
-  // CE Anejo 19 §9.2.1.1 — general minimum reinforcement for bending (footing)
-  // As,min = max(0.26·fctm/fyk · b·d, 0.0013·b·d)
-  const asMin91 = (d_mm: number): number =>
-    Math.max(0.26 * mat.fctm / inp.fyk * 1000 * d_mm, 0.0013 * 1000 * d_mm);
+  // CE Anejo 19 §9.2.1.1 (9.1) — mínimo de flexión de la zapata (talón y
+  // punta), por metro sobre la franja 1000 × hf. Hasta el 2026-09-25 era el
+  // 0,26·fctm/fyk·b·d del Eurocódigo, que el CE no adopta. El fuste sigue el
+  // §9.6.2 (0,002·Ac), que el CE sí da así.
+  const asMinZapata = asMinRectangular(1000, (inp.hf as number) * 1000, mat.fctm, fyd);
 
   // ── 3. Active earth pressure coefficient (Coulomb) ───────────────────────
   const phi_r   = (inp.phi   * Math.PI) / 180;
@@ -659,7 +661,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       const m_t    = MEd_talon > 0 ? (MEd_talon * 1e6) / (b_w * d_t * d_t * fcd) : 0;
       As_req_talon = solveRCBending(MEd_talon, b_w, d_t, fcd, fyd);
       // CE Anejo 19 §9.2.1.1 — general minimum reinforcement for bending (footing)
-      As_min_talon = asMin91(d_t);
+      As_min_talon = asMinZapata;
       As_t = Math.max(isFinite(As_req_talon) ? As_req_talon : As_min_talon, As_min_talon);
       // Transverse inf minimum: engineering criterion (no normative reference for footing)
       As_min_trans_zap_inf = Math.max(0.30 * As_t, MIN_TRANS_ABS);
@@ -677,7 +679,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
           As_min_talon, As_prov_talon,
           `As,prov = ${As_prov_talon.toFixed(0)} mm²/m`,
           `As,min = ${As_min_talon.toFixed(0)} mm²/m`,
-          'CE Anejo 19 §9.2.1.1',
+          'CE Anejo 19 §9.2.1.1 (9.1)',
         ));
       } else {
         checks.push({
@@ -695,7 +697,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
           'talon-asmin', 'Armadura minima talón ≥ As,min (flexión CE Anejo 19 §9.2.1.1)',
           As_min_talon, As_t_cap,
           `As,min = ${As_min_talon.toFixed(0)} mm²/m`, `As,prov = ${As_t.toFixed(0)} mm²/m`,
-          'CE Anejo 19 §9.2.1.1',
+          'CE Anejo 19 §9.2.1.1 (9.1)',
         ));
       }
       // Zapata transversal inf — criterio de ingeniería (≥ 30% As,long; mín. Ø12@20)
@@ -726,7 +728,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
       const m_p    = MEd_punta > 0 ? (MEd_punta * 1e6) / (b_w * d_p * d_p * fcd) : 0;
       As_req_punta = solveRCBending(MEd_punta, b_w, d_p, fcd, fyd);
       // CE Anejo 19 §9.2.1.1 — general minimum reinforcement for bending (footing)
-      As_min_punta = asMin91(d_p);
+      As_min_punta = asMinZapata;
       As_p = Math.max(isFinite(As_req_punta) ? As_req_punta : As_min_punta, As_min_punta);
       // Transverse sup minimum: engineering criterion (no normative reference for footing)
       As_min_trans_zap_sup = Math.max(0.30 * As_p, MIN_TRANS_ABS);
@@ -744,7 +746,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
           As_min_punta, As_prov_zi,
           `As,prov = ${As_prov_zi.toFixed(0)} mm²/m`,
           `As,min = ${As_min_punta.toFixed(0)} mm²/m`,
-          'CE Anejo 19 §9.2.1.1',
+          'CE Anejo 19 §9.2.1.1 (9.1)',
         ));
       } else {
         checks.push({
@@ -762,7 +764,7 @@ export function calcRetainingWall(inp: RetainingWallInputs): RetainingWallResult
           'punta-asmin', 'Armadura minima punta ≥ As,min (flexión CE Anejo 19 §9.2.1.1)',
           As_min_punta, As_p_cap,
           `As,min = ${As_min_punta.toFixed(0)} mm²/m`, `As,prov = ${As_p.toFixed(0)} mm²/m`,
-          'CE Anejo 19 §9.2.1.1',
+          'CE Anejo 19 §9.2.1.1 (9.1)',
         ));
       }
       // Zapata transversal sup — criterio de ingeniería (≥ 30% As,long; mín. Ø12@20)

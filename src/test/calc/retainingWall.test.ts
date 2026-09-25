@@ -632,12 +632,13 @@ describe('rebar verification', () => {
     expect(r.As_min_h_fuste).toBeGreaterThan(0);
   });
 
-  it('As_min_talon follows CE Anejo 19 §9.2.1.1: max(0.26·fctm/fyk·b·d, 0.0013·b·d)', () => {
-    // base: fck=25 → fctm=2.56 MPa, fyk=500, hf=0.5m, cover=40mm → d=446mm
+  it('As_min_talon y punta: CE Anejo 19 §9.2.1.1 (9.1) sobre la franja 1000 × hf', () => {
+    // base: fck=25 → fctm=2.56, fyk=500, hf=0.5 m → W/z = 1000·500/4,8
+    // = 104 167 mm², fctm,fl = 1,1·2,56 = 2,816 → 104 167·2,816/434,78
+    // = 674,7 mm²/m (el Eurocódigo daba 594 con d = 446).
     const r = calcRetainingWall(base);
-    const d = 0.5 * 1000 - 40 - 14; // 446mm
-    const expected = Math.max(0.26 * 2.56 / 500 * 1000 * d, 0.0013 * 1000 * d);
-    expect(r.As_min_talon).toBeCloseTo(expected, 0);
+    expect(r.As_min_talon).toBeCloseTo(674.7, 0);
+    expect(r.As_min_punta).toBeCloseTo(674.7, 0);
   });
 
   // Fuste trasdós — sizing mode check still present
