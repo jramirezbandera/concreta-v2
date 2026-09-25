@@ -180,7 +180,7 @@ export default defineConfig({
       manifest: {
         name: "Concreta",
         short_name: "Concreta",
-        description: "Cálculos estructurales profesionales",
+        description: "Cálculo estructural con norma española, del cálculo suelto al anejo de la obra",
         lang: "es",
         theme_color: "#ffffff",
         background_color: "#ffffff",
