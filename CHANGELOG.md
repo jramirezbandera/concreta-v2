@@ -16,6 +16,31 @@ trabajo, no la de la publicación.
 
 ---
 
+## Las tablas de datos, cotejadas una a una — v260925.0 (2026-09-25)
+
+### Corregido
+- **Los angulares llevaban los acuerdos sin contar.** Las 45 filas del catálogo de
+  angulares de lados iguales estaban calculadas sin el radio interior ni los
+  redondeos de las puntas: la inercia salía hasta un 3 % alta y el radio de giro
+  mínimo, el que manda en el pandeo del cordón entre presillas del empresillado,
+  hasta un 1,6 % alto, del lado inseguro. Ahora salen de la geometría exacta con
+  los radios de la EN 10056-1, que reproduce el catálogo con menos del 0,7 % de
+  desviación. Los pilares empresillados que estuvieran justos suben un poco de
+  aprovechamiento.
+- **Las frondosas carbonizaban un 27 % más deprisa de lo que dice la norma.**
+  Toda madera de frondosa usaba 0,70 mm/min, que es el valor de una madera de
+  densidad 290, y ninguna clase D baja de 475. La norma da 0,55 a partir de 450.
+  Iba del lado seguro, pero la sección residual de un pilar D40 en R 30 salía
+  4,5 mm más pequeña por cara de lo que le toca.
+- El módulo de deformación del hormigón C16 traía el valor redondeado de la
+  tabla en vez del de la fórmula que usa el resto de la serie.
+- Barras corrugadas, tornillos, hormigón, madera laminada, coeficientes y
+  límites de fisura se cotejaron contra el Código Estructural y contra sus
+  fórmulas, y salen limpios. Con esto todas las tablas de datos de la
+  aplicación han pasado por un oráculo externo, y las que se corrigieron quedan
+  vigiladas por comprobaciones que sólo dependen de la geometría.
+
+
 ## El catálogo de perfiles, cotejado contra el prontuario — v260924.2 y v260924.3 (2026-09-24)
 
 ### Añadido
