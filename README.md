@@ -28,7 +28,7 @@ anejo de cálculo y los cuadros del plano—.
   a/c derivados de la situación de obra (CE), madera (DB SE-M) y longitudes
   de anclaje. Memoria en Word y PDF, cuadro del plano en Excel y DXF.
 - **Cumplimiento del DB SE** — la ficha 3.1 de la memoria, ensamblada desde
-  materiales, viento y nieve, cargas por planta y sismo. Lee el PDF del
+  materiales, viento y nieve, cargas por planta, sismo e incendio. Lee el PDF del
   informe geotécnico para el 3.1.3. Word y PDF.
 
 ### Acciones

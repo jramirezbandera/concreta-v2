@@ -21,7 +21,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
   '/normativa': {
     title: 'Normativa — Concreta',
-    description: 'Mapa norma a norma del Código Estructural, el CTE y la NCSE-02 que implementa Concreta: qué artículo cubre cada módulo, qué está vivo y qué queda pendiente.',
+    description: 'Mapa norma a norma del Código Estructural, el CTE y la NCSE-02 que implementa Concreta: qué artículo cubre cada módulo y qué limitaciones tiene.',
   },
   '/about': {
     title: 'Sobre Concreta — Filosofía y autor',
@@ -135,7 +135,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
   '/memorias/db-se': {
     title: 'Cumplimiento del DB SE — Concreta · CTE',
-    description: 'Ficha de justificación del CTE DB SE (apartado 3.1 de la memoria): SE, SE-AE, SE-C, NCSE-02, Código Estructural, forjados, SE-A, SE-F y SE-M, ensamblada desde los módulos de materiales, viento y nieve, cargas y sismo. Word y PDF.',
+    description: 'Ficha de justificación del CTE DB SE (apartado 3.1 de la memoria): SE, SE-AE, SE-C, NCSE-02, Código Estructural, forjados, SE-A, SE-F y SE-M, ensamblada desde los módulos de materiales, viento y nieve, cargas, sismo e incendio. Word y PDF.',
   },
   '/acciones/cargas-planta': {
     title: 'Cargas por planta — Concreta · DB SE-AE',

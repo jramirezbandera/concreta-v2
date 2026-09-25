@@ -50,7 +50,7 @@ describe('Normativa page', () => {
 
   it('shows a per-block "última revisión" date', () => {
     renderRoutes('/normativa');
-    expect(screen.getAllByText(/revisado · 05\/2026/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/revisado · 09\/2026/).length).toBeGreaterThan(0);
   });
 
   // Timeout extendido: este test hace DOS renderRoutes() (mount+unmount+mount)

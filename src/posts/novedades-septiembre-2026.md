@@ -25,7 +25,7 @@ Todo empieza por crear una obra, que pide cinco datos: denominación, municipio,
 
 > **Tres documentos** — la justificación del DB SE, el anejo de cálculo y los cuadros del plano. Los tres salen de lo que ya has calculado.
 
-**La ficha del DB SE** (el apartado 3.1 de la memoria) se ensambla desde los módulos de materiales, viento y nieve, cargas por planta y sismo, y pregunta en lenguaje de obra lo que sólo se teclea una vez. Usa siempre lo último calculado; lo que viene de otra obra sale en ámbar hasta que lo revisas, y sólo lo que falta de verdad impide exportar. Sale en Word y en PDF. Y lee el PDF del informe geotécnico: rellena el 3.1.3 con la página de cada dato, para que lo compruebes.
+**La ficha del DB SE** (el apartado 3.1 de la memoria) se ensambla desde los módulos de materiales, viento y nieve, cargas por planta, sismo e incendio, y pregunta en lenguaje de obra lo que sólo se teclea una vez. Usa siempre lo último calculado; lo que viene de otra obra sale en ámbar hasta que lo revisas, y sólo lo que falta de verdad impide exportar. Sale en Word y en PDF. Y lee el PDF del informe geotécnico: rellena el 3.1.3 con la página de cada dato, para que lo compruebes.
 
 **El anejo de cálculo** se va llenando desde cada módulo: «Guardar en el anejo» es un destino más del desplegable «Exportar». Cada capítulo se reabre en su módulo con los datos con los que se calculó, y al volver a guardarlo se actualiza en su sitio. El anejo sale en un PDF con portada, índice cotejado contra las páginas reales y numeración continua.
 

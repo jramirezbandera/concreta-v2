@@ -59,7 +59,7 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     name: 'Cumplimiento del DB SE',
     ref: 'CTE DB SE · SE-AE · SE-C · NCSE-02 · CE',
     short:
-      'La ficha 3.1 de la memoria, ensamblada desde materiales, viento y nieve, cargas y sismo, con lo que falta preguntado en lenguaje de obra. Lee el PDF del geotécnico para el 3.1.3, y lo que viene de otra obra sale en ámbar hasta que lo revisas. Word y PDF.',
+      'La ficha 3.1 de la memoria, ensamblada desde materiales, viento y nieve, cargas, sismo e incendio, con lo que falta preguntado en lenguaje de obra. Lee el PDF del geotécnico para el 3.1.3, y lo que viene de otra obra sale en ámbar hasta que lo revisas. Word y PDF.',
     route: '/memorias/db-se',
     icon: <ModuleIcon moduleKey="concreta-memoria-dbse" size={ICON_SIZE} />,
     alta: '2026-09-10',
@@ -92,7 +92,7 @@ export const MODULE_LIBRARY: ModuleEntry[] = [
     id: 'seismic-ncse02',
     group: 'ACCIONES',
     name: 'Acción sísmica',
-    ref: 'NCSE-02 art. 3.5 a 3.7',
+    ref: 'NCSE-02 art. 1.2.3 · 3.5 a 3.7',
     short:
       'Peligrosidad del Anejo 1 del IGN por municipio, espectro, modos, cortantes por planta y reparto con torsión. Si el edificio lo calcula un programa, declara igualmente la acción para la memoria.',
     route: '/analisis/sismo',

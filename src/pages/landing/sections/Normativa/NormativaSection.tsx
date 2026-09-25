@@ -38,9 +38,7 @@ export function NormativaSection() {
               <span className="mono dim">{n.year}</span>
               <span className="dim">{n.mods.join(' · ')}</span>
               <span style={{ textAlign: 'right' }}>
-                <span className={`tag ${n.status}`}>
-                  {n.status === 'ok' ? '● implementada' : '● auxiliar'}
-                </span>
+                <span className={`tag ${n.status}`}>{n.label}</span>
               </span>
             </div>
           ))}

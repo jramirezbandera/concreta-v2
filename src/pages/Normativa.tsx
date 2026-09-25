@@ -27,8 +27,8 @@ export function Normativa() {
           <p className="subpage-lede">
             Cada comprobación de Concreta cita el artículo del Código Estructural
             o el apartado del CTE en el que se basa. Aquí está el mapa completo:
-            qué norma cubre cada módulo, qué artículos están vivos, y qué queda
-            en roadmap.
+            qué norma cubre cada módulo, qué artículos están vivos, y qué cubre
+            cada módulo sólo en parte.
           </p>
         </div>
       </section>
