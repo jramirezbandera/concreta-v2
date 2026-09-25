@@ -38,14 +38,16 @@ export function LandingFooter() {
             <h6>Compañía</h6>
             <ul>
               <li><Link to="/about">Sobre Concreta</Link></li>
-              <li><Link to="/#filosofia">Manifiesto</Link></li>
+              <li><Link to="/about#manifiesto">Manifiesto</Link></li>
               <li><a href="mailto:hola@concreta.tools">Contacto</a></li>
             </ul>
           </div>
         </div>
         <div className="footer-bottom">
           <span>© 2026 Concreta · Javier Ramírez Bandera</span>
-          <span>v0.1.1 · concreta.tools</span>
+          {/* The same build-time version the app's sidebar shows. It said
+              «v0.1.1» by hand for six months and fifty releases. */}
+          <span>v{__APP_VERSION__} · concreta.tools</span>
         </div>
       </div>
     </footer>

@@ -24,7 +24,7 @@ const MODULE_COUNT = MODULE_LIBRARY.length;
 const ROTATE_MS = 4500;
 
 // The headline leads with the product, not with the assistant (decision
-// 2026-07-27): Concreta's value is 19 audited modules with Spanish code cited
+// 2026-07-27): Concreta's value is its audited modules with Spanish code cited
 // per check, and the AI is a feature inside that — not the identity. A draft
 // that led with "Enséñale el croquis" was reverted for exactly that reason.
 // Keep it short too: at ~50 chars this wraps to five lines and pushes the
@@ -72,16 +72,18 @@ function HeroMeta() {
         <div className="hero-meta-v mono">{MODULE_COUNT}</div>
         <div className="hero-meta-l">módulos</div>
       </div>
+      {/* This slot said «PDF vectorial en 5 s»: the drawings go into the PDF as
+          3× PNG (lib/pdf/utils.ts, for Acrobat's sake) and nobody timed the 5 s.
+          The anejo is the true thing to say here — it is what the PDFs are for. */}
       <div className="hero-meta-item">
-        <div className="hero-meta-v mono">PDF</div>
-        <div className="hero-meta-l">vectorial en 5&nbsp;s</div>
+        <div className="hero-meta-v mono">Anejo</div>
+        <div className="hero-meta-l">de cálculo y ficha DB&nbsp;SE</div>
       </div>
-      {/* The assistant takes this slot rather than the PDF one: the PDF is the
-          wedge (it is what Pro charges for) and PWA is still argued in
-          Filosofía and in the CYPE comparison table. */}
+      {/* «en cada cálculo», not «en cada módulo»: the DB SE ficha has no chat
+          (there the AI reads the geotechnical report instead). */}
       <div className="hero-meta-item">
         <div className="hero-meta-v mono">IA</div>
-        <div className="hero-meta-l">asistente en cada módulo</div>
+        <div className="hero-meta-l">asistente en cada cálculo</div>
       </div>
       <div className="hero-meta-item">
         <div className="hero-meta-v mono">CE · CTE</div>

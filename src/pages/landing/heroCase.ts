@@ -17,6 +17,7 @@ import type { DesignModel } from '../../features/fem-analysis/types';
 import { buildTemplateWithDefaults } from '../../features/fem2d/templates';
 import { buildShareUrl } from '../../features/fem2d/serialize';
 import { getSteelEntry } from '../../lib/sections/catalog';
+import { rcBeamDefaults, retainingWallDefaults, steelBeamDefaults } from '../../data/defaults';
 import { MODULE_LIBRARY } from './modules';
 import { FEM2D_ROUTE } from './constants';
 
@@ -117,6 +118,38 @@ export const PORTAL_FRAME = (() => {
 
 const PORTAL_FRAME_FACTS = PORTAL_FRAME.facts;
 
+// ── The three slides that open an EMPTY module ───────────────────────────────
+//
+// "Abrir módulo" lands on the module with its shipped defaults, so the slide
+// has to show those same numbers. They were hand-written once (4Ø20, H = 3.50)
+// while the module opened with 4Ø16 and H = 3.00 — derived now, like the FEM
+// slides, so the drawing and the screen behind the link cannot disagree.
+
+export const RC_BEAM_CASE = {
+  b: rcBeamDefaults.b,
+  h: rcBeamDefaults.h,
+  nBot: rcBeamDefaults.vano_bot_nBars,
+  bars: `${rcBeamDefaults.vano_bot_nBars}Ø${rcBeamDefaults.vano_bot_barDiam}`,
+  facts:
+    `HA ${rcBeamDefaults.b / 10}×${rcBeamDefaults.h / 10} · ` +
+    `${rcBeamDefaults.vano_bot_nBars}Ø${rcBeamDefaults.vano_bot_barDiam} + cercos Ø${rcBeamDefaults.vano_stirrupDiam}`,
+} as const;
+
+export const STEEL_BEAM_CASE = {
+  profile: `${steelBeamDefaults.tipo} ${steelBeamDefaults.size}`,
+  facts: `${steelBeamDefaults.tipo} ${steelBeamDefaults.size} · ${steelBeamDefaults.steel}`,
+} as const;
+
+const wallParts = [
+  retainingWallDefaults.bPunta > 0 ? 'puntera' : null,
+  retainingWallDefaults.bTalon > 0 ? 'talón' : null,
+].filter(Boolean).join(' + ');
+
+export const WALL_CASE = {
+  H: retainingWallDefaults.H,
+  facts: `H = ${retainingWallDefaults.H.toFixed(2)} m${wallParts ? ` · ${wallParts}` : ''}`,
+} as const;
+
 export interface HeroSlide {
   id: string;
   /** Group + module name, sourced from MODULE_LIBRARY (single source of truth). */
@@ -159,7 +192,7 @@ export const HERO_SLIDES: HeroSlide[] = [
     href: rcBeams.route,
     cta: 'Abrir módulo',
     tag: 'M · V · wk',
-    facts: 'HA 30×50 · 4Ø20 + cercos Ø8',
+    facts: RC_BEAM_CASE.facts,
     canvas: 'rc-beam',
   },
   {
@@ -171,7 +204,7 @@ export const HERO_SLIDES: HeroSlide[] = [
     href: steelBeams.route,
     cta: 'Abrir módulo',
     tag: 'M · V · LTB',
-    facts: 'IPE 300 · S275',
+    facts: STEEL_BEAM_CASE.facts,
     canvas: 'steel-beam',
   },
   {
@@ -183,7 +216,7 @@ export const HERO_SLIDES: HeroSlide[] = [
     href: walls.route,
     cta: 'Abrir módulo',
     tag: 'vuelco · desliz.',
-    facts: 'H = 3.50 m · puntera + talón',
+    facts: WALL_CASE.facts,
     canvas: 'wall',
   },
   {

@@ -49,14 +49,15 @@ export function AssistantSection() {
           <div>
             <div className="section-eyebrow">{sectionEyebrow('asistente')}</div>
             <h2 className="section-title">
-              Un asistente de IA<br />dentro de cada módulo.
+              Un asistente de IA<br />dentro de cada cálculo.
             </h2>
           </div>
           <p className="section-lede">
-            Pulsas el botón de IA en cualquier módulo y le hablas en español.
-            No es un chat pegado a un formulario: sabe qué módulo tienes
-            abierto, qué has metido y qué ha salido — y por eso hace tres cosas
-            que un chat en otra pestaña no puede.
+            Lo abres desde la píldora de abajo a la derecha, desde Ajustes o
+            con la tecla A, en cualquier módulo de cálculo, y le hablas en
+            español, escribiendo o dictando. No es un chat pegado a un formulario: sabe qué módulo
+            tienes abierto, qué has metido y qué ha salido — y por eso hace tres
+            cosas que un chat en otra pestaña no puede.
           </p>
         </div>
 
@@ -100,12 +101,17 @@ export function AssistantSection() {
           </div>
           <div className="ai-trust-key">
             <div className="ai-trust-key-t mono">CON LA CLAVE INCLUIDA, Y MEJOR CON LA TUYA</div>
+            {/* Honest about what a key changes: nothing is gated, the MODEL is.
+                The included key is Gemini's light model (lib/ai/sharedKey.ts,
+                lib/ai/models.ts); an Anthropic or OpenAI key swaps in a larger
+                one, while an own Google key runs that same light model. */}
             <p className="ai-trust-body">
-              Sin configurar nada, el asistente rellena y explica. Si conectas tu
-              propia clave de Anthropic, OpenAI o Google —dos minutos, y no nos
-              pagas nada por ello— pasa a razonar: lee el veredicto y te propone
-              la corrección. Tu consulta va directa al proveedor; no pasa por
-              ningún servidor nuestro, porque no tenemos ninguno.
+              Sin configurar nada funciona con una clave compartida de Google,
+              en su modelo ligero: rellena y explica. Si conectas tu propia clave
+              de Anthropic u OpenAI —dos minutos, y no nos pagas nada por ello—
+              pasa a un modelo mayor, que lee mejor el veredicto y te propone la
+              corrección. Tu consulta va directa al proveedor; no pasa por ningún
+              servidor nuestro, porque no tenemos ninguno.
             </p>
           </div>
         </div>

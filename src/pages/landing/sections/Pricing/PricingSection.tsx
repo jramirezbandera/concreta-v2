@@ -10,6 +10,7 @@
 
 import { Link } from 'react-router';
 import {
+  APP_ROUTE,
   BETA,
   BETA_CTA,
   BETA_LINE,
@@ -53,7 +54,11 @@ export function PricingSection() {
           {PLANS.map((p) => {
             const badge = planBadge(p);
             // A `mailto:` inside <Link> does not navigate — those stay on /pricing.
-            const to = p.ctaTo.startsWith('mailto:') ? '/pricing' : p.ctaTo;
+            // The app route goes through rutaDeEntrada(), like every other
+            // «Acceder gratis»: with an obra open it lands on /obra.
+            const to = p.ctaTo.startsWith('mailto:')
+              ? '/pricing'
+              : p.ctaTo === APP_ROUTE ? rutaDeEntrada() : p.ctaTo;
             return (
               <div className={`plan ${p.highlight ? 'plan-hi' : ''}`} key={p.id}>
                 {badge && (

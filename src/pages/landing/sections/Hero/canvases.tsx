@@ -11,7 +11,7 @@
 
 import type { ReactElement } from 'react';
 import type { HeroCanvasKind } from '../../heroCase';
-import { HERO_CASE, PORTAL_FRAME } from '../../heroCase';
+import { HERO_CASE, PORTAL_FRAME, RC_BEAM_CASE, STEEL_BEAM_CASE, WALL_CASE } from '../../heroCase';
 
 const VB = '0 0 520 300';
 
@@ -212,7 +212,8 @@ function RcBeamCanvas() {
   const sIn = 12; // stirrup inset
   const botY = y + h - sIn - 5;
   const topY = y + sIn + 5;
-  const botXs = [0, 1, 2, 3].map((i) => x + sIn + 8 + (i * (w - 2 * (sIn + 8))) / 3);
+  const n = RC_BEAM_CASE.nBot;
+  const botXs = Array.from({ length: n }, (_, i) => x + sIn + 8 + (i * (w - 2 * (sIn + 8))) / Math.max(1, n - 1));
   const topXs = [x + sIn + 8, x + w - sIn - 8];
 
   return (
@@ -221,7 +222,7 @@ function RcBeamCanvas() {
       <rect x={x} y={y} width={w} height={h} fill="var(--accent)" fillOpacity="0.04" stroke="var(--text-primary)" strokeWidth="1.6" />
       {/* stirrup */}
       <rect x={x + sIn} y={y + sIn} width={w - 2 * sIn} height={h - 2 * sIn} rx="4" fill="none" stroke="var(--text-disabled)" strokeWidth="1" />
-      {/* longitudinal bars: 4Ø20 bottom (tension), 2Ø12 top */}
+      {/* longitudinal bars: the module's default bottom (tension) layer, 2 top */}
       {botXs.map((bx, i) => (
         <circle key={`b${i}`} cx={bx} cy={botY} r="5" fill="var(--accent)" />
       ))}
@@ -235,7 +236,7 @@ function RcBeamCanvas() {
         <line x1={x + w} y1={y + h + 11} x2={x + w} y2={y + h + 21} />
       </g>
       <text x={x + w / 2} y={y + h + 34} textAnchor="middle" fontFamily="var(--font-mono)" fontSize="11" fill="var(--text-disabled)">
-        b = 300 mm
+        b = {RC_BEAM_CASE.b} mm
       </text>
       {/* height dimension */}
       <g stroke="var(--text-disabled)" strokeWidth="0.7">
@@ -252,10 +253,10 @@ function RcBeamCanvas() {
         fontSize="11"
         fill="var(--text-disabled)"
       >
-        h = 500 mm
+        h = {RC_BEAM_CASE.h} mm
       </text>
       <text x={x + w + 18} y={botY + 4} fontFamily="var(--font-mono)" fontSize="11" fill="var(--accent)">
-        4Ø20
+        {RC_BEAM_CASE.bars}
       </text>
     </svg>
   );
@@ -274,7 +275,7 @@ function SteelBeamCanvas() {
     <svg viewBox={VB} className="hero-slide-svg" aria-hidden="true">
       {/* label above the profile so it never overlaps the drawing */}
       <text x={cx} y={y - 20} textAnchor="middle" fontFamily="var(--font-mono)" fontSize="13" fontWeight="600" fill="var(--text-primary)">
-        IPE 300
+        {STEEL_BEAM_CASE.profile}
       </text>
       {/* profile — thin outlines (a rolled section reads lighter than a slab) */}
       <rect x={cx - bf / 2} y={y} width={bf} height={tf} stroke="var(--text-primary)" fill="var(--accent)" fillOpacity="0.05" strokeWidth="1.2" />
@@ -383,7 +384,7 @@ function WallCanvas() {
         fontSize="11"
         fill="var(--text-disabled)"
       >
-        H = 3.50 m
+        H = {WALL_CASE.H.toFixed(2)} m
       </text>
     </svg>
   );

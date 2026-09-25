@@ -2,7 +2,22 @@
 
 import { useState } from 'react';
 import { sectionEyebrow } from '../../constants';
+import { MODULE_LIBRARY } from '../../modules';
+import { rcBeamDefaults } from '../../../../data/defaults';
 import './output.css';
+
+// The link in the mockup is the one «Copiar enlace» builds for Vigas HA with
+// its defaults (useModuleState → toUrlParams): the real route and every field
+// in clear. It used to show «/rc-beams?s=eJx…», a route and an encoding that
+// never existed.
+const SHARE_HOST = 'concreta.tools';
+const SHARE_ROUTE = MODULE_LIBRARY.find((m) => m.id === 'rc-beams')?.route ?? '/horm/vigas';
+const SHARE_QS = new URLSearchParams(
+  Object.entries(rcBeamDefaults).map(([k, v]) => [k, String(v)]),
+).toString();
+const SHARE_KB = ((`https://${SHARE_HOST}${SHARE_ROUTE}?${SHARE_QS}`).length / 1000)
+  .toFixed(1)
+  .replace('.', ',');
 
 function ShareLinkPreview() {
   const [copied, setCopied] = useState(false);
@@ -29,9 +44,9 @@ function ShareLinkPreview() {
             <rect x="3" y="11" width="18" height="11" rx="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
-          <span className="mono link-bar-host">concreta.tools</span>
-          <span className="mono link-bar-path">/rc-beams?s=</span>
-          <span className="mono link-bar-hash">eJxLs7E1MdGzMjAwLDcyNzC1MNS0MdSxBQAo3wKw</span>
+          <span className="mono link-bar-host">{SHARE_HOST}</span>
+          <span className="mono link-bar-path">{SHARE_ROUTE}?</span>
+          <span className="mono link-bar-hash">{SHARE_QS}</span>
           <button
             type="button"
             className="link-copy-btn"
@@ -49,7 +64,7 @@ function ShareLinkPreview() {
           <div className="link-flow-role mono dim">CALCULISTA</div>
         </div>
         <div className="link-flow-pipe">
-          <span className="link-flow-tag mono">enlace · ~1.2 KB</span>
+          <span className="link-flow-tag mono">enlace · ~{SHARE_KB} KB</span>
           <span className="link-flow-line" />
           <span className="link-flow-arrow">→</span>
         </div>
@@ -73,27 +88,30 @@ export function OutputSection() {
             <h2 className="section-title">Defendible ante visado. Compartible en un enlace.</h2>
           </div>
           <p className="section-lede">
-            Tu cálculo no se queda en la pantalla. Lo exportas en PDF
-            vectorial para anexar a la memoria de proyecto, o lo compartes
-            con otro técnico copiando un enlace — sin servidor, sin login.
+            Tu cálculo no se queda en la pantalla. Lo exportas en PDF para
+            anexar a la memoria de proyecto, o lo compartes con otro técnico
+            copiando un enlace — sin servidor, sin login.
           </p>
         </div>
 
         <div className="output-grid">
           <article className="output-card">
             <div className="output-card-body">
-              <div className="output-eyebrow mono">PDF · A4 VECTORIAL</div>
+              <div className="output-eyebrow mono">PDF · A4</div>
               <h3 className="output-card-title">Tu cálculo, listo para anexar a la memoria.</h3>
+              {/* «Vectorial» was half true: text and tables are, but the
+                  drawings go in as 3× PNG because Acrobat rejects what
+                  svg2pdf makes of our gradients (lib/pdf/utils.ts). */}
               <p className="output-card-desc">
-                Cada exportación incluye inputs, diagrama de sección,
-                envolventes M-V y tabla de comprobaciones con artículo
-                CE/CTE. Vectorial — sin pixelado al imprimir, sin marca
-                de agua en planes Pro.
+                Cada exportación lleva los datos, el dibujo de la pieza y la
+                tabla de comprobaciones con su artículo del CE o del CTE. El
+                texto y las tablas son vectoriales; el dibujo va a triple
+                resolución, para que lo abra cualquier visor, Acrobat incluido.
               </p>
               <ul className="output-bullets">
-                <li>Listo en menos de <strong>5 segundos</strong>.</li>
-                <li>SVG vectorial, no captura de pantalla.</li>
-                <li>Tu logo y nombre de estudio (plan Pro).</li>
+                <li>Con el nombre del cálculo en la banda de título.</li>
+                <li>Texto seleccionable, con la fuente embebida.</li>
+                <li>Al anejo de la obra desde el mismo desplegable.</li>
                 <li>Compatible con cualquier gestor documental.</li>
               </ul>
             </div>
@@ -110,17 +128,19 @@ export function OutputSection() {
             <div className="output-card-body">
               <div className="output-eyebrow mono">ENLACE · ESTADO SERIALIZADO</div>
               <h3 className="output-card-title">Comparte el cálculo. No subes nada.</h3>
+              {/* The tables of Acciones and Memorias do not fit in a URL, so
+                  those modules copy the bare address: say «de cálculo». */}
               <p className="output-card-desc">
-                Cada caso se serializa completo en la URL. Lo mandas por
-                email o por WhatsApp; el técnico que lo abre ve exactamente
-                tus inputs y tus resultados. Para revisión cruzada, segunda
-                opinión o devolución de cálculos.
+                En los módulos de cálculo, el caso viaja completo en la URL. Lo
+                mandas por email o por WhatsApp; el técnico que lo abre ve
+                exactamente tus datos y tus resultados. Para revisión cruzada,
+                segunda opinión o devolución de cálculos.
               </p>
               <ul className="output-bullets">
                 <li>El estado vive en la URL — no pasa por nuestros servidores.</li>
                 <li>Quien lo abre puede modificar y reenviar.</li>
+                <li>La obra entera viaja en un fichero <span className="mono">.concreta.json</span>.</li>
                 <li>Funciona offline una vez instalado como PWA.</li>
-                <li>Pega en cualquier navegador moderno.</li>
               </ul>
             </div>
             <div className="link-preview"><ShareLinkPreview /></div>

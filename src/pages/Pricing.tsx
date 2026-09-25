@@ -5,6 +5,7 @@ import { Link } from 'react-router';
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
 import {
+  APP_ROUTE,
   BETA,
   BETA_CTA,
   BETA_LINE,
@@ -42,15 +43,17 @@ const COMPARE: CompareRow[] = [
       { text: 'diagnostica y propone', ok: true },
     ],
   },
+  // Each provider runs one fixed model (lib/ai/models.ts): the visitor picks
+  // the provider, never the model.
   {
     feat: 'Asistente IA · con tu propia clave',
     cells: [
-      { text: 'el modelo que elijas', ok: true },
-      { text: 'el modelo que elijas', ok: true },
-      { text: 'el modelo que elijas', ok: true },
+      { text: 'el modelo de tu proveedor', ok: true },
+      { text: 'el modelo de tu proveedor', ok: true },
+      { text: 'el modelo de tu proveedor', ok: true },
     ],
   },
-  { feat: 'Exportación PDF vectorial', cells: [false, true, true] },
+  { feat: 'Exportación PDF', cells: [false, true, true] },
   { feat: 'Marca propia en PDFs', cells: [false, true, true] },
   { feat: 'Casos guardados (local)', cells: [true, true, true] },
   {
@@ -62,7 +65,7 @@ const COMPARE: CompareRow[] = [
 // Asked first because it is the question a beta tester actually has: they are
 // looking at three price cards while paying nothing, and deserve to know what
 // happens the day that stops being true.
-const BETA_FAQ: [string, string][] = [
+const BETA_FAQ: [string, string, string?][] = [
   [
     '¿Qué pasa cuando termine la beta?',
     'Te avisamos por email antes, con fecha. Nadie se va a encontrar un cobro sorpresa: no tenemos tu tarjeta y no hay pasarela de pago conectada. Cuando la haya, decides si te suscribes; si no, la app se queda en el plan Libre con tus casos intactos, porque viven en tu navegador y no en un servidor nuestro.',
@@ -73,7 +76,10 @@ const BETA_FAQ: [string, string][] = [
   ],
 ];
 
-const FAQ: [string, string][] = [
+// A third string is the answer DURING the beta. Cancelling, invoices and the
+// annual price describe a subscription that does not exist yet; in the beta
+// they say so instead of describing it in the present tense.
+const FAQ: [string, string, string?][] = [
   [
     '¿Por qué suscripción y no licencia perpetua?',
     'Porque la normativa se actualiza. Cuando publican una nueva versión del CE o un anejo del CTE, lo implementamos sin que tengas que comprar nada. La suscripción paga ese mantenimiento.',
@@ -84,7 +90,7 @@ const FAQ: [string, string][] = [
   ],
   [
     '¿Puedo usar mi propia clave de IA?',
-    'Sí, y no te cobramos nada por ello. Si conectas tu clave de Anthropic, OpenAI o Google, el asistente usa el modelo que tú elijas —incluidos los que razonan— en cualquier plan, también en el Libre. Tu consulta va directa al proveedor: no pasa por ningún servidor nuestro, porque no tenemos ninguno. El plan Estudio existe para quien prefiere no tener que traerla.',
+    'Sí, y no te cobramos nada por ello, en cualquier plan, también en el Libre. Eliges el proveedor —Anthropic, OpenAI o Google— y el asistente usa su modelo: con Anthropic u OpenAI es uno mayor que el de la clave incluida; con Google, el mismo, con tu propia cuota. Tu consulta va directa al proveedor: no pasa por ningún servidor nuestro, porque no tenemos ninguno. El plan Estudio existe para quien prefiere no tener que traerla.',
   ],
   [
     '¿Mis cálculos y datos están en vuestros servidores?',
@@ -93,10 +99,12 @@ const FAQ: [string, string][] = [
   [
     '¿Puedo cancelar en cualquier momento?',
     'Sí. Nos escribes un correo y lo cancelamos: sin llamadas, sin formularios y sin retenerte. Mantienes acceso hasta el final del periodo pagado y después la app vuelve al plan Libre con tus datos intactos.',
+    'Cuando haya planes de pago, sí: nos escribes un correo y lo cancelamos, sin llamadas, sin formularios y sin retenerte. Mantendrás el acceso hasta el final del periodo pagado y después la app volverá al plan Libre con tus datos intactos. Hoy no hay nada que cancelar.',
   ],
   [
     '¿Hay descuento anual?',
-    'Sí: 10 meses al precio de 12 si pagas el año por adelantado. Aplica al plan Pro.',
+    'Sí: pagando el año por adelantado, 12 meses al precio de 10. Aplica al plan Pro.',
+    'Lo habrá: pagando el año por adelantado, 12 meses al precio de 10. Aplicará al plan Pro.',
   ],
   [
     '¿Estudiantes y educación?',
@@ -105,6 +113,7 @@ const FAQ: [string, string][] = [
   [
     '¿Factura con IVA y modelo 130?',
     'Sí. Facturas mensuales o anuales con NIF, IVA correctamente desglosado y compatibles con tu gestoría española. Te las enviamos por email en PDF.',
+    'Cuando se cobre, sí: facturas mensuales o anuales con NIF, IVA correctamente desglosado y compatibles con tu gestoría española, por email en PDF. Durante la beta no se emite ninguna, porque no se cobra nada.',
   ],
 ];
 
@@ -115,11 +124,10 @@ function Cta({ plan }: { plan: Plan }) {
       {plan.cta} <span className="arr">→</span>
     </>
   );
-  return plan.ctaTo.startsWith('mailto:') ? (
-    <a href={plan.ctaTo} className={cls}>{inner}</a>
-  ) : (
-    <Link to={plan.ctaTo} className={cls}>{inner}</Link>
-  );
+  if (plan.ctaTo.startsWith('mailto:')) return <a href={plan.ctaTo} className={cls}>{inner}</a>;
+  // The app route goes through rutaDeEntrada(), like every other «Acceder gratis».
+  const to = plan.ctaTo === APP_ROUTE ? rutaDeEntrada() : plan.ctaTo;
+  return <Link to={to} className={cls}>{inner}</Link>;
 }
 
 function PlanBadge({ plan }: { plan: Plan }) {
@@ -221,10 +229,10 @@ export function Pricing() {
 
           <h2 className="subsec-title subsec-title-spaced">Preguntas frecuentes</h2>
           <div className="faq">
-            {[...(BETA ? BETA_FAQ : []), ...FAQ].map(([q, a]) => (
+            {[...(BETA ? BETA_FAQ : []), ...FAQ].map(([q, a, aBeta]) => (
               <div className="faq-item" key={q}>
                 <h3 className="faq-q">{q}</h3>
-                <p className="faq-a">{a}</p>
+                <p className="faq-a">{BETA && aBeta ? aBeta : a}</p>
               </div>
             ))}
           </div>

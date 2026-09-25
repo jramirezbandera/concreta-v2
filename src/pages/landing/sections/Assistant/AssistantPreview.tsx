@@ -17,25 +17,34 @@
 import { Sparkles } from 'lucide-react';
 import { ProposalCard } from '../../../../components/ai/ProposalCard';
 import type { AiApplyPlan } from '../../../../lib/ai/modules/types';
+import { rcBeamDefaults as D } from '../../../../data/defaults';
+import { formatQuantity } from '../../../../lib/units/format';
 
+// Vigas HA takes design EFFORTS (Md, VEd), not loads: the earlier demo proposed
+// «Carga permanente» and «Sobrecarga de uso», fields the module does not have.
+// The thread now asks for what the module asks, the labels are the adapter's
+// own (lib/ai/modules/rcBeams.ts LABELS), and every «antes» is the default the
+// «Probarlo» link actually opens with.
 const USER_MESSAGE =
-  'Viga de cubierta de 6,50 m de luz, biapoyada. Peso propio más 18,5 kN/m permanente y 5 kN/m de sobrecarga de uso. Ponle HA-30 y acero B500S.';
+  'Viga biapoyada de 6,50 m. En el vano me salen Md = 120 kN·m y VEd = 80 kN. Ponle HA-30.';
 
 const ASSISTANT_REPLY =
-  'Con esa luz y esas cargas, 30×50 se te queda corta de canto para la flecha. Te propongo 35×60 y subo el hormigón a HA-30 como pides. Repasa los valores y aplica si te encajan.';
+  'Te cargo la luz, los esfuerzos del vano y el HA-30. Con 6,5 m te propongo además 60 de canto, que deja holgura a la flecha: el cálculo te lo dirá al aplicar. Repasa los valores y aplica si te encajan.';
 
-// A plain object, formatted exactly as a module's buildPlan() would emit it.
+const kNm = (v: number) => formatQuantity(v, 'moment', 'si');
+const kN = (v: number) => formatQuantity(v, 'force', 'si');
+
+// A plain object, formatted exactly as the module's buildPlan() emits it.
 // `risks: []` is required by the type on purpose — every module must declare
 // its safety rules, even when empty.
 const DEMO_PLAN: AiApplyPlan<Record<string, unknown>> = {
   fields: {},
   changes: [
-    { field: 'L', label: 'Luz de cálculo', before: '4.00 m', after: '6.50 m' },
-    { field: 'gk', label: 'Carga permanente', before: '10.0 kN/m', after: '18.5 kN/m' },
-    { field: 'qk', label: 'Sobrecarga de uso', before: '2.0 kN/m', after: '5.0 kN/m' },
-    { field: 'b', label: 'Ancho b', before: '30 cm', after: '35 cm' },
-    { field: 'h', label: 'Canto h', before: '50 cm', after: '60 cm' },
-    { field: 'fck', label: 'Hormigón', before: 'HA-25', after: 'HA-30' },
+    { field: 'L', label: 'Luz L', before: `${D.L / 1000} m`, after: '6.5 m' },
+    { field: 'vano_Md', label: 'Vano — Md', before: kNm(D.vano_Md), after: kNm(120) },
+    { field: 'vano_VEd', label: 'Vano — VEd', before: kN(D.vano_VEd), after: kN(80) },
+    { field: 'h', label: 'Canto h', before: `${D.h} mm`, after: '600 mm' },
+    { field: 'fck', label: 'Hormigón fck', before: `HA-${D.fck}`, after: 'HA-30' },
   ],
   skipped: [],
   notFound: [],

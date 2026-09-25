@@ -3,14 +3,14 @@
 
 import { LandingNav } from './landing/LandingNav';
 import { LandingFooter } from './landing/LandingFooter';
-import { sectionEyebrow } from './landing/constants';
+import { BETA, sectionEyebrow } from './landing/constants';
 import './marketing.css';
 import './subpage.css';
 
 const DESIGN_PRINCIPLES: [string, string][] = [
   ['Densidad sobre amplitud.', 'Más información por pixel, menos scroll.'],
   ['SVG vivo, no mockup.', 'Cada input redibuja la geometría.'],
-  ['Dark theme intencional.', 'El SVG manda; el chrome desaparece.'],
+  ['Claro u oscuro, a tu gusto.', 'El SVG manda; el chrome desaparece.'],
   ['Artículo siempre visible.', 'CE Anejo 19 §6.1, no «comprobación 1».'],
   ['Sin backend.', 'Tus cálculos no son nuestros.'],
 ];
@@ -206,22 +206,28 @@ export function About() {
           <section className="about-section">
             <h2 className="subsec-title">Licencia y valores</h2>
             <div className="about-values">
+              {/* There are no accounts, no session cookie and no invoices:
+                  no backend, no payment gateway, no analytics (grep it). The
+                  licence card follows the BETA switch like the rest of the
+                  site; the data card is true in both. */}
               <div className="card card-pad">
                 <div className="about-value-tag mono">SOFTWARE PRIVATIVO</div>
-                <h3 className="about-value-title">Suscripción profesional.</h3>
+                <h3 className="about-value-title">
+                  {BETA ? 'Gratis en beta. De suscripción después.' : 'Suscripción profesional.'}
+                </h3>
                 <p className="about-value-desc">
-                  Concreta es software propietario distribuido por suscripción
-                  mensual. Tu cuenta te da acceso al producto y a las
-                  actualizaciones normativas mientras la mantengas activa.
+                  {BETA
+                    ? 'Concreta es software propietario. Durante la beta pública se usa entero y sin cuenta. Cuando lleguen los planes de pago será una suscripción mensual, que paga las actualizaciones normativas, y el plan Libre seguirá abierto.'
+                    : 'Concreta es software propietario distribuido por suscripción mensual. La suscripción paga las actualizaciones normativas; si la dejas, la app vuelve al plan Libre con tus datos intactos.'}
                 </p>
               </div>
               <div className="card card-pad">
                 <div className="about-value-tag mono">RGPD · DATOS</div>
                 <h3 className="about-value-title">Tu cálculo, tu navegador.</h3>
                 <p className="about-value-desc">
-                  No usamos tracking de terceros. No vendemos datos. La única
-                  cookie es la de sesión. Las facturas se guardan, los cálculos
-                  no.
+                  Sin cookies, sin analítica y sin tracking de terceros. No
+                  vendemos datos porque no los tenemos: tus cálculos y tus obras
+                  viven en tu navegador y en los ficheros que tú guardas.
                 </p>
               </div>
             </div>
