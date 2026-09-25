@@ -19,9 +19,9 @@ export type EstadoFila = 'hecho' | 'falta' | 'revisar' | 'noProcede' | 'sinEmpez
 /**
  * El tinte va con la opacidad `/10` sobre el color de estado, que es la receta
  * de insignia de la casa (`components/checks/index.tsx` y nueve sitios más).
- * `bg-tint-fail` NO vale: los `--color-tint-*` están declarados en `:root` y no
- * dentro de `@theme`, así que Tailwind v4 no fabrica esa utilidad y la clase no
- * pinta nada.
+ * `bg-tint-fail` pinta lo mismo (el 10 % del color de estado) desde que los
+ * `--color-tint-*` viven dentro de `@theme`; antes estaban en `:root`, Tailwind
+ * v4 no fabricaba la utilidad y la clase no pintaba nada.
  */
 export const ESTADOS = {
   hecho: { icono: Check, palabra: 'hecho', clase: 'text-state-ok', tinte: '' },

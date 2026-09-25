@@ -401,7 +401,11 @@ html, body { overflow-x: hidden; }
   --color-state-ok: #15803d;
   --color-state-warn: #b45309;
   --color-state-fail: #dc2626;
-  --color-state-neutral: #64748b;
+  /* El neutro escribe las etiquetas de 10 px de «sin datos» ENCIMA de su propio
+     tinte (`bg-state-neutral/10 text-state-neutral`), así que se mide ahí y no
+     sobre la superficie limpia. El valor anterior (#64748b) daba 4,76:1 sobre
+     blanco pero 3,86 en esa etiqueta sobre bg-elevated. */
+  --color-state-neutral: #57667c; /* etiqueta sobre su tinte: 5,11 primary · 4,88 surface · 4,69 elevated */
 
   /* SVG chart palette (light) */
   --color-chart-section: #475569;
@@ -462,18 +466,22 @@ html, body { overflow-x: hidden; }
   --color-fem2d-timber: #a16207;    /* yellow-700 — madera sobre lienzo blanco */
   --color-scrollbar: #94a3b8;       /* slate-400 — visible but not heavy on white */
   --color-scrollbar-hover: #64748b;
-}
 
-:root {
-  color-scheme: light;
   /* Translucent tints — resolved from the themed accent/state at use time, so
-     they track light/dark automatically with no dark override. */
+     they track light/dark automatically with no dark override. Viven DENTRO de
+     `@theme` para que existan también como utilidad (`bg-tint-fail`): en `:root`
+     Tailwind v4 no las fabricaba, la clase no pintaba nada y las dos bandas de
+     aviso del chasis (proyecto y almacén lleno) salían sin tinte. */
   --color-tint-accent: color-mix(in srgb, var(--color-accent) 8%, transparent);
   --color-tint-accent-soft: color-mix(in srgb, var(--color-accent) 4%, transparent);
   --color-tint-ok: color-mix(in srgb, var(--color-state-ok) 10%, transparent);
   --color-tint-warn: color-mix(in srgb, var(--color-state-warn) 10%, transparent);
   --color-tint-fail: color-mix(in srgb, var(--color-state-fail) 10%, transparent);
   --color-tint-neutral: color-mix(in srgb, var(--color-state-neutral) 10%, transparent);
+}
+
+:root {
+  color-scheme: light;
 }
 
 /* Dark — "Ónice": deep neutral-black base (no blue tint), high contrast, per the
@@ -505,7 +513,9 @@ html[data-theme="dark"] {
   --color-state-ok: #22c55e;
   --color-state-warn: #f59e0b;
   --color-state-fail: #f56565; /* red-450 — lifted from #ef4444 so fail text clears AA on the near-black panel */
-  --color-state-neutral: #64748b;
+  /* Ídem. Aquí el #64748b compartido con el claro no llegaba ni sobre el panel
+     limpio (3,79:1 en bg-surface) y bajaba a 3,09 en la etiqueta sobre su tinte. */
+  --color-state-neutral: #8a98ae; /* etiqueta sobre su tinte: 5,95 primary · 5,36 surface · 4,76 elevated */
 
   --color-chart-section: #4b4f59;
   --color-chart-section-fill: #161619;

@@ -75,7 +75,7 @@ function NumberField({ labelKey, label, sub, help, unit, value, onChange, min, e
               else if (clamp(n) !== n) { setLocalStr(String(clamp(n))); onChange(clamp(n)); }
             }}
             className={[
-              'w-15 text-right bg-bg-primary border rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors',
+              'w-15 max-lg:w-17 text-right bg-bg-primary border rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors',
               error ? 'border-state-fail' : 'border-border-main',
             ].join(' ')}
             aria-label={`${resolved.label} (${resolved.unit})`}

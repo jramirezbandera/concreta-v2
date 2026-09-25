@@ -68,7 +68,7 @@ function NumField({
             if (isNaN(n)) setLocalStr(conComaDecimal(String(value)));
           }}
           className={[
-            'w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none transition-colors',
+            'w-15 max-lg:w-17 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none transition-colors',
             readOnly
               ? 'opacity-60 cursor-not-allowed'
               : 'hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated',

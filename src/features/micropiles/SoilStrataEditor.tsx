@@ -125,7 +125,7 @@ function MiniNumField({ label, value, unit, quantity, precision, min, max, hint,
               onChange(si);
             }}
             className={[
-              'w-13 text-right rounded-l px-1.5 py-1 text-[11.5px] font-mono text-text-primary outline-none transition-colors',
+              'w-13 max-lg:w-15 text-right rounded-l px-1.5 py-1 text-[11.5px] font-mono text-text-primary outline-none transition-colors',
               outOfRange
                 ? 'bg-bg-primary border border-state-fail'
                 : 'bg-bg-primary border border-border-main hover:border-accent/40 focus:border-accent',

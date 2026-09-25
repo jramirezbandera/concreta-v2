@@ -47,10 +47,12 @@ export function BandaAlmacen() {
   }, [fallo]);
 
   if (fallo === null) return null;
+  // El rojo va en el borde y en el tinte, no en la letra: el texto rojo sobre
+  // su propio tinte se queda en 4,13:1 en el tema claro, bajo el 4,5 de AA.
   return (
     <div
       role="alert"
-      className="flex items-center gap-3 px-4 py-2 shrink-0 border-b-2 border-state-fail bg-tint-fail text-state-fail text-xs"
+      className="flex items-center gap-3 px-4 py-2 shrink-0 border-b-2 border-state-fail bg-tint-fail text-text-primary text-xs"
     >
       <span className="font-mono uppercase tracking-wider text-[10px] shrink-0">Sin guardar</span>
       <span>{TEXTO[fallo]}</span>

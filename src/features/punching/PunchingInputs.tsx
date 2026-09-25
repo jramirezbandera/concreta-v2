@@ -69,7 +69,7 @@ function NumField({
             const n = parseFloat(localStr.replace(',', '.'));
             if (isNaN(n)) setLocalStr(conComaDecimal(String(value)));
           }}
-          className="w-15 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
+          className="w-15 max-lg:w-17 text-right bg-bg-primary border border-border-main rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors"
           aria-label={`${resolved.label} (${unitText})`}
         />
         <span className="bg-bg-elevated border border-l-0 border-border-main rounded-r px-1.25 py-1 text-[10px] text-text-disabled font-mono whitespace-nowrap flex items-center">

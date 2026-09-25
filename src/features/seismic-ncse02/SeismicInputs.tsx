@@ -189,10 +189,11 @@ function Derivado({
             columna de escritorio, no del texto. */}
         <div className="text-[10px] text-text-disabled line-clamp-2 font-mono leading-snug">{origen}</div>
       </div>
-      {/* `w-15` y `tabular-nums`: la columna de cifras sigue alineada con la
-          de los campos editables y los decimales cuadran entre filas. */}
+      {/* El ancho de la caja editable (`w-15 max-lg:w-17`) y `tabular-nums`:
+          la columna de cifras sigue alineada con la de los campos editables y
+          los decimales cuadran entre filas. */}
       <div className="flex shrink-0 items-baseline gap-1">
-        <span className="w-15 text-right px-1.75 py-1 text-[12px] font-mono tabular-nums text-text-primary">
+        <span className="w-15 max-lg:w-17 text-right px-1.75 py-1 text-[12px] font-mono tabular-nums text-text-primary">
           {valor}
         </span>
         {/* Igual que `Num` en campos.tsx:199: sin unidad no hay hueco. */}
@@ -979,7 +980,7 @@ export function SeismicInputs({
               <NumIn
                 value={state.x.TFManual}
                 min={0}
-                ancho="w-15"
+                ancho="w-15 max-lg:w-17"
                 etiqueta="T_F impuesto, en segundos"
                 onChange={(n) =>
                   setState((s) => ({
@@ -993,7 +994,7 @@ export function SeismicInputs({
               /* Misma regla que `Derivado`: en automático es un valor
                  calculado, así que va sin caja. En manual es un `NumIn` de
                  verdad y conserva la suya. */
-              <span className="w-15 text-right px-1.75 py-1 text-[12px] font-mono tabular-nums text-text-primary">
+              <span className="w-15 max-lg:w-17 text-right px-1.75 py-1 text-[12px] font-mono tabular-nums text-text-primary">
                 {magnitud(r?.x.TF, 'TF')}
               </span>
             )}

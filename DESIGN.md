@@ -82,7 +82,7 @@ tema por defecto.
 |-------|-----|-----|
 | `text-primary` | `#f8fafc` | Valores, títulos, texto de importancia alta |
 | `text-secondary` | `#94a3b8` | Etiquetas de campo, sección headers, ítems de nav |
-| `text-disabled` | `#475569` | Módulos no activos, section group labels, app version |
+| `text-disabled` | `#8a8e99` | Módulos no activos, section group labels, app version |
 
 ### Interactivo + estados
 
@@ -93,7 +93,7 @@ tema por defecto.
 | `state-ok` | `#22c55e` | η < 95% |
 | `state-warn` | `#f59e0b` | 95% ≤ η < 100% · **avisos advisory** (ver abajo) |
 | `state-fail` | `#ef4444` | η ≥ 100% |
-| `state-neutral` | `#64748b` | Sin datos / estado inicial |
+| `state-neutral` | `#8a98ae` | Sin datos / estado inicial |
 
 ### Tema claro (por defecto) — valores
 
@@ -109,12 +109,12 @@ los sobrescribe bajo `html[data-theme="dark"]`.
 | `border-sub` | `#e2e8f0` | divisores de fila |
 | `text-primary` | `#0f172a` | valores, títulos |
 | `text-secondary` | `#475569` | etiquetas, nav |
-| `text-disabled` | `#94a3b8` | inactivos |
+| `text-disabled` | `#586880` | inactivos, rótulos de grupo, versión, miga — AA en las tres superficies (5,67 / 5,41 / 5,17:1) |
 | `accent` / `-hover` | `#0369a1` / `#075985` | sky-700/800 — AA en las tres superficies (5,93 / 5,67 / 5,42:1); mantiene el **rol dual** (UI + anotación SVG) en un solo token. *Antes sky-600 `#0284c7`, que esta tabla daba por «AA en blanco» y no lo era: 4,10:1. El acento también escribe los valores derivados (qd, cotas, `tabla C.5`) a 8,5–11,5 px, así que es texto y le toca 4,5:1 — corregido en el design review 2026-09-21.* |
 | `state-ok` | `#15803d` | green-700 para texto/veredicto; green-600 en rellenos grandes |
 | `state-warn` | `#b45309` | amber-700 |
 | `state-fail` | `#dc2626` | red-600 |
-| `state-neutral` | `#64748b` | igual en ambos (pasa AA en los dos) |
+| `state-neutral` | `#57667c` | oscuro `#8a98ae`. Escribe las etiquetas de 10 px «sin datos» ENCIMA de su propio tinte al 10 %, así que se mide ahí: 4,69:1 en claro y 4,76:1 en oscuro sobre `bg-elevated`, que es el peor caso. *Antes `#64748b` en los dos temas, que esta tabla daba por «AA en los dos» y no lo era: 3,86:1 en claro y 3,09:1 en oscuro sobre su tinte — corregido el 2026-09-25.* |
 | dot-grid | `#e2e8f0` | slate-200 (vs `#253147` oscuro) |
 | envelope FEM | violet-600/700 | el `#a78bfa` oscuro se oscurece en claro |
 
@@ -233,7 +233,8 @@ fck ............... [ 25][MPa]
 ```
 
 - Layout: `flex justify-between` — label izquierda, input+unit derecha
-- Input: `w-15 bg-bg-primary border border-border-main rounded-l text-right font-mono text-[12px]`
+- Input: `w-15 max-lg:w-17 bg-bg-primary border border-border-main rounded-l text-right font-mono text-[12px]`
+  — por debajo de `lg` la letra de los campos sube a 14 px (`index.css`), y la caja crece en la misma proporción para que quepan los mismos dígitos: con `w-15` a secas, «300,00» se leía «300,0(» en el teléfono. Quien fije otro ancho hace la misma cuenta (`w-13` → `max-lg:w-15`).
 - Focus: `border-accent`
 - Unidad: `bg-bg-elevated border border-l-0 border-border-main rounded-r text-[10px] font-mono text-text-disabled`
 
@@ -514,3 +515,4 @@ Explícitamente prohibido:
 | 2026-09-23 | **La píldora se puede apagar — y «esquina» pasa a significar una sola cosa** | Fila nueva en **Preferencias** del Menú, con Unidades y Tema, que es su familia: «Asistente en la esquina» con `ToggleChip` («Visible» / «Oculta» — adjetivos del estado actual, nunca imperativos). **Encendida por defecto**; la clave `concreta-ai-esquina` sólo se escribe para apagarla, y es preferencia de máquina, no dato de obra. Apagarla **no esconde el asistente**: su fila de Herramientas no se apaga nunca y la tecla `A` sigue funcionando, porque ese listener cuelga de que haya asistente en la pantalla y no de la píldora. Quien no usa la IA deja de cargar con un flotante fijo en 25 pantallas, y quien no tiene clave BYOK también: el estado «sin clave» de la píldora se mantiene (pulsarla lleva a `ByokSettings`), y quien no quiera verlo la apaga. Por debajo de 768 px no hay esquina que encender, así que la fila sale **apagada con la razón**, no se esconde (regla de la forma única del Menú). **Y se deshace una colisión de nombres anterior**: en modo panel convivían «Reducir a esquina» (cambia la forma de la ventana) y «Bajar a la esquina» (guarda la conversación en la píldora), dos botones pegados diciendo lo mismo para cosas distintas. **«Esquina» se reserva a la píldora**, que es la que vive fija en una, y el modo pasa a **«Reducir a ventana»**: la pareja de modos queda «Expandir a panel» / «Reducir a ventana». Mismo criterio que con la hamburguesa el 2026-09-22 (dos controles de la misma barra no se anuncian igual). Corolario en el chat: el botón de salir ramifica por «hay esquina» y no por el ancho — con la píldora apagada sale la ✕ «Esconder el asistente», porque ofrecer «bajar a la esquina» prometería un sitio que no existe. T9 / D-I9 de la revisión de diseño 2026-09-22 |
 | 2026-09-23 | **Nada que el usuario esté esperando se tira sin preguntar** | La conversación del asistente es de cada módulo y muere al cambiar de pantalla — es lo correcto, porque construye su contexto con los datos de ESE módulo y arrastrar un hilo de vigas a viento le daría un contexto que ya no corresponde. Lo que cambia es que deje de pasar callando, en dos niveles según lo que se pierda. Con **hilo parado** basta con decirlo DESPUÉS y **una sola vez por usuario**: «El asistente empieza de cero en cada módulo». Con una **petición en vuelo** no vale un aviso a toro pasado — se está tirando algo que el usuario está esperando en ese momento —, así que la navegación se **frena** (`useBlocker`) y decide él: «El asistente está pensando», con «Esperar aquí» y «Salir igualmente». Sólo se interpone al cambiar de PANTALLA (compara `pathname`): moverse de pestaña dentro del módulo no desmonta nada, y frenar ahí sería impertinente. Y quien contesta «salir igualmente» no recibe además la chincheta de después: ya se le ha preguntado a la cara. **Regla que queda para cualquier diálogo**: `ConfirmDialog` admite `cancelLabel` porque «Cancelar» no siempre sirve — en un diálogo sobre una petición en vuelo parece cancelar la petición, que es lo contrario de lo que hace el botón. T10 / D-I8 de la revisión de diseño 2026-09-22 |
 | 2026-09-24 | **El desplegable de la topbar se lee como lo que es, y vuelve a llamarse «Ajustes» — REVOCA D-I11 y REVISA D-I3** | Dos cambios sobre el disparador que el rediseño de 2026-09-22 dejó como `Menú` + `MoreHorizontal`. **El marco**: pasa a llevar borde neutro (`border-border-main`), con la misma caja, el mismo alto y el mismo chevron que `Exportar`, que conserva su tinte de acento. Sin marco era texto suelto al lado de un botón con contorno, y el chevron solo no basta para anunciar un desplegable cuando el vecino sí tiene caja. **El nombre y el icono**: vuelve a ser **«Ajustes»** con la **ruedecita** (`Settings`), a petición del usuario. Los tres puntos se eligieron para un disparador que por debajo de `sm` iba sin rótulo; con el rótulo puesto en **todos** los anchos el icono acompaña a la palabra en vez de sustituirla, y una ruedecita al lado de «Ajustes» dice lo mismo dos veces, que es lo que se quería. Lo que D-I3 resolvía **sigue resuelto por el otro lado**: la hamburguesa del Sidebar se anuncia «Abrir navegación», así que no hay dos controles de la misma barra con el mismo nombre. **Queda en pie la pega, aceptada a sabiendas**: detrás de la ruedecita están también el Asistente IA y la Calculadora, que no son ajustes — fue el motivo del cambio de nombre del 22-09, y el usuario decide que pesa más reconocer el icono de siempre. Medido a 375 px: el disparador pasa de ~55 a **101 px** y la barra sigue en **73 px de alto**, sin tercera fila ni con una obra de 48 caracteres, porque esos píxeles salen de la obra, que es quien cede al truncar (regla de 2026-09-23). Abierto, el disparador se queda con el fondo `bg-elevated` y el chevron girado. El componente conserva el nombre `MenuApp`; el rótulo de cara al usuario es «Ajustes» |
+| 2026-09-25 | **Un aviso teñido lleva la letra oscura; el neutro se mide sobre su tinte; la caja numérica crece con su letra** | Tres arreglos cortos del TODOS, medidos en la app. **Las bandas del chasis** (almacén lleno, otra obra abierta) llevaban `bg-tint-*`, una utilidad que no existía (los `--color-tint-*` estaban en `:root`, fuera de `@theme`); al pasarlos a `@theme` el tinte aparece, y con él un fallo nuevo: la letra de estado sobre su propio tinte baja a 4,39:1 (ámbar) y 4,13:1 (rojo) en claro. **Regla: en un aviso teñido, el color de estado va en el borde y en el tinte, y la letra en `text-primary`** (14,7:1). No se «arregla» devolviéndole el color a la letra. **`state-neutral`** deja de ser el mismo `#64748b` en los dos temas: claro `#57667c`, oscuro `#8a98ae`. Escribe etiquetas de 10 px sobre su propio tinte al 10 %, y ahí se mide: medido en pantalla pasa de 3,80 a 4,66:1 en claro y de 4,14 a 6,73:1 en oscuro. **La caja numérica** pasa a `w-15 max-lg:w-17`: la letra sube de 12 a 14 px por debajo de `lg` y la caja no crecía con ella. Barrido de las 28 rutas a 375, 900 y 1.280 px: 12 campos cortaban su número en móvil y tableta, y ninguno lo corta ahora; en escritorio nada cambia, y ningún rótulo nuevo se recorta. Queda pendiente la receta de insignia `bg-state-*/10 text-state-*` de ok/warn/fail, que en claro tiene el mismo problema que el neutro (3,97-4,39:1; en oscuro pasa): apuntado en TODOS.md |

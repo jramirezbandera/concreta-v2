@@ -65,7 +65,13 @@ type RawNumberInputProps = {
    */
   allowEmpty?: boolean;
 
-  /** Tailwind width utility for the input box (default `w-15`). */
+  /**
+   * Tailwind width utility for the input box (default `w-15 max-lg:w-17`).
+   * El `max-lg:` va a la par de la regla de `index.css` que sube la letra de
+   * los campos a 14 px por debajo de `lg`: la caja crece en la misma
+   * proporción (14/12) para que quepan los mismos dígitos que en escritorio.
+   * Con `w-15` a secas, «300,00» se leía «300,0(» en el teléfono.
+   */
   widthClass?: string;
   /**
    * Oculta el sufijo de unidad y redondea la caja por los cuatro lados. Para
@@ -104,7 +110,7 @@ export function RawNumberInput({
   clamp = false,
   allowNegative = false,
   allowEmpty = false,
-  widthClass = "w-15",
+  widthClass = "w-15 max-lg:w-17",
   fullWidth = false,
   hideUnit = false,
 }: RawNumberInputProps) {

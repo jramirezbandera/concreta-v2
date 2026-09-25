@@ -1269,9 +1269,11 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Depends on / blocked by:** nada.
 
-## `bg-tint-*` no existe como utilidad: dos bandas de la app llevan sin tinte
+## ~~`bg-tint-*` no existe como utilidad: dos bandas de la app llevan sin tinte~~
 
-**Status:** pendiente. Encontrado por `/design-review` el 2026-09-13 al auditar el panel de obra.
+**Status:** HECHO (2026-09-25), por la primera salida: los seis `--color-tint-*` pasan de `:root` a dentro de `@theme`, y `.bg-tint-fail`/`.bg-tint-warn` aparecen en el CSS compilado resolviendo por `var()`, así que siguen al tema. La clase que ya llevaban las bandas empieza a pintar, y eso destapó un fallo que el tinte ausente escondía: su letra de estado sobre su propio tinte se queda en claro en 4,39:1 (ámbar) y 4,13:1 (rojo). Las dos bandas pasan a `text-text-primary`, y el color de estado lo llevan el borde y el tinte (regla escrita en `DESIGN.md`, 2026-09-25). Comprobadas en la app en los dos temas, forzando de verdad el fallo de cuota y el cambio de obra desde otra pestaña. No se unifican los tres mecanismos: `bg-tint-*` y `var(--color-tint-*)` son ya el mismo, y `bg-state-*/10` pinta el mismo 10 %.
+
+Encontrado por `/design-review` el 2026-09-13 al auditar el panel de obra.
 
 **What:** mover los seis `--color-tint-*` de `:root` (`src/index.css:466-473`) a dentro de `@theme`, o cambiar los tres sitios que usan `bg-tint-*` por la receta que sí compila.
 
@@ -1317,9 +1319,11 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Depends on / blocked by:** nada.
 
-## El campo numérico corta los valores de seis caracteres en móvil
+## ~~El campo numérico corta los valores de seis caracteres en móvil~~
 
-**Status:** pendiente. Encontrado por `/design-review` el 2026-09-17 auditando encepados, pero es del campo COMPARTIDO.
+**Status:** HECHO (2026-09-25). El ancho por defecto de `RawNumberInput` pasa a `w-15 max-lg:w-17`: la letra sube de 12 a 14 px por debajo de `lg`, y la caja crece en esa misma proporción para que quepan los mismos dígitos que en escritorio. Lo mismo en las seis copias a mano de la fila (empresillado, forjados, micropilotes, punzonamiento, vigas HA, sismo, este último con sus dos columnas de valores derivados para que la columna siga alineada) y `w-13` → `max-lg:w-15` en los estratos de micropilotes. Medido con un barrido de las 28 rutas a 375, 900 y 1.280 px: antes cortaban su número 12 campos en móvil y los mismos 12 a 900 px; ahora ninguno, en escritorio nada cambia, y los rótulos recortados siguen siendo los mismos que antes (ninguno nuevo). Los anchos a medida de otros módulos (`w-12`, `w-14`, `w-16`, `w-18`…) no se han tocado porque con sus valores de partida no cortan, pero siguen sin crecer con la letra.
+
+Encontrado por `/design-review` el 2026-09-17 auditando encepados, pero es del campo COMPARTIDO.
 
 **What:** dar ancho suficiente al input numérico cuando la letra sube en móvil: `min-w-15 w-auto`, o `w-16` bajo el breakpoint móvil.
 
@@ -1333,9 +1337,11 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 
 **Depends on / blocked by:** nada.
 
-## Los rótulos de grupo del sidebar se quedan en 4,3:1 (AA pide 4,5)
+## ~~Los rótulos de grupo del sidebar se quedan en 4,3:1 (AA pide 4,5)~~
 
-**Status:** pendiente. Encontrado por `/design-review` el 2026-09-17 (detector impeccable, 25 hits, confirmado midiendo en la página).
+**Status:** HECHO en dos tiempos. Los rótulos de grupo, la versión y la miga usan `text-text-disabled`, que el design review del 2026-09-21 (`aad2f9e`) subió a `#586880` (5,41:1 en `bg-surface`); esta entrada no se tachó entonces. Lo que seguía mal era el propio `state-neutral`, y peor de lo que decía aquí: escribe las etiquetas de 10 px «sin datos» ENCIMA de su propio tinte al 10 %, y ahí daba 3,86:1 en claro y **3,09:1 en oscuro** (en oscuro no llegaba ni sobre el panel limpio). El 2026-09-25 se corrige el token, no el uso: claro `#57667c` y oscuro `#8a98ae`, con 4,69 y 4,76:1 en el peor caso (la etiqueta sobre `bg-elevated`). `DESIGN.md` deja de prometer «AA en los dos».
+
+Encontrado por `/design-review` el 2026-09-17 (detector impeccable, 25 hits, confirmado midiendo en la página).
 
 **What:** oscurecer el color de los rótulos de grupo del sidebar en tema claro (`#64748b` → `#5b6675` o más oscuro), o dejar de usar `state-neutral` para texto sobre `bg-surface`.
 
@@ -1364,3 +1370,35 @@ horizontales (fuera del modelo PySlope), taludes en roca.
 **Context:** `src/features/{cargas-planta,incendio,materiales,memoria-dbse,viento-nieve}/index.tsx`; `src/components/ui/Campo.tsx` (la nota corta que sólo aparece con el modo Ayuda); plan en `~/.gstack/projects/jramirezbandera-concreta-v2/jramirezbandera-main-design-20260922-menu-asistente.md`.
 
 **Depends on / blocked by:** el Menú agrupado (T1 de ese plan): es donde iría la fila.
+
+## Las insignias ok / warn / fail no llegan a AA en el tema claro
+
+**Status:** pendiente. Encontrado el 2026-09-25 al corregir `state-neutral`.
+
+**What:** que las insignias de 10 px con la receta de la casa `bg-state-*/10 text-state-*` (`components/checks/index.tsx` y nueve sitios más) lleguen a 4,5:1 en claro.
+
+**Why:** la letra de estado sobre su propio tinte al 10 % da, en claro, **4,38 (ok), 4,39 (warn) y 4,13 (fail)** sobre `bg-primary`, y 4,21 / 4,19 / 3,97 sobre `bg-surface`. Es exactamente el fallo que se corrigió en el neutro el 2026-09-25, en los tres colores que más se leen: los del veredicto. En oscuro los tres pasan de sobra (5,27 a 7,92).
+
+**Pros:** los veredictos de cada comprobación, que son lo más importante que dice la app, dejarían de ser la letra menos legible de la pantalla.
+
+**Cons:** no tiene la salida barata del neutro. Oscurecer `state-ok/warn/fail` en claro cambia el color de TODO el veredicto (bandas, barras, pastillas y los SVG que leen `var()`), y la otra salida —letra oscura con el color sólo en el tinte, como las bandas del chasis— les quita a las insignias justo lo que las hace escaneables. Quiere una decisión de diseño, con antes y después, y no un cambio de token a ciegas.
+
+**Context:** `src/index.css` (los `--color-state-*` del tema claro); `src/components/checks/index.tsx:20-25`; la regla de las bandas y el neutro en la entrada 2026-09-25 de `DESIGN.md` § Decisiones.
+
+**Depends on / blocked by:** nada.
+
+## Cargas por planta — en el teléfono, el nombre de una carga lineal cabe en 16 px
+
+**Status:** pendiente. Encontrado el 2026-09-25 por el barrido de campos recortados.
+
+**What:** que la caja del nombre de cada carga lineal (`Lineales.tsx:116`, rótulo accesible «Elemento de carga lineal») tenga un ancho legible en móvil.
+
+**Why:** medido a 375 px: la caja mide **16 px** para un texto de 169 («Cerramiento de fachada»), o sea que no se lee ni la primera letra. A 900 y 1.280 px no pasa. Es texto, no número, así que no es el fallo de la caja numérica, sino de cómo se reparte el ancho la fila en el teléfono.
+
+**Pros:** el usuario podría leer qué carga está editando.
+
+**Cons:** es una tabla, y darle ancho al nombre se lo quita a las cifras, que en Cargas por planta ya se midieron al píxel para los 14 px del móvil.
+
+**Context:** `src/features/cargas-planta/Lineales.tsx` (la clase `INPUT` de la fila); para reproducirlo, recorrer el DOM de `/acciones/cargas-planta` a 375 px buscando los campos visibles con `scrollWidth > clientWidth`.
+
+**Depends on / blocked by:** nada.

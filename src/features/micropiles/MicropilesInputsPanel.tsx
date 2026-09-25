@@ -166,7 +166,7 @@ function NumField({
               setField(field, n as MicropilesInputs[typeof field]);
             }}
             className={[
-              'w-15 text-right rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none transition-colors',
+              'w-15 max-lg:w-17 text-right rounded-l px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none transition-colors',
               outOfRange
                 ? 'bg-bg-primary border border-state-fail focus:bg-bg-elevated'
                 : 'bg-bg-primary border border-border-main hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated',

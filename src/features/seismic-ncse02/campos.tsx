@@ -170,7 +170,7 @@ export function Num({
   onChange,
   min,
   max,
-  ancho = 'w-15',
+  ancho = 'w-15 max-lg:w-17',
 }: {
   label: string;
   sub?: string;

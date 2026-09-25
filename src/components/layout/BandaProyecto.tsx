@@ -15,10 +15,12 @@ export function BandaProyecto() {
   const { activo, desfasada } = useProyectoActivo();
   if (!desfasada) return null;
   const nombre = activo === null ? null : (listar().find((e) => e.id === activo)?.nombre ?? null);
+  // El ámbar va en el borde y en el tinte, no en la letra: el texto ámbar sobre
+  // su propio tinte se queda en 4,39:1 en el tema claro, bajo el 4,5 de AA.
   return (
     <div
       role="alert"
-      className="flex items-center gap-3 px-4 py-2 shrink-0 border-b-2 border-state-warn bg-tint-warn text-state-warn text-xs"
+      className="flex items-center gap-3 px-4 py-2 shrink-0 border-b-2 border-state-warn bg-tint-warn text-text-primary text-xs"
     >
       <span className="font-mono uppercase tracking-wider text-[10px] shrink-0">Otra obra</span>
       <span className="flex-1">

@@ -109,7 +109,7 @@ function NumField({
               if (stored !== n * scale) setField(field, stored);
             }
           }}
-          className={`w-15 text-right bg-bg-primary border border-border-main px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors ${unitText ? 'rounded-l' : 'rounded'}`}
+          className={`w-15 max-lg:w-17 text-right bg-bg-primary border border-border-main px-1.75 py-1 text-[12px] font-mono text-text-primary outline-none hover:border-accent/40 hover:bg-bg-elevated focus:border-accent focus:bg-bg-elevated transition-colors ${unitText ? 'rounded-l' : 'rounded'}`}
           aria-label={unitText ? `${resolved.label} (${unitText})` : resolved.label}
         />
         {/* Campos adimensionales (φef): sin caja de unidad vacía */}

@@ -67,7 +67,7 @@ type UnitNumberInputProps = {
    * descarta; sólo campos de carga con dirección (Fx/Fy/w, viento) lo activan.
    */
   allowNegative?: boolean;
-  /** Tailwind width utility for the input box (default `w-15`). */
+  /** Tailwind width utility for the input box (default `w-15 max-lg:w-17`, ver `RawNumberInput`). */
   widthClass?: string;
   /**
    * Stacked layout: label on top, full-width input below (instead of the
