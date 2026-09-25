@@ -237,7 +237,7 @@ export async function exportEmpresalladoPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     setGray(doc, 150);
-    doc.text('Concreta - concreta.app | EC3 EN 1993-1-1 §6.4   gM0 = 1.05   gM1 = 1.05', M, footerY);
+    doc.text('Concreta - concreta.tools | EC3 EN 1993-1-1 §6.4   gM0 = 1.05   gM1 = 1.05', M, footerY);
     doc.text(`Pagina ${p}/${pages}`, PAGE_W - M, footerY, { align: 'right' });
   }
 

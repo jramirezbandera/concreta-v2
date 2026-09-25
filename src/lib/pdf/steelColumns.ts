@@ -90,7 +90,7 @@ function drawPageFooter(doc: jsPDF) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.text(
-    'concreta.app  |  Código Estructural DB-SE-A / EC3  |  γM0 = 1.05  |  γM1 = 1.05',
+    'concreta.tools  |  Código Estructural DB-SE-A / EC3  |  γM0 = 1.05  |  γM1 = 1.05',
     M, footerY,
   );
   doc.text(`Pág. ${_pageNum}`, PAGE_W - M, footerY, { align: 'right' });

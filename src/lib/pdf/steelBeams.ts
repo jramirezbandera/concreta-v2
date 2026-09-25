@@ -340,7 +340,7 @@ export async function exportSteelBeamsPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   setGray(doc, 150);
-  doc.text('Concreta - concreta.app | CTE DB-SE-A Espana', M, footerY);
+  doc.text('Concreta - concreta.tools | CTE DB-SE-A Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
   const filename = titledFilename(elementTitle, steelBeamsFallbackFilename());

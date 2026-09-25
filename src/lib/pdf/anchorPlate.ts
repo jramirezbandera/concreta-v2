@@ -534,7 +534,7 @@ export async function exportAnchorPlatePDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.text(
-      'Concreta - concreta.app  |  CE Anejo 26 (placa base) + EN 1992-4 (anclajes) + CE Anejo 19 (hormigon)  |  gM0=1.05, gMc=1.50',
+      'Concreta - concreta.tools  |  CE Anejo 26 (placa base) + EN 1992-4 (anclajes) + CE Anejo 19 (hormigon)  |  gM0=1.05, gMc=1.50',
       M, footerY,
     );
     setGray(doc, 150);

@@ -47,7 +47,7 @@ function drawFooter(doc: jsPDF, totalPages: number) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   setGray(doc, 150);
-  doc.text('Concreta — concreta.app | FEM 1D | CE 2021 + CTE DB-SE-A', M, FOOTER_Y);
+  doc.text('Concreta — concreta.tools | FEM 1D | CE 2021 + CTE DB-SE-A', M, FOOTER_Y);
   doc.text(`Pagina ${cur} / ${totalPages}`, PAGE_W - M, FOOTER_Y, { align: 'right' });
 }
 

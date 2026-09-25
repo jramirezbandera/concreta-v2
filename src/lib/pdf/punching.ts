@@ -292,7 +292,7 @@ export async function exportPunchingPDF(
     doc.setFontSize(7);
     setGray(doc, 150);
     doc.text(
-      'Concreta - concreta.app | Codigo Estructural art. 6.4   gC = 1.50, gS = 1.15',
+      'Concreta - concreta.tools | Codigo Estructural art. 6.4   gC = 1.50, gS = 1.15',
       M, footerY,
     );
     doc.text(`Pagina ${p}/${pages}`, PAGE_W - M, footerY, { align: 'right' });

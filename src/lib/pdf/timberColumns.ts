@@ -304,7 +304,7 @@ export async function exportTimberColumnsPDF(
     doc.setFontSize(7);
     setGray(doc, 150);
     doc.text(
-      'Concreta - concreta.app | EC5 EN 1995-1-1 §6.3 + EN 1995-1-2   gM = 1.30 (aserrada) / 1.25 (laminada)',
+      'Concreta - concreta.tools | EC5 EN 1995-1-1 §6.3 + EN 1995-1-2   gM = 1.30 (aserrada) / 1.25 (laminada)',
       M, footerY,
     );
     doc.text(`Pagina ${p}/${pages}`, PAGE_W - M, footerY, { align: 'right' });

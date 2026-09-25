@@ -279,7 +279,7 @@ export async function exportCompositeSectionPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   setGray(doc, 150);
-  doc.text('Concreta - concreta.app | CE Anejo 22 §5.5 / EN 1993-1-1 Espana', M, footerY);
+  doc.text('Concreta - concreta.tools | CE Anejo 22 §5.5 / EN 1993-1-1 Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
   const filename = titledFilename(elementTitle, compositeSectionFallbackFilename());

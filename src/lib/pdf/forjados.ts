@@ -277,7 +277,7 @@ export async function exportForjadosPDF(
   doc.setFontSize(7);
   setGray(doc, 150);
   doc.text(
-    'Concreta - concreta.app | Codigo Estructural art. 21/42/44/49   gC = 1.50, gS = 1.15',
+    'Concreta - concreta.tools | Codigo Estructural art. 21/42/44/49   gC = 1.50, gS = 1.15',
     M, footerY,
   );
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });

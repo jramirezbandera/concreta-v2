@@ -270,7 +270,7 @@ export async function exportRCBeamsPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   setGray(doc, 150);
-  doc.text('Concreta \u2014 concreta.app | Codigo Estructural (CE) Espana', M, footerY);
+  doc.text('Concreta \u2014 concreta.tools | Codigo Estructural (CE) Espana', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
   const filename = titledFilename(elementTitle, rcBeamsFallbackFilename(inp));
@@ -462,7 +462,7 @@ async function exportRCBeamsSimplePDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   setGray(doc, 150);
-  doc.text('Concreta — concreta.app | Codigo Estructural (CE) Espana · CE 21.3.3 (parábola-rectángulo)', M, footerY);
+  doc.text('Concreta — concreta.tools | Codigo Estructural (CE) Espana · CE 21.3.3 (parábola-rectángulo)', M, footerY);
   doc.text('Pagina 1', PAGE_W - M, footerY, { align: 'right' });
 
   const filename = titledFilename(elementTitle, rcBeamsFallbackFilename(inp));

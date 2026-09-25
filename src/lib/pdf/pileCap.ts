@@ -377,7 +377,7 @@ export async function exportPileCapPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     setGray(doc, 150);
-    doc.text('Concreta - concreta.app | CE Anejo 19 §6.5 / CTE DB-SE-C', M, footerY);
+    doc.text('Concreta - concreta.tools | CE Anejo 19 §6.5 / CTE DB-SE-C', M, footerY);
     doc.text(`Pagina ${i}/${pageCount}`, PAGE_W - M, footerY, { align: 'right' });
   }
 

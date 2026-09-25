@@ -315,7 +315,7 @@ export async function exportRCColumnsPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   setGray(doc, 150);
-  doc.text(pdfStr('Concreta \u2014 concreta.app | C\u00f3digo Estructural (CE) Espa\u00f1a'), M, footerY);
+  doc.text(pdfStr('Concreta \u2014 concreta.tools | C\u00f3digo Estructural (CE) Espa\u00f1a'), M, footerY);
   doc.text('P\u00e1gina 1', PAGE_W - M, footerY, { align: 'right' });
 
   const filename = titledFilename(elementTitle, rcColumnsFallbackFilename());
