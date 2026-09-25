@@ -1,0 +1,99 @@
+/* obra.css — "De la obra al anejo" section (three steps + the deliverables rail).
+   Consumed by ./Obra.tsx.
+   Media queries live centrally in ../../styles/responsive.css, like every
+   other landing section. */
+
+.landing-root {
+  .obra-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    gap: 56px;
+    align-items: start;
+  }
+
+  /* The three steps: a ruled list, the same rhythm as the assistant's beats
+     but stacked, because each step is a paragraph and not a line. */
+  .obra-pasos {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--border-main);
+  }
+  .obra-paso {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 16px;
+    padding: 26px 0;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .obra-paso:last-child {
+    border-bottom: 1px solid var(--border-main);
+  }
+  .obra-paso-n {
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    padding-top: 4px;
+  }
+  .obra-paso-t {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    margin: 0 0 10px;
+  }
+  .obra-paso-d {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin: 0;
+    max-width: 68ch;
+  }
+
+  /* The rail, framed like the assistant's still so it reads as a product view. */
+  .obra-figure {
+    margin: 0;
+  }
+  .obra-figure-frame {
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    padding: 20px;
+  }
+  /* Inert: the real <Documento> navigates or downloads, and a card that does
+     nothing is worse than no card. The affordance is the caption link. */
+  .obra-rail {
+    pointer-events: none;
+    user-select: none;
+  }
+  /* Same rótulo as the panel: small caps, a hairline to the edge. */
+  .obra-rail-h {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-disabled);
+  }
+  .obra-rail-rule {
+    height: 1px;
+    flex: 1;
+    background: var(--border-sub);
+  }
+  .obra-rail-docs {
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    background: var(--bg-surface);
+  }
+  .obra-figure-cap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+}

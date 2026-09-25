@@ -78,6 +78,39 @@ function ShareLinkPreview() {
   );
 }
 
+// What each module exports, checked against every module's «Exportar» menu on
+// 2026-09-25. A cell is either a check or the name of what comes out; nothing
+// is claimed per module that the menu does not offer.
+type Formato = true | string | false;
+interface FilaFormatos {
+  modulos: string;
+  pdf: Formato;
+  word: Formato;
+  excel: Formato;
+  dxf: Formato;
+}
+
+const FORMATOS: FilaFormatos[] = [
+  {
+    modulos: 'Cuadro de materiales · Viento y nieve · Cargas por planta · Incendio',
+    pdf: true,
+    word: 'memoria',
+    excel: 'cuadro del plano',
+    dxf: 'cuadro del plano',
+  },
+  { modulos: 'Cumplimiento del DB SE', pdf: true, word: 'la ficha', excel: false, dxf: false },
+  { modulos: 'Vigas de hormigón', pdf: true, word: false, excel: false, dxf: 'cuadro de vigas' },
+  { modulos: 'Muros · Encepados · Micropilotes', pdf: true, word: false, excel: false, dxf: 'plano tipo' },
+  { modulos: 'El resto de módulos de cálculo', pdf: true, word: false, excel: false, dxf: false },
+  { modulos: 'La obra', pdf: 'el anejo', word: false, excel: 'los cuadros', dxf: 'los cuadros' },
+];
+
+function CeldaFormato({ f }: { f: Formato }) {
+  if (f === true) return <td className="fmt-yes">✓</td>;
+  if (f === false) return <td className="fmt-no">—</td>;
+  return <td className="fmt-yes">{f}</td>;
+}
+
 export function OutputSection() {
   return (
     <section className="section" id="output">
@@ -88,9 +121,10 @@ export function OutputSection() {
             <h2 className="section-title">Defendible ante visado. Compartible en un enlace.</h2>
           </div>
           <p className="section-lede">
-            Tu cálculo no se queda en la pantalla. Lo exportas en PDF para
-            anexar a la memoria de proyecto, o lo compartes con otro técnico
-            copiando un enlace — sin servidor, sin login.
+            Tu cálculo no se queda en la pantalla. Sale en PDF para el anejo,
+            en Word y Excel para la memoria y el plano, y en DXF para el CAD —
+            o lo compartes con otro técnico copiando un enlace, sin servidor y
+            sin login.
           </p>
         </div>
 
@@ -145,6 +179,41 @@ export function OutputSection() {
             </div>
             <div className="link-preview"><ShareLinkPreview /></div>
           </article>
+        </div>
+
+        <div className="output-formats">
+          <div className="output-formats-h">
+            <h3 className="output-card-title">Qué sale de cada módulo.</h3>
+            <p className="output-formats-lede">
+              Todos guardan su PDF en el anejo de la obra desde el mismo
+              desplegable. Los planos tipo son los del estudio, rellenos: el
+              dibujo es el de siempre y la app cambia las cifras de su tabla.
+            </p>
+          </div>
+          <div className="fmt-scroll">
+            <table className="fmt-table">
+              <thead>
+                <tr>
+                  <th>Módulo</th>
+                  <th>PDF</th>
+                  <th>Word</th>
+                  <th>Excel</th>
+                  <th>DXF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {FORMATOS.map((r) => (
+                  <tr key={r.modulos}>
+                    <td className="fmt-mod">{r.modulos}</td>
+                    <CeldaFormato f={r.pdf} />
+                    <CeldaFormato f={r.word} />
+                    <CeldaFormato f={r.excel} />
+                    <CeldaFormato f={r.dxf} />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>

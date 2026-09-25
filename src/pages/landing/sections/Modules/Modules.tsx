@@ -1,9 +1,12 @@
 // Modules.tsx — full module library grid on the landing page, grouped by family.
 
 import { Link } from 'react-router';
-import { MODULE_LIBRARY, type ModuleEntry } from '../../modules';
+import { MODULE_LIBRARY, esNuevo, type ModuleEntry } from '../../modules';
 import { sectionEyebrow } from '../../constants';
 import './modules.css';
+
+// Read once per page load: the badge is a property of the day, not of a render.
+const HOY = new Date();
 
 function ModuleCard({ m }: { m: ModuleEntry }) {
   return (
@@ -11,7 +14,10 @@ function ModuleCard({ m }: { m: ModuleEntry }) {
       <div className="mod-card-icon">{m.icon}</div>
       <div className="mod-card-body">
         <div className="mod-card-head">
-          <span className="mod-card-name">{m.name}</span>
+          <span className="mod-card-name">
+            {m.name}
+            {esNuevo(m.alta, HOY) && <span className="mod-card-new mono">NUEVO</span>}
+          </span>
           <span className="mod-card-ref mono">{m.ref}</span>
         </div>
         <p className="mod-card-desc">{m.short}</p>
@@ -38,8 +44,9 @@ export function ModulesSection() {
           </div>
           <p className="section-lede">
             Cada módulo resuelve un caso concreto del día a día con su norma
-            correspondiente. Hormigón, acero, cimentación, madera y un motor
-            FEM para vigas continuas. Sigue creciendo cada mes.
+            correspondiente: las memorias y las acciones de la obra, hormigón,
+            acero, cimentación, rehabilitación, madera, FEM para vigas y
+            pórticos, y geotecnia. Sigue creciendo cada mes.
           </p>
         </div>
 

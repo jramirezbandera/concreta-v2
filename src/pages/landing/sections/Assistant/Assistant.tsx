@@ -57,7 +57,9 @@ export function AssistantSection() {
             con la tecla A, en cualquier módulo de cálculo, y le hablas en
             español, escribiendo o dictando. No es un chat pegado a un formulario: sabe qué módulo
             tienes abierto, qué has metido y qué ha salido — y por eso hace tres
-            cosas que un chat en otra pestaña no puede.
+            cosas que un chat en otra pestaña no puede. En la ficha del DB SE
+            hace una cuarta: lee el PDF del informe geotécnico y rellena el
+            3.1.3, con la página de cada dato.
           </p>
         </div>
 

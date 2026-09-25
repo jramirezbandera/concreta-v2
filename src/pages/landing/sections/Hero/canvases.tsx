@@ -5,7 +5,7 @@
 //
 // Each slide draws a real structural view of its module (FEM continuous-beam
 // elevation, RC cross-section with rebar, steel I-profile, retaining-wall
-// section). They show geometry only — never fabricated check results — so they
+// section, a building under wind and snow). They show geometry only — never fabricated check results — so they
 // can't drift into a lie the way the old hand-drawn full-UI replica (AppPreview)
 // did. All share the same 520×300 viewBox so they swap cleanly in one frame.
 
@@ -19,7 +19,7 @@ const VB = '0 0 520 300';
 //
 // Geometry comes from PORTAL_FRAME, derived from the same FEM 2D model the
 // slide's deep-link opens — the drawing cannot show a frame you can't open.
-// Static, like the other four slides.
+// Static, like the other slides.
 
 /** Caption row. Must clear the load rail, drawn 30 px above the beam. */
 const LABEL_Y = 32;
@@ -390,10 +390,70 @@ function WallCanvas() {
   );
 }
 
+// ── Viento y nieve — building elevation with wind and snow ───────────────────
+//
+// The module's default building is flat-roofed (the gable is opt-in), so this
+// draws a flat roof. No numbers: the default site comes from the visitor's own
+// obra, so any figure here would be one the link does not open.
+function WindSnowCanvas() {
+  const x0 = 214;
+  const x1 = 346;
+  const groundY = 252;
+  const floors = 4;
+  const floorH = 38;
+  const roofY = groundY - floors * floorH;
+
+  return (
+    <svg viewBox={VB} className="hero-slide-svg" aria-hidden="true">
+      {/* building */}
+      <rect x={x0} y={roofY} width={x1 - x0} height={groundY - roofY} fill="var(--accent)" fillOpacity="0.04" stroke="var(--text-primary)" strokeWidth="1.6" />
+      {Array.from({ length: floors - 1 }, (_, i) => roofY + (i + 1) * floorH).map((fy) => (
+        <line key={fy} x1={x0} y1={fy} x2={x1} y2={fy} stroke="var(--text-disabled)" strokeWidth="0.7" strokeDasharray="4 3" />
+      ))}
+      {/* ground */}
+      <line x1={120} y1={groundY} x2={420} y2={groundY} stroke="var(--text-primary)" strokeWidth="1" />
+      {[132, 152, 172, 192, 368, 388, 408].map((gx) => (
+        <line key={gx} x1={gx} y1={groundY} x2={gx - 6} y2={groundY + 8} stroke="var(--text-disabled)" strokeWidth="0.5" />
+      ))}
+      {/* wind: one arrow per floor, longer with height (the exposure profile) */}
+      {Array.from({ length: floors }, (_, i) => {
+        const yy = groundY - (i + 0.5) * floorH;
+        const len = 30 + i * 12;
+        const head = x0 - 6;
+        const tail = head - len;
+        return (
+          <g key={i} stroke="var(--accent)" strokeWidth="1.1">
+            <line x1={tail} y1={yy} x2={head} y2={yy} />
+            <polygon points={`${head},${yy} ${head - 6},${yy - 3} ${head - 6},${yy + 3}`} fill="var(--accent)" stroke="none" />
+          </g>
+        );
+      })}
+      <text x={x0 - 92} y={roofY - 6} fontFamily="var(--font-mono)" fontSize="11" fill="var(--accent)">
+        qe(z)
+      </text>
+      {/* snow on the roof */}
+      <line x1={x0} y1={roofY - 26} x2={x1} y2={roofY - 26} stroke="var(--text-secondary)" strokeWidth="1" />
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const ax = x0 + 8 + (i * (x1 - x0 - 16)) / 5;
+        return (
+          <g key={i} stroke="var(--text-secondary)" strokeWidth="0.9">
+            <line x1={ax} y1={roofY - 26} x2={ax} y2={roofY - 5} />
+            <polygon points={`${ax},${roofY - 3} ${ax - 2.5},${roofY - 8} ${ax + 2.5},${roofY - 8}`} fill="var(--text-secondary)" stroke="none" />
+          </g>
+        );
+      })}
+      <text x={x1 + 10} y={roofY - 22} fontFamily="var(--font-mono)" fontSize="11" fill="var(--text-secondary)">
+        sk
+      </text>
+    </svg>
+  );
+}
+
 export const HERO_CANVASES: Record<HeroCanvasKind, () => ReactElement> = {
   fem2d: Fem2dCanvas,
   fem: FemCanvas,
   'rc-beam': RcBeamCanvas,
   'steel-beam': SteelBeamCanvas,
   wall: WallCanvas,
+  'wind-snow': WindSnowCanvas,
 };

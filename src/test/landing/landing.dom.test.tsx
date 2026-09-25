@@ -4,15 +4,20 @@
 //   - <Landing/> renders without throwing
 //   - the numbered eyebrows stay sequential (they used to be 12 hand-written
 //     strings and 4 had drifted)
+//   - the grid follows the sidebar's order, groups and modules
+//   - the NUEVO badge expires on its own
 //   - the hero's FEM 2D deep-link round-trips to a real model
+//   - the slides that open an empty module describe that module's defaults
 //   - no plan advertises a feature that was removed with the old Studio tier
 
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { HelmetProvider } from 'react-helmet-async';
-import { MODULE_LIBRARY } from '../../pages/landing/modules';
+import { DIAS_NUEVO, MODULE_LIBRARY, esNuevo } from '../../pages/landing/modules';
 import { moduleRegistry } from '../../data/moduleRegistry';
+import { GRUPOS } from '../../components/layout/destinos';
+import { rcBeamDefaults, retainingWallDefaults } from '../../data/defaults';
 import { Landing } from '../../pages/Landing';
 import { ThemeProvider } from '../../lib/theme/ThemeProvider';
 import {
@@ -24,7 +29,7 @@ import {
   planBadge,
   sectionEyebrow,
 } from '../../pages/landing/constants';
-import { PORTAL_FRAME, PORTAL_FRAME_HREF } from '../../pages/landing/heroCase';
+import { PORTAL_FRAME, PORTAL_FRAME_HREF, RC_BEAM_CASE, WALL_CASE } from '../../pages/landing/heroCase';
 import { decodeShareString, isPlausibleModel } from '../../features/fem2d/serialize';
 
 describe('landing module grid', () => {
@@ -48,6 +53,38 @@ describe('landing module grid', () => {
     const routes = MODULE_LIBRARY.map((m) => m.route);
     expect(new Set(routes).size).toBe(routes.length);
   });
+
+  it('follows the sidebar order: its groups, and the modules inside each', () => {
+    // The landing had Madera before Rehabilitación and Muros last in
+    // Cimentación while the sidebar said the opposite. Same list, same order.
+    const sidebar = GRUPOS.flatMap((g) =>
+      moduleRegistry.filter((m) => m.group === g && m.shipped).map((m) => m.route),
+    );
+    expect(MODULE_LIBRARY.map((m) => m.route)).toEqual(sidebar);
+  });
+});
+
+describe('NUEVO badge', () => {
+  const dia = (iso: string) => new Date(`${iso}T12:00:00`);
+
+  it('is on from the release date and off after DIAS_NUEVO days', () => {
+    expect(esNuevo('2026-09-24', dia('2026-09-23'))).toBe(false);
+    expect(esNuevo('2026-09-24', dia('2026-09-24'))).toBe(true);
+    expect(esNuevo('2026-09-24', dia('2026-11-22'))).toBe(true);
+    expect(esNuevo('2026-09-24', dia('2026-11-24'))).toBe(false);
+    expect(DIAS_NUEVO).toBe(60);
+  });
+
+  it('never shows on a module without a release date', () => {
+    expect(esNuevo(undefined, dia('2026-09-25'))).toBe(false);
+  });
+
+  it('every release date is a real calendar date', () => {
+    for (const m of MODULE_LIBRARY.filter((x) => x.alta)) {
+      expect(m.alta, m.name).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(Number.isNaN(new Date(`${m.alta}T00:00:00`).getTime()), m.name).toBe(false);
+    }
+  });
 });
 
 describe('<Landing/>', () => {
@@ -67,8 +104,12 @@ describe('<Landing/>', () => {
     // and says plainly what it is — "asistente de IA", not a clever metaphor
     expect(screen.getByText(/Un asistente de IA/i)).toBeInTheDocument();
     expect(screen.getByText(/La IA no calcula/i)).toBeInTheDocument();
-    // every module card rendered (16 shipped modules)
+    // the module grid is on the page
     expect(screen.getAllByText(/Todos los módulos implementados/i).length).toBeGreaterThan(0);
+    // the obra and its deliverables, right after the modules
+    expect(screen.getByText('03 · De la obra al anejo')).toBeInTheDocument();
+    expect(screen.getByText(/Una obra entera/i)).toBeInTheDocument();
+    expect(screen.getByText('Qué sale de cada módulo.')).toBeInTheDocument();
   });
 });
 
@@ -78,15 +119,17 @@ describe('section numbering', () => {
   // guard the derivation, not the copy.
   it('numbers sections sequentially from their position', () => {
     // Módulos before Asistente: the product first, the assistant as a feature.
+    // La obra right after Módulos: the pieces, then what they add up to.
     expect(sectionEyebrow('modulos')).toBe('02 · Módulos');
-    expect(sectionEyebrow('asistente')).toBe('03 · Asistente');
-    expect(sectionEyebrow('precio')).toBe('08 · Precio');
+    expect(sectionEyebrow('obra')).toBe('03 · De la obra al anejo');
+    expect(sectionEyebrow('asistente')).toBe('04 · Asistente');
+    expect(sectionEyebrow('precio')).toBe('09 · Precio');
   });
 
   it('keeps a subpage label without desyncing its number', () => {
     // /about expands the landing's "Quién" — different wording, same number.
-    expect(sectionEyebrow('quien', 'Sobre Concreta')).toBe('10 · Sobre Concreta');
-    expect(sectionEyebrow('quien')).toBe('10 · Quién');
+    expect(sectionEyebrow('quien', 'Sobre Concreta')).toBe('11 · Sobre Concreta');
+    expect(sectionEyebrow('quien')).toBe('11 · Quién');
   });
 
   it('has no duplicate section ids', () => {
@@ -123,6 +166,21 @@ describe('hero FEM 2D deep-link', () => {
     expect(PORTAL_FRAME.supports.length).toBeGreaterThan(0);
     expect(PORTAL_FRAME.loadedMembers.length).toBeGreaterThan(0);
     expect(PORTAL_FRAME.facts).toMatch(/\d+\.\d{2} × \d+\.\d{2} m/);
+  });
+});
+
+describe('hero slides that open an empty module', () => {
+  // «Abrir módulo» lands on the defaults, so the slide shows the defaults. They
+  // said 4Ø20 and H = 3.50 by hand while the module opened with 4Ø16 and 3.00.
+  it('RC beam: the section and bars the module opens with', () => {
+    const bars = `${rcBeamDefaults.vano_bot_nBars}Ø${rcBeamDefaults.vano_bot_barDiam}`;
+    expect(RC_BEAM_CASE.bars).toBe(bars);
+    expect(RC_BEAM_CASE.facts).toContain(`HA ${rcBeamDefaults.b / 10}×${rcBeamDefaults.h / 10}`);
+    expect(RC_BEAM_CASE.facts).toContain(bars);
+  });
+
+  it('retaining wall: the height the module opens with', () => {
+    expect(WALL_CASE.facts).toContain(`H = ${retainingWallDefaults.H.toFixed(2)} m`);
   });
 });
 

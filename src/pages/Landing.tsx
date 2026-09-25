@@ -1,6 +1,6 @@
 // Landing — Concreta marketing page.
-// Single-page landing: hero carousel + AI assistant + module library +
-// export/share + philosophy + normativa + resources + pricing + blog + about
+// Single-page landing: hero carousel + module library + the obra and its
+// deliverables + AI assistant + export/share + philosophy + normativa + resources + pricing + blog + about
 // + closing CTA.
 //
 // Section ORDER here is load-bearing: the numbered eyebrows ("03 · Módulos")
@@ -18,6 +18,7 @@ import { ScrollToHash } from './landing/ScrollToHash';
 import { Hero } from './landing/sections/Hero/Hero';
 import { AssistantSection } from './landing/sections/Assistant/Assistant';
 import { ModulesSection } from './landing/sections/Modules/Modules';
+import { ObraSection } from './landing/sections/Obra/Obra';
 import { OutputSection } from './landing/sections/Output/Output';
 import { PhilosophySection } from './landing/sections/Philosophy/Philosophy';
 import { NormativaSection } from './landing/sections/Normativa/NormativaSection';
@@ -40,6 +41,7 @@ export function Landing() {
       <main>
         <Hero />
         <ModulesSection />
+        <ObraSection />
         <AssistantSection />
         <OutputSection />
         <PhilosophySection />

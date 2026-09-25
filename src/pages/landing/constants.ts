@@ -28,9 +28,13 @@ export const FEM2D_ROUTE = '/analisis/fem2d';
 // Módulos before Asistente on purpose (decision 2026-07-27): the visitor should
 // understand WHAT Concreta calculates before hearing that it has an assistant.
 // The AI is a feature of the product, not the product.
+// La obra goes right after Módulos (decision 2026-09-25): once the visitor has
+// seen the pieces, the next thing to say is that they add up to the documents
+// a project delivers — the ficha DB SE, the anejo and the plan's tables.
 export const SECTION_ORDER = [
   { id: 'hero', label: 'Portada' },
   { id: 'modulos', label: 'Módulos' },
+  { id: 'obra', label: 'De la obra al anejo' },
   { id: 'asistente', label: 'Asistente' },
   { id: 'exportar', label: 'Exportar y compartir' },
   { id: 'filosofia', label: 'Filosofía' },

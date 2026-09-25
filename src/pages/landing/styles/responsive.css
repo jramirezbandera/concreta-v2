@@ -51,6 +51,15 @@
       grid-template-columns: 1fr;
       gap: 24px;
     }
+    /* The deliverables rail drops under the steps, capped at the width it
+       has in the app so the sheets keep their proportions. */
+    .obra-layout {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 32px;
+    }
+    .obra-figure {
+      max-width: 420px;
+    }
     .philo-compare-intro {
       grid-template-columns: 1fr;
       gap: 16px;
@@ -63,6 +72,10 @@
     }
     .output-grid {
       grid-template-columns: 1fr;
+    }
+    .output-formats {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
     }
     .posts,
     .plans {
@@ -86,6 +99,26 @@
   @media (max-width: 720px) {
     .container {
       padding: 0 20px;
+    }
+    /* Four stat columns do not fit a phone once the values stop wrapping:
+       two by two, each pair split by the same hairline. */
+    .hero-meta {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      row-gap: 20px;
+    }
+    .hero-meta-item:nth-child(2n) {
+      border-right: none;
+      padding-right: 0;
+    }
+    .hero-meta-item:nth-child(2n + 1) {
+      padding-left: 0;
+    }
+    /* The rail gets the full width the panel gives it on a phone: without
+       the frame, «lista para exportar» stops being cut. */
+    .obra-figure-frame {
+      padding: 0;
+      border: none;
+      background: none;
     }
     .nav-links {
       display: none;

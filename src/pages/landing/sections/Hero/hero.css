@@ -101,9 +101,11 @@
   .hero-beta-text {
     max-width: 48ch;
   }
+  /* Columns sized by their content: with four equal ones «CE · CTE» broke over
+     two lines while «26» sat in a column three times its width. */
   .hero-meta {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, auto);
     gap: 0;
     border-top: 1px solid var(--border-sub);
     padding-top: 24px;
@@ -120,6 +122,7 @@
     border-right: none;
   }
   .hero-meta-v {
+    white-space: nowrap;
     font-size: 22px;
     font-weight: 500;
     color: var(--text-primary);

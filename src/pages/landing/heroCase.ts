@@ -59,14 +59,14 @@ function allEqual(xs: number[]): boolean {
 
 // ── Hero carousel slides ─────────────────────────────────────────────────────
 //
-// The hero rotates through four modules (design decision 2026-07-15, /office-hours):
+// The hero rotates through its modules (design decision 2026-07-15, /office-hours):
 // it shows the breadth of disciplines, one at a time. Honest links: FEM opens its
-// preloaded case (deep-link); the other three open their real module (empty state)
+// preloaded case (deep-link); the others open their real module (empty state)
 // via the route in MODULE_LIBRARY — the footer copy makes the difference explicit
 // ("Abrir este cálculo →" vs "Abrir módulo →"). Each slide draws a real schematic
 // of that module (see canvases.tsx), NOT the hand-drawn full-UI replica that drifted.
 
-export type HeroCanvasKind = 'fem2d' | 'fem' | 'rc-beam' | 'steel-beam' | 'wall';
+export type HeroCanvasKind = 'fem2d' | 'fem' | 'rc-beam' | 'steel-beam' | 'wall' | 'wind-snow';
 
 // ── FEM 2D — portal frame ────────────────────────────────────────────────────
 //
@@ -181,6 +181,7 @@ const steelBeams = libEntry('steel-beams');
 const walls = libEntry('walls');
 const fem = libEntry('fem');
 const fem2d = libEntry('fem2d');
+const vientoNieve = libEntry('viento-nieve');
 
 export const HERO_SLIDES: HeroSlide[] = [
   {
@@ -245,5 +246,20 @@ export const HERO_SLIDES: HeroSlide[] = [
     tag: 'N · M · V',
     facts: PORTAL_FRAME_FACTS,
     canvas: 'fem2d',
+  },
+  // Acciones, so the hero shows the obra side too and not only pieces. The
+  // module opens with the visitor's own site, so the facts say what it does
+  // rather than quote a case the link would not open.
+  {
+    id: vientoNieve.id,
+    group: vientoNieve.group,
+    module: vientoNieve.name,
+    tabLabel: 'Viento',
+    name: 'Acciones del edificio',
+    href: vientoNieve.route,
+    cta: 'Abrir módulo',
+    tag: 'qe · sk',
+    facts: 'viento por planta · nieve por faldón',
+    canvas: 'wind-snow',
   },
 ];

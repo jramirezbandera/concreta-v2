@@ -271,4 +271,67 @@
     padding: 0 6px;
     animation: lp-arrow 1800ms ease-in-out infinite;
   }
+
+  /* «Qué sale de cada módulo»: the formats table under the two cards. Same
+     look as /pricing's comparison table, which the landing does not load. */
+  .output-formats {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 32px;
+    align-items: start;
+  }
+  .output-formats-lede {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 10px 0 0;
+  }
+  .fmt-scroll {
+    overflow-x: auto;
+  }
+  .fmt-table {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    border: 1px solid var(--border-main);
+    font-size: 13px;
+  }
+  .fmt-table th,
+  .fmt-table td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-sub);
+  }
+  .fmt-table th {
+    background: var(--bg-elevated);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-disabled);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-main);
+  }
+  .fmt-table th:not(:first-child),
+  .fmt-table td:not(:first-child) {
+    text-align: center;
+    white-space: nowrap;
+  }
+  .fmt-mod {
+    color: var(--text-primary);
+    line-height: 1.45;
+  }
+  .fmt-yes {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+  }
+  .fmt-no {
+    font-family: var(--font-mono);
+    color: var(--text-disabled);
+  }
+  .fmt-table tr:last-child td {
+    border-bottom: none;
+  }
 }

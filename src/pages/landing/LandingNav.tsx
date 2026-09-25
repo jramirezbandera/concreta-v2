@@ -13,11 +13,13 @@ interface NavLink {
   to: string;
 }
 
-// Order mirrors SECTION_ORDER on the landing — Módulos, then Asistente.
+// Order mirrors SECTION_ORDER on the landing — Módulos, La obra, Asistente.
+// La obra took Filosofía's slot (2026-09-25): seven links is what fits beside
+// the two buttons at 1280 px, and the section is still one scroll away.
 const NAV_LINKS: NavLink[] = [
   { label: 'Módulos', to: '/#modulos' },
+  { label: 'La obra', to: '/#obra' },
   { label: 'Asistente', to: '/#asistente' },
-  { label: 'Filosofía', to: '/#filosofia' },
   { label: 'Normativa', to: '/normativa' },
   { label: 'Precio', to: '/pricing' },
   { label: 'Blog', to: '/blog' },

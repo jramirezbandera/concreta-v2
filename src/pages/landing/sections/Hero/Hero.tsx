@@ -1,9 +1,10 @@
 // Hero.tsx — landing hero: eyebrow + title + sub + CTAs + meta strip, and a
-// rotating product frame that cycles through four modules (design 2026-07-15).
+// rotating product frame that cycles through the modules (design 2026-07-15).
 //
 // The frame shows one module at a time — RC beams, steel beams, retaining wall,
-// FEM — to communicate the breadth of disciplines Concreta covers. Honest links:
-// FEM opens its preloaded case (deep-link); the other three open their real
+// FEM 1D and 2D, wind and snow — to communicate the breadth of disciplines
+// Concreta covers. Honest links: FEM opens its preloaded case (deep-link); the
+// others open their real
 // module via its route. Each slide draws a real schematic (canvases.tsx), never
 // the hand-drawn full-UI replica (AppPreview) that drifted from the app.
 
@@ -31,7 +32,7 @@ const ROTATE_MS = 4500;
 // hero-meta strip below the fold at 1440×900 and 1366×768.
 const HERO_TAGLINE = 'El cálculo estructural que no te frena.';
 const HERO_SUB =
-  'Concreta es la herramienta de cálculo estructural pensada por arquitectos e ingenieros calculistas españoles: comprobaciones normativas rápidas, trazables y defendibles ante visado y obra.';
+  'Concreta es la herramienta de cálculo estructural pensada por arquitectos e ingenieros calculistas españoles: comprobaciones normativas rápidas, trazables y defendibles ante visado y obra, que se juntan en el anejo de cálculo y la memoria de la obra.';
 
 function HeroEyebrow() {
   return (
@@ -77,7 +78,8 @@ function HeroMeta() {
           The anejo is the true thing to say here — it is what the PDFs are for. */}
       <div className="hero-meta-item">
         <div className="hero-meta-v mono">Anejo</div>
-        <div className="hero-meta-l">de cálculo y ficha DB&nbsp;SE</div>
+        {/* The label is lowercased by CSS: no acronyms here, «db se» reads wrong. */}
+        <div className="hero-meta-l">y memoria de la obra</div>
       </div>
       {/* «en cada cálculo», not «en cada módulo»: the DB SE ficha has no chat
           (there the AI reads the geotechnical report instead). */}
@@ -100,7 +102,7 @@ export function Hero() {
   useEffect(() => {
     // Auto-advance the carousel; pause on hover/focus. Reduced-motion is handled
     // in CSS (the slide-in + progress-bar animations are dropped), but the slides
-    // still cycle — showing all four is the point.
+    // still cycle — showing them all is the point.
     if (paused) return;
     const timer = setInterval(() => setIdx((i) => (i + 1) % HERO_SLIDES.length), ROTATE_MS);
     return () => clearInterval(timer);
