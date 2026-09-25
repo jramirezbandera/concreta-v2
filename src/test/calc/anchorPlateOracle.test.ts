@@ -26,8 +26,8 @@
 //        - Config E (mástil tracción pura) → after PR10 (NEd<0 branch)
 //
 // Normative references throughout:
-//   - CE Anejo 11 = anclajes en hormigón     (≈ EN 1992-4)
-//   - CE Anejo 18 = uniones de acero / placa  (≈ EC3 1-8)
+//   - EN 1992-4   = anclajes en hormigón     (no está en el CE)
+//   - CE Anejo 26 = uniones de acero / placa  (= EC3 1-8)
 //   - CE Anejo 19 = hormigón estructural       (≈ EC2)
 
 import { describe, it, expect } from 'vitest';
@@ -53,7 +53,7 @@ import { anchorPlateDefaults } from '../../data/defaults';
 //   FtRd_per_bar = 314.16·434.78/1000 = 136.59 kN
 //   FvRd_per_bar = 0.6·314.16·434.78/1000 = 81.95 kN
 //
-// ─── α extension (CE Anejo 18 §6.2.5(4)) ──────────────────────────────
+// ─── α extension (CE Anejo 26 §6.2.5(7)) ──────────────────────────────
 //   ed = plate_margin_x/plate_a = 150/400 = 0.375
 //   el = plate_margin_y/plate_b = 150/300 = 0.500
 //   α (formula actual del código) = min(3, max(1, min(1+2·0.375, 1+2·0.5))) = 1.75
@@ -81,7 +81,7 @@ import { anchorPlateDefaults } from '../../data/defaults';
 //   lb_rqd = 1.0 · 20/4 · 47.7/2.69 = 88.7 mm
 //   util = 88.7/300 = 0.296 → ★ bajo (anclaje sobrado)
 //
-// ─── Check 7: cono hormigón (CE Anejo 11 §7.2.1.4) ─────────────────────
+// ─── Check 7: cono hormigón (EN 1992-4 §7.2.1.4) ───────────────────────
 //   k1 = 7.7 (cracked)
 //   N0Rk,c = 7.7·√25·300^1.5 = 7.7·5·5196.2 = 200055 N
 //   N0Rd,c = 200055/1.5 = 133.37 kN
@@ -101,7 +101,7 @@ import { anchorPlateDefaults } from '../../data/defaults';
 //   NRd,c = 133.37 · 0.519 · 0.833 = 57.66 kN
 //   util (Ft_total ≈ 30 kN) = 30/57.66 = 0.520
 //
-// ─── Check 9: splitting (CE Anejo 11 §7.2.1.6, post-CR3) ──────────────
+// ─── Check 9: splitting (EN 1992-4 §7.2.1.7, post-CR3) ────────────────
 //   c_min = 200, c_cr,sp = 1.5·hef = 450 → c_min < c_cr,sp → splitting aplica
 //   h_pedestal = 1000, 2·hef = 600 → h > 2·hef → ψh,sp = (h/2hef)^(2/3) bound
 //     (h/2hef)^(2/3) = (1000/600)^0.667 = 1.667^0.667 = 1.408
@@ -287,7 +287,7 @@ const configB = {
 //
 //   No hay tracción en barras. Nc = NEd = 1200 kN.
 //
-// ─── Plate compression (CE Anejo 18 §6.2.5) ─────────────────────────────
+// ─── Plate compression (CE Anejo 26 §6.2.5) ─────────────────────────────
 //   fcd = 30/1.5 = 20 MPa
 //   α = min(3, max(1, min(1+2·125/450, 1+2·125/450))) = 1.556 (margin asumido 125)
 //   fjd = (2/3)·1.556·20 = 20.75 MPa
@@ -359,7 +359,7 @@ const configC = {
 //   As (φ16) = π·16²/4 = 201.06 mm²
 //   FtRd_per_bar = 201.06·434.78/1000 = 87.41 kN
 //
-// ─── Splitting (CE Anejo 11 §7.2.1.6, post-CR3) ────────────────────────
+// ─── Splitting (EN 1992-4 §7.2.1.7, post-CR3) ──────────────────────────
 //   hef = 250, c_cr,sp = 1.5·250 = 375
 //   c_min = min(cX, cY) = 50
 //   c_min < c_cr,sp → splitting aplica.

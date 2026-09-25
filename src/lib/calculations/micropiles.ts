@@ -522,7 +522,7 @@ export function calcMicropiles(inp: MicropilesInputs, soil: SoilLayer[]): Microp
   //   Clase 1/2 → W = Wpl (plastificación completa permitida).
   //   Clase 3   → W = Wel (límite elástico).
   //   Clase 4   → invalid: la sección abolla localmente antes de fy y
-  //               Concreta no implementa Aeff/Weff (CE Anejo 22 §6.2.9.2).
+  //               Concreta no implementa Aeff/Weff (CE Anejo 22 §6.2.9.3).
   const eEff = (deNet - di) / 2;
   const sectionClass = classifyCircularHollow(deNet, eEff, fy);
   if (sectionClass === 4) {

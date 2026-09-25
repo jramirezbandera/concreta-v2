@@ -79,7 +79,7 @@ describe('anchor plate — eccentricity within kernel (|e| ≤ a/6)', () => {
 
 describe('anchor plate — partial lift (|e| > a/6)', () => {
   // CR2 fix (PR7a): partial-lift via rectangular plastic block equilibrium
-  // (CE Anejo 18 §6.2.5). Replaces the ad-hoc lever arm `x_n = a/2 − bar_edge_x/3`
+  // (CE Anejo 26 §6.2.5). Replaces the ad-hoc lever arm `x_n = a/2 − bar_edge_x/3`
   // that had no normative basis.
   //
   // defaults: NEd=200, Mx=45 → e = 225 mm > a/6 (66.7) → partial-lift path.
@@ -978,7 +978,7 @@ describe('PR8a — H15 geometría direccional (cX1/cX2/cY1/cY2)', () => {
   });
 });
 
-describe('PR6 — CR3 splitting con fórmula CE Anejo 11 §7.2.1.6 correcta', () => {
+describe('PR6 — CR3 splitting con fórmula EN 1992-4 §7.2.1.7 correcta', () => {
   it('FTUX biaxial: ψh, ψec, ψs reportados separados en limit string', () => {
     // Pre-CR3: limit showed ψh based on edge distance (wrong variable).
     // Post-CR3: separa ψh,sp (por h_pedestal), ψec,sp (por excentricidad grupo),

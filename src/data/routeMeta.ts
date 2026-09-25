@@ -93,7 +93,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   },
   '/rehab/empresillado': {
     title: 'Pilar empresillado — Concreta',
-    description: 'Pilar compuesto batido (empresillado). CE Anejo 22 §6.4.2.',
+    description: 'Pilar compuesto batido (empresillado). CE Anejo 22 §6.4.3.',
   },
   '/rehab/muros-fabrica': {
     title: 'Muros de fábrica — Concreta · DB-SE-F',

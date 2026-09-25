@@ -118,7 +118,8 @@ export function pickSectionInputs(state: RCBeamInputs, kind: 'vano' | 'apoyo'): 
     nBarsComp: isVano ? state.vano_top_nBars : state.apoyo_bot_nBars,
     barDiamComp: isVano ? state.vano_top_barDiam : state.apoyo_bot_barDiam,
     stirrupSpacing: isVano ? state.vano_stirrupSpacing : state.apoyo_stirrupSpacing,
-    // CE Anejo 19 §69.5.1.2: bondClass depends on bar POSITION, not user choice.
+    // CE Anejo 19 §8.4.2(2) y figura A19.8.2: bondClass depends on bar POSITION,
+    // not user choice (hasta 2026-09-25 citaba «§69.5.1.2», numeración de la EHE-08).
     // Vano tension bars are at the bottom (favorable position → 'good'); apoyo
     // tension bars are at the top (unfavorable for h > 250 mm → 'poor').
     // Matches the hardcoded values in calcRCBeam at the two calcSection sites.
