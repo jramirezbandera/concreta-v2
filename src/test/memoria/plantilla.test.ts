@@ -46,6 +46,10 @@ const CORRECCIONES: [string, string][] = [
   ['en la Instrucción CE.', 'en el Código Estructural.'],
   ['justificación de la CE.', 'justificación del Código Estructural.'],
   ['tabla 3.1 y CE,', 'tabla 3.1 y el Código Estructural,'],
+  // Las combinaciones de acciones son del Anejo 18 (Bases de cálculo, §6.4.3 y
+  // §6.5.3), no del 19, que sólo remite a él (§2.4.3). Cotejado en el BOE el
+  // 2026-09-25; el usuario pidió enmendarlo.
+  ['definidas en el Anejo 19.', 'definidas en el Anejo 18.'],
   // Errata de numeración de la JS-662: materiales es el 3.1.5.4, no el 3.1.1.5.
   ['3.1.1.5. Características de los materiales:', '3.1.5.4. Características de los materiales:'],
   // La ficha corta escribe la delta como ∆ (U+2206), que la fuente no tiene.

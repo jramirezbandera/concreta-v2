@@ -435,7 +435,7 @@ export const CE = {
     cabeceraFlechas: ['Lím. flecha total', 'Lím. flecha activa', 'Máx. recomendada'],
     /** Defaults del perfil de estudio. */
     metodo:
-      'El dimensionado de secciones se realiza según la Teoría de los Estados Limites de la vigente CE, utilizando el Método de los Coeficientes Parciales, Anejo 18, Art. 3, 4 y 6. Se utilizan las combinaciones de hipótesis básicas definidas en el Anejo 19.',
+      'El dimensionado de secciones se realiza según la Teoría de los Estados Limites de la vigente CE, utilizando el Método de los Coeficientes Parciales, Anejo 18, Art. 3, 4 y 6. Se utilizan las combinaciones de hipótesis básicas definidas en el Anejo 18.',
     redistribucion: (porcentaje: number) =>
       `Se realiza una plastificación con los límites que establece el CE en su Artículo 5.5 “Análisis elástico lineal con redistribuciones limitadas, del Anejo 19, de hasta un ${porcentaje}% de momentos negativos en vigas`,
     flechasNota:
