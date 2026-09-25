@@ -16,8 +16,8 @@ export function ClosingCTA() {
           </h2>
           <p className="closing-sub">
             {BETA
-              ? 'Beta pública: todos los módulos, el PDF del anejo y el asistente están abiertos, sin tarjeta de crédito y sin límite de cálculo. Los planes de pago llegan después, y se avisan antes.'
-              : 'El plan Libre trae vigas de hormigón, vigas de acero, pórticos 2D y el asistente, sin tarjeta de crédito. El PDF del anejo va en Pro, a 19 €/mes.'}
+              ? 'Beta pública: todos los módulos, la obra con su anejo, todas las exportaciones y el asistente están abiertos, sin tarjeta de crédito y sin límite de cálculo. Los planes de pago llegan después, y se avisan antes.'
+              : 'El plan Libre trae vigas de hormigón, vigas de acero, pórticos 2D y el asistente, sin tarjeta de crédito. La obra, el anejo y las exportaciones van en Pro, a 19 €/mes.'}
           </p>
           <div className="closing-cta">
             <Link to={rutaDeEntrada()} className="btn btn-primary btn-lg">

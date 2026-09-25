@@ -25,16 +25,24 @@ interface CompareRow {
   cells: [Cell, Cell, Cell];
 }
 
+// One row per group of the sidebar, plus what a project delivers. The free
+// tier keeps its three modules; everything added since (Acciones, Memorias,
+// the obra, the anejo and the Word/Excel/DXF exports) goes with Pro, like the
+// rest of the modules and the PDF (decision 2026-09-25).
 const COMPARE: CompareRow[] = [
   { feat: 'Vigas HA · cortante · fisuración', cells: [true, true, true] },
   { feat: 'Vigas acero · LTB · flecha', cells: [true, true, true] },
   { feat: 'FEM 2D · pórticos y cerchas', cells: [true, true, true] },
-  { feat: 'Pilares HA · flexocompresión', cells: [false, true, true] },
-  { feat: 'Punzonamiento · forjados', cells: [false, true, true] },
-  { feat: 'Pilares acero · empresillado', cells: [false, true, true] },
-  { feat: 'Placas de anclaje', cells: [false, true, true] },
-  { feat: 'Zapatas · muros · encepados', cells: [false, true, true] },
+  { feat: 'Hormigón · pilares, punzonamiento, forjados', cells: [false, true, true] },
+  { feat: 'Acero · pilares, sección compuesta, placas de anclaje', cells: [false, true, true] },
+  { feat: 'Cimentación · zapatas, muros, encepados, micropilotes', cells: [false, true, true] },
+  { feat: 'Rehabilitación · empresillado, muros de fábrica', cells: [false, true, true] },
+  { feat: 'Madera · vigas y pilares', cells: [false, true, true] },
   { feat: 'FEM 1D · envolventes ELU/ELS', cells: [false, true, true] },
+  { feat: 'Geotecnia · taludes, escollera y gaviones', cells: [false, true, true] },
+  { feat: 'Acciones · cargas por planta, viento y nieve, sismo, incendio', cells: [false, true, true] },
+  { feat: 'Memorias · cuadro de materiales, cumplimiento del DB SE', cells: [false, true, true] },
+  { feat: 'La obra y su anejo de cálculo', cells: [false, true, true] },
   {
     feat: 'Asistente IA · con la clave incluida',
     cells: [
@@ -54,6 +62,7 @@ const COMPARE: CompareRow[] = [
     ],
   },
   { feat: 'Exportación PDF', cells: [false, true, true] },
+  { feat: 'Word, Excel y DXF · memoria, cuadros del plano y planos tipo', cells: [false, true, true] },
   { feat: 'Marca propia en PDFs', cells: [false, true, true] },
   { feat: 'Casos guardados (local)', cells: [true, true, true] },
   {
@@ -72,7 +81,7 @@ const BETA_FAQ: [string, string, string?][] = [
   ],
   [
     '¿Y qué me cuesta ahora mismo?',
-    'Nada, y no hay letra pequeña: durante la beta están abiertos los módulos de todos los planes, el PDF y el asistente. Lo que te pedimos a cambio es que nos cuentes lo que falla — a eso responde el correo de soporte.',
+    'Nada, y no hay letra pequeña: durante la beta están abiertos los módulos de todos los planes, la obra con su anejo, todas las exportaciones y el asistente. Lo que te pedimos a cambio es que nos cuentes lo que falla — a eso responde el correo de soporte.',
   ],
 ];
 

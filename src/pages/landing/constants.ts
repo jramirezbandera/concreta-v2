@@ -153,8 +153,8 @@ export const PLANS: Plan[] = [
     // enforced — saying "el PDF va en Pro" to a beta tester is telling them not
     // to use something they already have.
     note: BETA
-      ? 'Durante la beta también tienes el resto de módulos y el PDF, sin coste.'
-      : 'El PDF del anejo va en Pro.',
+      ? 'Durante la beta también tienes el resto de módulos, la obra con su anejo y todas las exportaciones, sin coste.'
+      : 'La obra, el anejo y las exportaciones van en Pro.',
     cta: BETA ? BETA_CTA : 'Empezar gratis',
     ctaTo: APP_ROUTE,
     teaserCta: BETA ? BETA_CTA : 'Empezar',
@@ -167,20 +167,24 @@ export const PLANS: Plan[] = [
     blurb: 'Para el técnico individual.',
     price: '19',
     unit: '€/mes',
+    // What September added — the obra, the anejo, the ficha and Word, Excel
+    // and DXF — goes where the rest of the deliverables already were (decision
+    // 2026-09-25). «Sin marca de agua» is gone: there is no watermark to lift.
+    // «Marca propia» stays as a promise of the paid plan; it is not built yet.
     features: [
       'Todos los módulos',
       'Asistente IA incluido',
-      'Exportación PDF vectorial',
+      'Obra, anejo de cálculo y ficha DB SE',
+      'Exportación PDF, Word, Excel y DXF',
       'Marca propia en informes',
-      'Sin marca de agua',
       'Casos guardados en local',
       'Soporte por email · 48 h',
     ],
     teaserFeatures: [
       'Todos los módulos',
-      'Exportación PDF vectorial',
+      'Obra, anejo y ficha DB SE',
+      'PDF, Word, Excel y DXF',
       'Marca propia en informes',
-      'Sin marca de agua',
       'Soporte por email · 48 h',
     ],
     cta: BETA ? 'Avísame cuando esté' : 'Quiero suscribirme',
