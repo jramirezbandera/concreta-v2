@@ -16,6 +16,67 @@ trabajo, no la de la publicación.
 
 ---
 
+## La web cuenta lo que hace la app — v260925.1 (2026-09-25)
+
+### Añadido
+- **«De la obra al anejo»**, sección nueva de la portada: la obra, los módulos
+  que se pasan los datos y los tres documentos que se entregan, dibujados con
+  la misma pieza que el panel de la obra.
+- **«Qué sale de cada módulo»**: PDF, Word, Excel y DXF, fila a fila.
+- La etiqueta **NUEVO** en los siete módulos de agosto y septiembre, que se
+  retira sola a los 60 días, y una diapositiva de Viento y nieve en la portada.
+- El post **«Novedades de septiembre»**, con lo que conviene recalcular tras
+  los cotejos del catálogo.
+- /normativa trae trece fichas de módulo, y no siete, y suma los bloques del acero
+  en el CE, el DB SE-AE, la NCSE-02, el DB SE-F y las Guías de Fomento.
+
+### Corregido
+- La web prometía cosas que la app no hace: un PDF «vectorial en 5 s», una
+  marca de agua que quitar, un vídeo demo, un changelog «v0.4», elegir el
+  modelo de IA, cuentas, cookies y facturas. Fuera todo.
+- /normativa citaba artículos que no existen o hablan de otra cosa, negaba lo
+  que la app ya hace (flecha diferida, diagrama N-M, sismo y agua en muros) y
+  prometía como futuro lo que ya estaba.
+- La comparativa de planes cuenta los 26 módulos; lo nuevo va con Pro.
+- El pie de los PDF firmaba con concreta.app; el dominio es concreta.tools.
+
+
+## Placas de anclaje: el rozamiento sale del axil — v260925.1 (2026-09-25)
+
+### Corregido
+- **El rozamiento de la placa contaba de más.** El CE Anejo 26 §6.2.2(6) lo
+  calcula con el axil del pilar; el módulo usaba la compresión bajo la placa
+  con los momentos enteros. En un pilar real daba 42,6 kN de rozamiento, que
+  se comían los 40 kN de cortante: son 24 kN. Iba del lado inseguro.
+- La rotura del borde por cortante toma lf = min(hef, 12·Ø) (EN 1992-4
+  §7.2.2.5), y no el 8·Ø de la ETAG, que le restaba un 9 %.
+- La distancia de las barras al borde del macizo, la de la placa y la
+  excentricidad se escriben juntas y ya no pueden descuadrar: antes el cálculo
+  usaba un macizo de 600 mientras el dibujo enseñaba uno de 700.
+- El PDF enseña los avisos antes del veredicto y dice qué comprobación rige
+  por su nombre. Si las barras pisan el perfil, lo pone.
+- Las citas pasan a CE Anejo 26 y EN 1992-4. Los «Anejo 11» y «Anejo 18» de
+  antes son, en el CE, el enderezado de muestras de acero y las bases de
+  proyecto.
+
+
+## Buscador de módulos y avisos que se ven — v260925.1 (2026-09-25)
+
+### Añadido
+- **La lupa del pie de la barra lateral abre un buscador de módulos**, también
+  con Ctrl+K. Busca sin tildes, por nombre, grupo y palabras de obra o de
+  norma («sismo», «NCSE», «fuego», «contención»).
+
+### Arreglado
+- Las bandas «Sin guardar» y «Otra obra» por fin se tiñen, y el gris neutro
+  llega al contraste AA en los dos temas.
+- En móvil y tableta, doce cajas numéricas cortaban su número: ahora crecen
+  con la letra.
+- Tres citas del CE apuntaban al apartado vecino: la adherencia de vigas
+  (§8.4.2, no el §69.5.1.2 de la EHE-08), la Clase 4 de micropilotes
+  (§6.2.9.3) y el empresillado (§6.4.3).
+
+
 ## Las tablas de datos, cotejadas una a una — v260925.0 (2026-09-25)
 
 ### Corregido
