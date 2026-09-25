@@ -1,26 +1,13 @@
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router';
 
 import { moduleRegistry } from '../../data/moduleRegistry';
 import { getRouteLoader } from '../../data/routeLoaders';
 import { useRoutePrefetch } from '../../hooks/useRoutePrefetch';
 import { ModuleIcon } from '../ui/ModuleIcon';
+import { BuscadorModulos } from './BuscadorModulos';
+import { GRUPOS, PROYECTO } from './destinos';
 import { ObraMenu } from './ObraMenu';
-
-const groups = Array.from(new Set(moduleRegistry.map((m) => m.group)));
-
-/**
- * El grupo PROYECTO va antes que los módulos y no sale del registro: no son
- * cálculos con estado propio (los datos de obra escriben `concreta-obra`, del
- * contenedor; el anejo ordena lo guardado desde los módulos y monta el PDF).
- *
- * Los dos son DE ESTA OBRA, y ése es el criterio de la lista. «Mi estudio» se
- * fue al menú Ajustes de la topbar el 2026-09-13 (F6): es del despacho y de
- * esta máquina, no del proyecto abierto.
- */
-const PROYECTO = [
-  { key: 'concreta-obra', route: '/obra', label: 'La obra', shipped: true },
-  { key: 'concreta-anejo', route: '/proyecto/anejo', label: 'Anejo de cálculo', shipped: true },
-] as const;
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -83,6 +70,21 @@ function NavItem({ itemKey, route, label, shipped, onPrefetch, onClose }: NavIte
 
 export function Sidebar({ isOpen = false, onClose, peticionMenuObra = 0 }: SidebarProps) {
   const { prefetch } = useRoutePrefetch();
+  const [buscando, setBuscando] = useState(false);
+
+  // Ctrl+K (⌘K en Mac) abre el buscador desde cualquier pantalla, también con
+  // el foco en un campo: la combinación no escribe nada. El Sidebar está
+  // montado siempre en el shell —en móvil, como cajón escondido—, así que el
+  // atajo no depende de que la lupa se vea.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'k') return;
+      e.preventDefault();
+      setBuscando(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handlePrefetch = (route: string, shipped: boolean) => {
     if (!shipped) return;
@@ -147,7 +149,7 @@ export function Sidebar({ isOpen = false, onClose, peticionMenuObra = 0 }: Sideb
             <NavItem key={item.key} itemKey={item.key} route={item.route} label={item.label} shipped={item.shipped} onPrefetch={handlePrefetch} onClose={onClose} />
           ))}
         </div>
-        {groups.map((group) => (
+        {GRUPOS.map((group) => (
           <div key={group} style={{ marginTop: 12 }}>
             <p className="px-4 py-0.5 text-[10px] font-semibold uppercase text-text-disabled" style={{ letterSpacing: '0.11em' }}>
               {group}
@@ -166,13 +168,31 @@ export function Sidebar({ isOpen = false, onClose, peticionMenuObra = 0 }: Sideb
         <span className="text-[10px] text-text-disabled font-mono" title="Versión de Concreta">
           v{__APP_VERSION__}
         </span>
-        <button title="Búsqueda" className="inline-flex items-center justify-center p-1.5 -m-1.5 text-text-disabled hover:text-text-secondary transition-colors" aria-label="Búsqueda">
+        <button
+          type="button"
+          onClick={() => setBuscando(true)}
+          title="Buscar un módulo (Ctrl+K)"
+          aria-label="Buscar un módulo"
+          aria-keyshortcuts="Control+K Meta+K"
+          aria-haspopup="dialog"
+          className="inline-flex items-center justify-center p-1.5 -m-1.5 text-text-disabled hover:text-text-secondary transition-colors"
+        >
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
             <circle cx="7" cy="7" r="4" />
             <path d="M10 10l3 3" strokeLinecap="round" />
           </svg>
         </button>
       </div>
+
+      {buscando && (
+        <BuscadorModulos
+          onCerrar={() => setBuscando(false)}
+          onElegido={() => {
+            setBuscando(false);
+            onClose?.();
+          }}
+        />
+      )}
     </nav>
   );
 }
