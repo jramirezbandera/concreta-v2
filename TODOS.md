@@ -1394,9 +1394,11 @@ Encontrado por `/design-review` el 2026-09-17 (detector impeccable, 25 hits, con
 
 **Depends on / blocked by:** nada.
 
-## Cargas por planta — en el teléfono, el nombre de una carga lineal cabe en 16 px
+## ~~Cargas por planta — en el teléfono, el nombre de una carga lineal cabe en 16 px~~
 
-**Status:** pendiente. Encontrado el 2026-09-25 por el barrido de campos recortados.
+**Status:** HECHO (2026-09-25) con el arreglo propuesto abajo y un suelo de 240 px, que es lo que pide el nombre más largo del catálogo: la tabla lleva `minWidth` = 240 + las columnas fijas = 712 px. Medido a 375 px: la columna del nombre pasa de 0 a 240 px y tanto «Cerramiento de fachada» como «Tabicón u hoja simple de ladrillo» se leen enteros; la cabecera deja de pisarse. A 900, 1.280 y 1.680 px los anchos no cambian ni un píxel, y no se recorta ningún rótulo nuevo.
+
+Encontrado el 2026-09-25 por el barrido de campos recortados.
 
 **What:** que la caja del nombre de cada carga lineal (`Lineales.tsx:116`, rótulo accesible «Elemento de carga lineal») tenga un ancho legible en móvil.
 

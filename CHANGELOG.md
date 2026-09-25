@@ -82,6 +82,15 @@ trabajo, no la de la publicación.
   se ve.
 
 
+## El desplegable vuelve a llamarse «Ajustes» — v260924.2 (2026-09-24)
+
+### Cambiado
+- El «Menú» de la barra se llamó así dos días. Vuelve a ser **«Ajustes»**, con
+  su ruedecita y el rótulo puesto en todos los anchos, que es lo que se
+  reconoce sin leer. Dentro no cambia nada: el asistente, la calculadora, las
+  preferencias, Mi estudio y copiar el enlace.
+
+
 ## Dos datos que no se podían leer — v260924.1 (2026-09-24)
 
 ### Arreglado
@@ -191,6 +200,115 @@ trabajo, no la de la publicación.
   que son cuatro paredes macizas, y de ahí salen el área eficaz, las cartelas,
   las holguras y el T-stub.
 
+### Arreglado
+- El veredicto contaba seis comprobaciones que la tabla no enseñaba.
+- Planta y alzado iban a dos escalas distintas, y la barra traccionada se
+  pintaba con el color del fallo aunque cumpliera.
+
+
+## Planos tipo del estudio en DXF — v260924.0 (2026-09-17 a 09-22)
+
+### Añadido
+- **Los planos tipo del estudio salen rellenos.** El dibujo es el de siempre,
+  copiado tal cual de los planos del estudio, y la app sólo cambia las cifras
+  de su tabla, como se haría a mano:
+  - **Encepados** de 2, 3, 4 y 6 micropilotes: cotas, tirantes por número de
+    barras y armadura de reparto.
+  - **Micropilote**: el detalle tipo con su tabla.
+  - **Muros**: tres tipos, y el que toca lo elige la geometría —con talón y
+    puntera, sin talón o sin puntera—.
+- **El cuadro de vigas del plano.** Vigas de hormigón entrega, además del PDF,
+  el plano de vigas del estudio: a la izquierda su criterio de armados y a la
+  derecha una sección por cada viga guardada en el anejo de la obra, acotada,
+  armada y con el nombre que se le puso.
+
+
+## Guardar en el anejo, desde el desplegable — v260924.0 (2026-09-18)
+
+### Cambiado
+- Meter un cálculo en el anejo eran cinco gestos y el último vivía dentro de la
+  previsualización del PDF. Ahora **«Guardar en el anejo» es un destino más del
+  desplegable «Exportar»**, junto al PDF: tres gestos, y en el móvil se puede
+  por primera vez.
+
+
+## Encepados de micropilotes: seis micros y el armado entero — v260924.0 (2026-09-15 a 09-21)
+
+### Añadido
+- **Encepado de 6 micropilotes** en retícula 2 × 3, el del plano tipo del
+  estudio.
+- **La armadura secundaria la dispone el usuario** —superior, cercos
+  verticales y horizontal de caras— y se comprueba contra los mínimos de la
+  EHE-08, como en la hoja del estudio. Antes salía una fila informativa con el
+  mínimo, sin forma de decir qué se pone.
+- La vista Armado lleva **dos plantas, inferior y superior**, como los planos
+  del estudio, y la **malla genérica arriba y abajo** que cose los paños entre
+  bandas (EHE-08 58.8.2, a no más de 30 cm).
+- **Cuantía geométrica mínima** del 42.3.5, que faltaba y en encepados manda a
+  menudo.
+- **El número de barras del tirante se puede poner a mano.** El motor ponía las
+  justas, y la utilización salía pegada al 100 % —en ámbar— aunque cumpliera de
+  sobra.
+
+### Cambiado
+- El tirante vuelve a llevar el **tope fyd ≤ 400 N/mm²** de la EHE-08: los
+  encepados siguen esa norma también en esto, igual que en sus mínimos.
+- Con dos micropilotes la malla inferior cuenta como armadura de tracción, y la
+  tabla dice qué condición manda.
+
+### Corregido
+- El encepado de 3 micropilotes es triangular, no un rectángulo, y las
+  diagonales del de 4 no son tirantes.
+
+
+## El edificio se declara una vez — v260924.0 (2026-09-15 a 09-18)
+
+### Añadido
+- **El edificio de la obra es un dato compartido.** Las plantas se declaran una
+  sola vez, en **Cargas por planta**, que pasa a ser el primer módulo de
+  Acciones: cada una dice si es **cubierta, planta o sótano** y lleva su altura
+  de forjado a forjado, con la cota calculada debajo. **Viento y nieve** lee de
+  ahí las plantas en vez de tener su propia lista.
+- **La nieve cae en lo que está a la intemperie**, no sólo en la cubierta: en
+  las terrazas, en los usos F y G y en cualquier zona marcada «a la intemperie».
+  Se declara una vez por planta y la toma sola de Viento y nieve mientras el
+  usuario no la toque.
+- **Los cuadros de plano de la obra, en un solo fichero.** Materiales, viento y
+  nieve, cargas por planta e incendio bajan juntos en un DXF y un Excel, desde
+  el desplegable de la obra o desde la tercera hoja del raíl «Lo que se
+  entrega».
+- **Sismo por programa (art. 3.6.2).** El edificio que no cumple el 3.5.1 —o
+  que se calcula con un programa aunque lo cumpla— declara igualmente ab, K, ρ,
+  C, S y ac, y la ficha del DB SE deja de quedarse con el 3.1.4 en blanco.
+- Las filas de los cuadros de materiales **se reordenan con un asa**, con el
+  ratón, con el dedo o con las flechas: el orden es el del plano.
+
+### Cambiado
+- **Sismo arranca sin municipio** y enlaza solo el de la obra. Antes abría con
+  Granada puesta en cualquier obra.
+- **La nieve de Viento y nieve sale del municipio**: la tabla 3.8 si es la
+  capital y la E.2 si no, sin casilla que marcar. El desplegable dice lo que va
+  a pasar, con su valor delante.
+
+
+## Incendio: la resistencia al fuego de la estructura — v260924.0 (2026-09-14 a 09-15)
+
+### Añadido
+- **Módulo nuevo, Incendio (CTE DB SI 6).** Deduce la R que se le exige a la
+  estructura por uso y altura de evacuación (tabla 3.1 y Anejo A), con las
+  zonas de riesgo especial, la cubierta ligera, las escaleras protegidas y los
+  elementos secundarios. Antes era una tabla tecleada a mano dentro del cuadro
+  de materiales, que ahora la lee de aquí.
+- **Tiempo equivalente de exposición** (Anejo B) como alternativa a la tabla,
+  sector a sector.
+- **Si la sección aguanta sola**: hormigón por las tablas C.1 a C.5 y acero por
+  la masividad y la tabla D.1. Cuando no llega, **la protección que haría
+  falta**, orientativa: el DB SI no tabula ningún producto y remite al marcado
+  CE.
+- Dos documentos de los mismos datos: la **memoria** (Word y PDF), que
+  comprueba, y el **cuadro del plano** (Excel y DXF), que dice qué R se exige y
+  qué revestimiento se ejecuta. Con su asistente.
+
 
 ## El panel de la obra enseña lo que se entrega — v260914.0 (2026-09-13 a 09-14)
 
@@ -232,6 +350,46 @@ trabajo, no la de la publicación.
 - En pantalla estrecha el detalle se comía el nombre del módulo («Cuadro de …»).
 
 
+## La obra dice qué falta, y la ficha deja de pedir trámites — v260914.0 (2026-09-11 a 09-13)
+
+### Añadido
+- **Los cinco datos de la obra se piden al crearla** —denominación, municipio,
+  provincia, altitud y uso— y se corrigen desde «Datos de la obra…» en el menú
+  de obra. La provincia es obligatoria: sin ella no hay viento, ni nieve, ni
+  sismo.
+- **«Duplicar esta obra…»**: parte de otra obra conservando sus cálculos, y deja
+  en ámbar sólo lo que cambia de solar a solar. La original se guarda antes de
+  tocar nada. Una obra nueva, en cambio, nace limpia.
+- **La pantalla de la obra dice qué falta para entregar**: los módulos que
+  publican, los apartados de la ficha que proceden y el anejo, cada fila con su
+  estado y un clic a donde se resuelve. Es la pantalla por la que entra la app
+  cuando hay una obra. Lo hecho se pliega, y avisa de lo calculado que no está
+  en el anejo.
+- **Ajustes › Mi estudio**: el perfil del despacho —programa de cálculo, método,
+  límites de flecha de los siete tipos de forjado, niveles de control y las
+  redacciones fijas— con pantalla propia. Es del despacho, no de la obra, así
+  que no viaja en el fichero.
+- **El asistente en los módulos que se teclean en tabla**: Cargas por planta,
+  Cuadro de materiales y Viento y nieve. Lo que la herramienta imprime citando
+  una fuente —las zonas de los mapas, la nieve heredada— se queda fuera de su
+  alcance.
+
+### Cambiado
+- **Se acaba el «tomar».** La ficha del DB SE usa siempre lo último calculado en
+  cada módulo, y sólo avisa cuando un módulo sigue con sus valores de partida o
+  lo publicado es de otra obra: cada módulo dice ahora si lo que publica es un
+  cálculo de esta obra.
+- **Sólo lo que falta impide exportar la ficha.** Lo heredado de otra obra se
+  ve, sale en ámbar y se imprime.
+- **«Marcar como revisados»** los datos de otra obra, apartado a apartado y con
+  deshacer, en lugar de confirmarlos uno a uno con Enter.
+- La ficha arranca abierta por lo que pide algo y plegada en lo que ya está.
+- Sismo se parece a sus hermanos de Acciones: pestañas Espectro · Planta ·
+  Alzado y el mismo selector de dirección que viento y nieve.
+- El asistente deja de rotular «CUMPLE» encima de un módulo que no comprueba
+  nada, como un cuadro de cargas.
+
+
 ## Las piezas del anejo dejan de estar congeladas — v260910.0 (2026-09-10)
 
 ### Añadido
@@ -266,7 +424,7 @@ trabajo, no la de la publicación.
   dice «versión anterior» o «abierta».
 
 
-## Obras, anejo de cálculo y ficha DB SE — v260906.4 (2026-09-06 a 09-08)
+## Obras, anejo de cálculo y ficha DB SE — v260906.4 y v260910.0 (2026-09-06 a 09-09)
 
 ### Añadido
 - **Obras**: contenedor de proyecto que serializa, despliega y cambia de obra

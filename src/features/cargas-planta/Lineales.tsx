@@ -30,6 +30,18 @@ const TD_DER = 'px-2 py-1.5 text-right font-mono text-[12px] text-text-primary';
 /** Una caja de número obedece al `text-right` de la celda sólo dentro de un flex. */
 const CAJA_DER = 'flex justify-end';
 
+/**
+ * Anchos en px. Fijos, porque con el reparto automático la papelera se llevaba
+ * 130 px y el valor quedaba lejos de su cabecera. El nombre se queda con el
+ * resto, pero nunca con menos de `nombre`: en el teléfono no hay resto, y sin
+ * suelo la columna medía 0 px y la caja del nombre 16. 240 es lo que pide el
+ * nombre más largo del catálogo («Tabicón u hoja simple de ladrillo», 238 con
+ * la letra de 14 px del móvil). Con la tabla más ancha que su hueco, se desliza
+ * de lado, igual que la tabla de plantas (`Tabla.tsx`).
+ */
+const ANCHO = { nombre: 240, alzado: 116, altura: 96, carga: 112, Gd: 104, borrar: 44 };
+const ANCHO_MIN = ANCHO.nombre + ANCHO.alzado + ANCHO.altura + ANCHO.carga + ANCHO.Gd + ANCHO.borrar;
+
 interface Props {
   lineales: LinealUI[];
   resultado: LinealResuelto[];
@@ -76,16 +88,14 @@ export function Lineales({ lineales, resultado, ayuda, onLineal, onAnadir, onBor
       )}
 
       <div className="overflow-x-auto">
-        {/* Anchos fijos: con el reparto automático la papelera se llevaba 130 px
-            y el valor quedaba lejos de su cabecera. El nombre se queda con el resto. */}
-        <table className="w-full table-fixed border-collapse text-[12px]">
+        <table className="w-full table-fixed border-collapse text-[12px]" style={{ minWidth: ANCHO_MIN }}>
           <colgroup>
             <col />
-            <col style={{ width: 116 }} />
-            <col style={{ width: 96 }} />
-            <col style={{ width: 112 }} />
-            <col style={{ width: 104 }} />
-            <col style={{ width: 44 }} />
+            <col style={{ width: ANCHO.alzado }} />
+            <col style={{ width: ANCHO.altura }} />
+            <col style={{ width: ANCHO.carga }} />
+            <col style={{ width: ANCHO.Gd }} />
+            <col style={{ width: ANCHO.borrar }} />
           </colgroup>
           <thead>
             <tr>
